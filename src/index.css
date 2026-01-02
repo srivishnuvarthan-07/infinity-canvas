@@ -1,0 +1,217 @@
+@import url('https://fonts.googleapis.com/css2?family=Virgil:wght@400&family=Cascadia+Code:wght@400;500&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Canvas & Background */
+    --background: 45 30% 98%;
+    --foreground: 220 15% 20%;
+    
+    /* Canvas surface */
+    --canvas: 45 40% 97%;
+    --canvas-dots: 220 10% 85%;
+    
+    /* Cards & Panels */
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 20%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 20%;
+    
+    /* Primary - Vibrant blue for actions */
+    --primary: 220 90% 56%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 220 90% 50%;
+    
+    /* Secondary - Soft neutral */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 15% 30%;
+    
+    /* Muted elements */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 50%;
+    
+    /* Accent - Light highlight */
+    --accent: 220 90% 96%;
+    --accent-foreground: 220 90% 45%;
+    
+    /* Tool colors */
+    --tool-active: 220 90% 56%;
+    --tool-hover: 220 14% 93%;
+    
+    /* Drawing colors palette */
+    --draw-black: 220 15% 15%;
+    --draw-red: 0 72% 51%;
+    --draw-orange: 25 95% 53%;
+    --draw-yellow: 45 93% 47%;
+    --draw-green: 142 71% 45%;
+    --draw-blue: 217 91% 60%;
+    --draw-purple: 263 70% 50%;
+    --draw-pink: 330 81% 60%;
+    
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Border & Input */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 90% 56%;
+    
+    --radius: 0.75rem;
+    
+    /* Shadows */
+    --shadow-toolbar: 0 4px 20px -2px hsl(220 15% 20% / 0.08), 
+                      0 2px 8px -2px hsl(220 15% 20% / 0.04);
+    --shadow-panel: 0 8px 30px -4px hsl(220 15% 20% / 0.1),
+                    0 4px 12px -4px hsl(220 15% 20% / 0.05);
+    --shadow-button: 0 1px 3px hsl(220 15% 20% / 0.08);
+    
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 15% 20%;
+    --sidebar-primary: 220 90% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 220 15% 30%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 220 90% 56%;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 210 40% 98%;
+    
+    --canvas: 220 20% 12%;
+    --canvas-dots: 220 15% 25%;
+    
+    --card: 220 20% 13%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 220 20% 13%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 217 91% 60%;
+    --primary-foreground: 220 20% 10%;
+    --primary-hover: 217 91% 65%;
+    
+    --secondary: 220 15% 20%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 220 15% 20%;
+    --muted-foreground: 220 10% 60%;
+    
+    --accent: 220 15% 20%;
+    --accent-foreground: 217 91% 70%;
+    
+    --tool-active: 217 91% 60%;
+    --tool-hover: 220 15% 18%;
+    
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 217 91% 60%;
+    
+    --shadow-toolbar: 0 4px 20px -2px hsl(0 0% 0% / 0.3);
+    --shadow-panel: 0 8px 30px -4px hsl(0 0% 0% / 0.4);
+    
+    --sidebar-background: 220 20% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 15% 20%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  /* Toolbar styling */
+  .toolbar-container {
+    @apply bg-card rounded-xl p-1.5 flex items-center gap-1;
+    box-shadow: var(--shadow-toolbar);
+  }
+  
+  .tool-button {
+    @apply relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-150;
+    @apply hover:bg-[hsl(var(--tool-hover))] text-muted-foreground hover:text-foreground;
+  }
+  
+  .tool-button.active {
+    @apply bg-[hsl(var(--accent))] text-[hsl(var(--tool-active))];
+  }
+  
+  .tool-button:active {
+    @apply scale-95;
+  }
+  
+  /* Color swatch */
+  .color-swatch {
+    @apply w-6 h-6 rounded-md cursor-pointer transition-transform duration-150 ring-2 ring-transparent;
+    @apply hover:scale-110 hover:ring-[hsl(var(--ring))];
+  }
+  
+  .color-swatch.active {
+    @apply ring-[hsl(var(--ring))] ring-offset-2 ring-offset-card;
+  }
+  
+  /* Canvas container */
+  .canvas-container {
+    @apply relative w-full h-full overflow-hidden;
+    background-color: hsl(var(--canvas));
+    background-image: radial-gradient(circle, hsl(var(--canvas-dots)) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  /* Panel styling */
+  .floating-panel {
+    @apply bg-card rounded-xl p-3;
+    box-shadow: var(--shadow-panel);
+  }
+  
+  /* Slider track */
+  .stroke-slider {
+    @apply appearance-none w-full h-1.5 rounded-full bg-muted;
+  }
+  
+  .stroke-slider::-webkit-slider-thumb {
+    @apply appearance-none w-4 h-4 rounded-full bg-primary cursor-pointer;
+    @apply transition-transform duration-150 hover:scale-110;
+  }
+  
+  /* Zoom controls */
+  .zoom-button {
+    @apply w-8 h-8 flex items-center justify-center rounded-lg;
+    @apply bg-card text-muted-foreground hover:text-foreground hover:bg-secondary;
+    @apply transition-all duration-150;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Smooth canvas interactions */
+  .canvas-smooth {
+    touch-action: none;
+    user-select: none;
+  }
+}

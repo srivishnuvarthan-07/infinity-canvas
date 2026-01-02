@@ -1,0 +1,121 @@
+
+project folder
+
+d-----        26-12-2025     12:52                node_modules
+d-----        26-12-2025     00:02                public
+d-----        26-12-2025     12:43                scripts
+d-----        26-12-2025     12:48                src
+-a----        26-12-2025     00:02            277 .gitignore
+-a----        26-12-2025     00:02         198722 bun.lockb
+-a----        26-12-2025     00:02            434 components.json
+-a----        26-12-2025     00:02            791 eslint.config.js
+-a----        26-12-2025     12:48           1056 index.html
+-a----        26-12-2025     12:49         299144 package-lock.json
+-a----        26-12-2025     12:49           2731 package.json
+-a----        26-12-2025     00:02             87 postcss.config.js
+-a----        26-12-2025     00:02           2175 README.md
+-a----        26-12-2025     12:48           5007 tailwind.config.js
+-a----        26-12-2025     12:48            485 vite.config.js
+
+
+src folder
+
+d-----        26-12-2025     12:48                components
+d-----        26-12-2025     12:48                hooks
+d-----        26-12-2025     12:48                lib
+d-----        26-12-2025     12:48                pages
+d-----        26-12-2025     12:48                types
+-a----        26-12-2025     00:02            648 App.css
+-a----        26-12-2025     12:48            980 App.jsx
+-a----        26-12-2025     00:02           5889 index.css
+-a----        26-12-2025     12:48            214 main.jsx
+
+
+components folder
+
+d-----        26-12-2025     12:48                canvas
+d-----        26-12-2025     12:48                ui
+-a----        26-12-2025     12:48            520 NavLink.jsx
+
+canvas folder
+
+-a----        26-12-2025     12:48           2409 ActionBar.jsx
+-a----        26-12-2025     12:48            790 ColorPicker.jsx
+-a----        26-12-2025     12:48           2572 DrawingCanvas.jsx
+-a----        26-12-2025     12:48            677 Logo.jsx
+-a----        26-12-2025     12:48            984 StrokeWidth.jsx
+-a----        26-12-2025     12:48           1672 Toolbar.jsx
+-a----        26-12-2025     12:48           1349 ZoomControls.jsx
+
+
+ui folder 
+
+-a----        26-12-2025     12:48           1557 accordion.jsx
+-a----        26-12-2025     12:48           3402 alert-dialog.jsx
+-a----        26-12-2025     12:48           1341 alert.jsx
+-a----        26-12-2025     12:48            141 aspect-ratio.jsx
+-a----        26-12-2025     12:48           1032 avatar.jsx
+-a----        26-12-2025     12:48           1012 badge.jsx
+-a----        26-12-2025     12:48           2266 breadcrumb.jsx
+-a----        26-12-2025     12:48           1723 button.jsx
+-a----        26-12-2025     12:48           2555 calendar.jsx
+-a----        26-12-2025     12:48           1461 card.jsx
+-a----        26-12-2025     12:48           4853 carousel.jsx
+-a----        26-12-2025     12:48           7854 chart.jsx
+-a----        26-12-2025     12:48            915 checkbox.jsx
+-a----        26-12-2025     12:48            316 collapsible.jsx
+-a----        26-12-2025     12:48           3718 command.jsx
+-a----        26-12-2025     12:48           5653 context-menu.jsx
+-a----        26-12-2025     12:48           3128 dialog.jsx
+-a----        26-12-2025     12:48           2296 drawer.jsx
+-a----        26-12-2025     12:48           5694 dropdown-menu.jsx
+-a----        26-12-2025     12:48           3022 form.jsx
+-a----        26-12-2025     12:48           1071 hover-card.jsx
+-a----        26-12-2025     12:48           1816 input-otp.jsx
+-a----        26-12-2025     12:48            715 input.jsx
+-a----        26-12-2025     12:48            574 label.jsx
+-a----        26-12-2025     12:48           6109 menubar.jsx
+-a----        26-12-2025     12:48           4031 navigation-menu.jsx
+-a----        26-12-2025     12:48           2377 pagination.jsx
+-a----        26-12-2025     12:48           1089 popover.jsx
+-a----        26-12-2025     12:48            652 progress.jsx
+-a----        26-12-2025     12:48           1163 radio-group.jsx
+-a----        26-12-2025     12:48           1502 resizable.jsx
+-a----        26-12-2025     12:48           1295 scroll-area.jsx
+-a----        26-12-2025     12:48           4391 select.jsx
+-a----        26-12-2025     12:48            603 separator.jsx
+-a----        26-12-2025     12:48           3489 sheet.jsx
+-a----        26-12-2025     12:48          19368 sidebar.jsx
+-a----        26-12-2025     12:48            252 skeleton.jsx
+-a----        26-12-2025     12:48            983 slider.jsx
+-a----        26-12-2025     12:48            823 sonner.jsx
+-a----        26-12-2025     12:48           1005 switch.jsx
+-a----        26-12-2025     12:48           2084 table.jsx
+-a----        26-12-2025     12:48           1502 tabs.jsx
+-a----        26-12-2025     12:48            622 textarea.jsx
+-a----        26-12-2025     12:48           3782 toast.jsx
+-a----        26-12-2025     12:48            723 toaster.jsx
+-a----        26-12-2025     12:48           1232 toggle-group.jsx
+-a----        26-12-2025     12:48           1313 toggle.jsx
+-a----        26-12-2025     12:48           1040 tooltip.jsx
+-a----        26-12-2025     12:48             81 use-toast.js
+
+
+hooks folder
+
+-a----        26-12-2025     12:48            589 use-mobile.jsx
+-a----        26-12-2025     12:48           3545 use-toast.js
+-a----        26-12-2025     12:48          17569 useCanvas.js
+
+lib folder
+
+-a----        26-12-2025     12:48            139 utils.js
+
+pages folder
+
+-a----        26-12-2025     12:48            584 Index.jsx
+-a----        26-12-2025     12:48            835 NotFound.jsx
+
+types folder
+
+-a----        26-12-2025     12:48            616 canvas.js
