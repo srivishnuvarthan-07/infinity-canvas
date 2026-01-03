@@ -1,6 +1,42 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
 export function ZoomControls({ zoom, onZoomIn, onZoomOut, onZoomReset }) {
-    return (_jsxs("div", { className: "toolbar-container animate-slide-up", children: [_jsxs(Tooltip, { children: [_jsx(TooltipTrigger, { asChild: true, children: _jsx("button", { className: "zoom-button", onClick: onZoomOut, children: _jsx(ZoomOut, { className: "w-4 h-4" }) }) }), _jsx(TooltipContent, { side: "top", children: "Zoom Out" })] }), _jsxs("button", { className: "px-2 min-w-[60px] text-sm font-medium text-muted-foreground hover:text-foreground", onClick: onZoomReset, children: [Math.round(zoom * 100), "%"] }), _jsxs(Tooltip, { children: [_jsx(TooltipTrigger, { asChild: true, children: _jsx("button", { className: "zoom-button", onClick: onZoomIn, children: _jsx(ZoomIn, { className: "w-4 h-4" }) }) }), _jsx(TooltipContent, { side: "top", children: "Zoom In" })] }), _jsxs(Tooltip, { children: [_jsx(TooltipTrigger, { asChild: true, children: _jsx("button", { className: "zoom-button ml-1", onClick: onZoomReset, children: _jsx(Maximize2, { className: "w-4 h-4" }) }) }), _jsx(TooltipContent, { side: "top", children: "Fit to Screen" })] })] }));
+  return (
+    <div className="toolbar-container animate-slide-up">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button className="zoom-button" onClick={onZoomOut}>
+            <ZoomOut className="w-4 h-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Zoom Out</TooltipContent>
+      </Tooltip>
+
+      <button
+        className="px-2 min-w-[60px] text-sm font-medium text-muted-foreground hover:text-foreground"
+        onClick={onZoomReset}
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button className="zoom-button" onClick={onZoomIn}>
+            <ZoomIn className="w-4 h-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Zoom In</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button className="zoom-button ml-1" onClick={onZoomReset}>
+            <Maximize2 className="w-4 h-4" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Fit to Screen</TooltipContent>
+      </Tooltip>
+    </div>
+  );
 }
