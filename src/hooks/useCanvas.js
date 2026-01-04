@@ -12,6 +12,8 @@ import {
 import { DRAWING_COLORS } from "@/types/canvas";
 import { toast } from "sonner";
 
+const GRID_SIZE = 50; // world units
+
 export function useCanvas() {
   /* ===================== REFS ===================== */
   const canvasRef = useRef(null);
@@ -225,6 +227,66 @@ export function useCanvas() {
     fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
     fabricCanvas.requestRenderAll();
   };
+
+  /* ===================== GRID ===================== */
+  useEffect(() => {
+    if (!fabricCanvas) return;
+
+    const drawGrid = () => {
+      const ctx = fabricCanvas.getContext(); // canvas drawing context
+      const width = fabricCanvas.getWidth();
+      const height = fabricCanvas.getHeight();
+      const vpt = fabricCanvas.viewportTransform;
+
+      ctx.save();
+
+      ctx.strokeStyle = "#2a2a2a";
+      ctx.lineWidth = 1;
+
+      // Convert screen → world
+      const zoom = vpt[0];
+      const offsetX = vpt[4];
+      const offsetY = vpt[5];
+
+      // Visible world boundaries
+      const startX = -offsetX / zoom;
+      const startY = -offsetY / zoom;
+      const endX = startX + width / zoom;
+      const endY = startY + height / zoom;
+
+      // Vertical grid lines
+      for (
+        let x = Math.floor(startX / GRID_SIZE) * GRID_SIZE;
+        x < endX;
+        x += GRID_SIZE
+      ) {
+        ctx.beginPath();
+        ctx.moveTo(x * zoom + offsetX, offsetY);
+        ctx.lineTo(x * zoom + offsetX, height + offsetY);
+        ctx.stroke();
+      }
+
+      // Horizontal grid lines
+      for (
+        let y = Math.floor(startY / GRID_SIZE) * GRID_SIZE;
+        y < endY;
+        y += GRID_SIZE
+      ) {
+        ctx.beginPath();
+        ctx.moveTo(offsetX, y * zoom + offsetY);
+        ctx.lineTo(width + offsetX, y * zoom + offsetY);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    };
+
+    fabricCanvas.on("before:render", drawGrid);
+
+    return () => {
+      fabricCanvas.off("before:render", drawGrid);
+    };
+  }, [fabricCanvas]);
 
   /* ===================== EXPORT API ===================== */
   return {
