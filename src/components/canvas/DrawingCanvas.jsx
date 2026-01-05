@@ -31,6 +31,8 @@ export function DrawingCanvas() {
         handleAddImage,
     } = useCanvas();
 
+    console.log("setShowGrid:", setshowgrid);
+
     return (
         <div ref={containerRef} className="relative w-full h-screen overflow-hidden bg-background">
             <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
@@ -51,8 +53,7 @@ export function DrawingCanvas() {
                         onClear={handleClear}
                         onExport={handleExport}
                         onAddImage={handleAddImage}
-                        showGrid={showGrid}
-                        onToggleGrid={setShowGrid}
+                        onToggleGrid={setshowgrid}
                     />
                 </div>
             </div>

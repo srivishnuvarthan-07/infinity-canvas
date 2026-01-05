@@ -316,6 +316,5 @@ export function useCanvas() {
     handleZoomReset,
     showgrid,
     setshowgrid,
-    cangrid
   };
 }
