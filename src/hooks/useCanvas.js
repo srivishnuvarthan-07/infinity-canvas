@@ -12,10 +12,12 @@ import {
 import { DRAWING_COLORS } from "@/types/canvas";
 import { toast } from "sonner";
 
-const GRID_SIZE = 50; // world units
 
 export function useCanvas() {
+  const GRID_SIZE = 50; // world units
+
   /* ===================== REFS ===================== */
+
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -34,7 +36,7 @@ export function useCanvas() {
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [zoom, setZoom] = useState(1);
   const [history, setHistory] = useState({ states: [], currentIndex: -1 });
-
+  const [showgrid,setshowgrid] = useState(false);
   /* ===================== HISTORY ===================== */
   const saveState = useCallback((canvas) => {
     const json = JSON.stringify(canvas.toJSON());
@@ -229,65 +231,75 @@ export function useCanvas() {
   };
 
   /* ===================== GRID ===================== */
-  useEffect(() => {
-    if (!fabricCanvas) return;
+    useEffect(() => {
+      if (!fabricCanvas || !showgrid) return;
 
-    const drawGrid = () => {
-      const ctx = fabricCanvas.getContext(); // canvas drawing context
-      const width = fabricCanvas.getWidth();
-      const height = fabricCanvas.getHeight();
-      const vpt = fabricCanvas.viewportTransform;
+      const drawGrid = () => {
 
-      ctx.save();
+        const ctx = fabricCanvas.getContext(); // canvas drawing context
+        const width = fabricCanvas.getWidth();
+        const height = fabricCanvas.getHeight();
+        const vpt = fabricCanvas.viewportTransform;
 
-      ctx.strokeStyle = "#2a2a2a";
-      ctx.lineWidth = 1;
+        ctx.save();
 
-      // Convert screen → world
-      const zoom = vpt[0];
-      const offsetX = vpt[4];
-      const offsetY = vpt[5];
 
-      // Visible world boundaries
-      const startX = -offsetX / zoom;
-      const startY = -offsetY / zoom;
-      const endX = startX + width / zoom;
-      const endY = startY + height / zoom;
+        console.log(vpt);
+        ctx.strokeStyle = "#2a2a2a";
+        ctx.lineWidth = 0.5;
 
-      // Vertical grid lines
-      for (
-        let x = Math.floor(startX / GRID_SIZE) * GRID_SIZE;
-        x < endX;
-        x += GRID_SIZE
-      ) {
-        ctx.beginPath();
-        ctx.moveTo(x * zoom + offsetX, offsetY);
-        ctx.lineTo(x * zoom + offsetX, height + offsetY);
-        ctx.stroke();
+        // Convert screen → world
+        const zoom = vpt[0];
+        const offsetX = vpt[4];
+        const offsetY = vpt[5];
+
+        // Visible world boundaries
+        const startX = -offsetX / zoom;
+        const startY = -offsetY / zoom;
+        const endX = startX + width / zoom;
+        const endY = startY + height / zoom;
+
+        // Vertical grid lines
+        for (
+          let x = Math.floor(startX / GRID_SIZE) * GRID_SIZE;
+          x < endX;
+          x += GRID_SIZE
+        ) {
+          ctx.beginPath();
+          ctx.moveTo(x * zoom + offsetX, offsetY);
+          ctx.lineTo(x * zoom + offsetX, height + offsetY);
+          ctx.stroke();
+        }
+
+        // Horizontal grid lines
+        for (
+          let y = Math.floor(startY / GRID_SIZE) * GRID_SIZE;
+          y < endY;
+          y += GRID_SIZE
+        ) {
+          ctx.beginPath();
+          ctx.moveTo(offsetX, y * zoom + offsetY);
+          ctx.lineTo(width + offsetX, y * zoom + offsetY);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      };
+
+      fabricCanvas.on("before:render", drawGrid);
+
+      return () => {
+        fabricCanvas.off("before:render", drawGrid);
+      };
+    }, [fabricCanvas,showgrid]);
+    const cangrid = function(){
+      if(showgrid){
+        setshowgrid(false);
       }
-
-      // Horizontal grid lines
-      for (
-        let y = Math.floor(startY / GRID_SIZE) * GRID_SIZE;
-        y < endY;
-        y += GRID_SIZE
-      ) {
-        ctx.beginPath();
-        ctx.moveTo(offsetX, y * zoom + offsetY);
-        ctx.lineTo(width + offsetX, y * zoom + offsetY);
-        ctx.stroke();
+      else{
+        setshowgrid(true);
       }
-
-      ctx.restore();
-    };
-
-    fabricCanvas.on("before:render", drawGrid);
-
-    return () => {
-      fabricCanvas.off("before:render", drawGrid);
-    };
-  }, [fabricCanvas]);
-
+    }
   /* ===================== EXPORT API ===================== */
   return {
     canvasRef,
@@ -302,5 +314,8 @@ export function useCanvas() {
     handleZoomIn,
     handleZoomOut,
     handleZoomReset,
+    showgrid,
+    setshowgrid,
+    cangrid
   };
 }

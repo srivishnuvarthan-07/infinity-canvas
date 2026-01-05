@@ -2,7 +2,7 @@ import { Undo2, Redo2, Trash2, Download, Image } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 
-export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport, onAddImage }) {
+export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport, onAddImage, showgrid, onTogglegrid}) {
     return (
         <div className="toolbar-container animate-fade-in">
             <Tooltip>
@@ -70,6 +70,18 @@ export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport,
                         onClick={onClear}
                     >
                         <Trash2 className="w-5 h-5" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Clear Canvas</TooltipContent>
+            </Tooltip>
+            <Separator orientation="vertical" className="h-6 mx-1" />
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        className="tool-button text-destructive hover:text-destructive"
+                        onClick={ongrid}
+                    >
+                        {/* <Trash2 className="w-5 h-5" /> */}
                     </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Clear Canvas</TooltipContent>

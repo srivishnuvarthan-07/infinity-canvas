@@ -17,6 +17,11 @@ export function DrawingCanvas() {
         strokeWidth,
         setStrokeWidth,
         zoom,
+        handleZoomIn,
+        handleZoomOut,
+        handleZoomReset,
+        showgrid,
+        setshowgrid,
         canUndo,
         canRedo,
         handleUndo,
@@ -24,9 +29,6 @@ export function DrawingCanvas() {
         handleClear,
         handleExport,
         handleAddImage,
-        handleZoomIn,
-        handleZoomOut,
-        handleZoomReset,
     } = useCanvas();
 
     return (
@@ -49,6 +51,8 @@ export function DrawingCanvas() {
                         onClear={handleClear}
                         onExport={handleExport}
                         onAddImage={handleAddImage}
+                        showGrid={showGrid}
+                        onToggleGrid={setShowGrid}
                     />
                 </div>
             </div>
