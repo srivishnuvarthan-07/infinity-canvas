@@ -1,6 +1,7 @@
 import { DrawingCanvas } from "@/components/canvas/DrawingCanvas";
 import { Helmet } from "react-helmet-async";
 
+
 const Index = () => {
   return (
     <>
