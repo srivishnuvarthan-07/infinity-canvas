@@ -15,6 +15,9 @@ import { toast } from "sonner";
 
 export function useCanvas() {
   const GRID_SIZE = 50; // world units
+  const MINOR_GRID = 25;   // small spacing
+  const MAJOR_GRID = 100; // big spacing (multiple of minor)
+
 
   /* ===================== REFS ===================== */
 
@@ -34,9 +37,10 @@ export function useCanvas() {
   const [activeTool, setActiveTool] = useState("select");
   const [activeColor, setActiveColor] = useState(DRAWING_COLORS[0].value);
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [strokeStyle, setStrokeStyle] = useState("solid");
   const [zoom, setZoom] = useState(1);
   const [history, setHistory] = useState({ states: [], currentIndex: -1 });
-  const [showgrid,setshowgrid] = useState(false);
+  const [showgrid, setshowgrid] = useState(false);
   /* ===================== HISTORY ===================== */
   const saveState = useCallback((canvas) => {
     const json = JSON.stringify(canvas.toJSON());
@@ -81,6 +85,155 @@ export function useCanvas() {
     };
   }, []);
 
+  //this is handle shape
+  useEffect(() => {
+    if (!fabricCanvas)
+      return;
+    const handleMouseDown = (opt) => {
+      if (!['rectangle', 'ellipse', 'line', 'arrow', 'diamond'].includes(activeTool))
+        return;
+      const pointer = fabricCanvas.getScenePoint(opt.e);
+      isDrawingShape.current = true;
+      shapeStart.current = { x: pointer.x, y: pointer.y };
+      let shape = null;
+      switch (activeTool) {
+        case 'rectangle':
+          shape = new Rect({
+            left: pointer.x,
+            top: pointer.y,
+            width: 0,
+            height: 0,
+            fill: 'transparent',
+            stroke: activeColor,
+            strokeWidth: strokeWidth,
+            rx: 4,
+            ry: 4,
+          });
+          break;
+        case 'ellipse':
+          shape = new Ellipse({
+            left: pointer.x,
+            top: pointer.y,
+            rx: 0,
+            ry: 0,
+            fill: 'transparent',
+            stroke: activeColor,
+            strokeWidth: strokeWidth,
+          });
+          break;
+        case 'line':
+        case 'arrow':
+          shape = new Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+            stroke: activeColor,
+            strokeWidth: strokeWidth,
+            strokeLineCap: 'round',
+          });
+          break;
+        case 'diamond':
+          shape = new Rect({
+            left: pointer.x,
+            top: pointer.y,
+            width: 0,
+            height: 0,
+            fill: 'transparent',
+            stroke: activeColor,
+            strokeWidth: strokeWidth,
+            angle: 45,
+            originX: 'center',
+            originY: 'center',
+          });
+          break;
+      }
+      if (shape) {
+        currentShape.current = shape;
+        applyShapeStyle(shape);
+        fabricCanvas.add(shape);
+      }
+    };
+    const handleMouseMove = (opt) => {
+      if (!isDrawingShape.current || !currentShape.current)
+        return;
+      const pointer = fabricCanvas.getScenePoint(opt.e);
+      const { x: startX, y: startY } = shapeStart.current;
+      switch (activeTool) {
+        case 'rectangle':
+        case 'diamond': {
+          const width = Math.abs(pointer.x - startX);
+          const height = Math.abs(pointer.y - startY);
+          currentShape.current.set({
+            width,
+            height,
+            left: activeTool === 'diamond' ? (startX + pointer.x) / 2 : Math.min(startX, pointer.x),
+            top: activeTool === 'diamond' ? (startY + pointer.y) / 2 : Math.min(startY, pointer.y),
+          });
+          break;
+        }
+        case 'ellipse':
+          currentShape.current.set({
+            rx: Math.abs(pointer.x - startX) / 2,
+            ry: Math.abs(pointer.y - startY) / 2,
+            left: (startX + pointer.x) / 2,
+            top: (startY + pointer.y) / 2,
+            originX: 'center',
+            originY: 'center',
+          });
+          break;
+        case 'line':
+        case 'arrow':
+          currentShape.current.set({
+            x2: pointer.x,
+            y2: pointer.y,
+          });
+          break;
+      }
+      fabricCanvas.renderAll();
+    };
+    const handleMouseUp = () => {
+      if (isDrawingShape.current && currentShape.current) {
+        if (activeTool === 'arrow') {
+          const line = currentShape.current;
+          const x1 = line.x1 || 0;
+          const y1 = line.y1 || 0;
+          const x2 = line.x2 || 0;
+          const y2 = line.y2 || 0;
+          const angle = Math.atan2(y2 - y1, x2 - x1);
+          const headLength = 15;
+          const arrowHead1 = new Line([
+            x2,
+            y2,
+            x2 - headLength * Math.cos(angle - Math.PI / 6),
+            y2 - headLength * Math.sin(angle - Math.PI / 6),
+          ], {
+            stroke: activeColor,
+            strokeWidth: strokeWidth,
+            strokeLineCap: 'round',
+          });
+          const arrowHead2 = new Line([
+            x2,
+            y2,
+            x2 - headLength * Math.cos(angle + Math.PI / 6),
+            y2 - headLength * Math.sin(angle + Math.PI / 6),
+          ], {
+            stroke: activeColor,
+            strokeWidth: strokeWidth,
+            strokeLineCap: 'round',
+          });
+          fabricCanvas.add(arrowHead1, arrowHead2);
+        }
+        saveState(fabricCanvas);
+      }
+      isDrawingShape.current = false;
+      currentShape.current = null;
+    };
+    fabricCanvas.on('mouse:down', handleMouseDown);
+    fabricCanvas.on('mouse:move', handleMouseMove);
+    fabricCanvas.on('mouse:up', handleMouseUp);
+    return () => {
+      fabricCanvas.off('mouse:down', handleMouseDown);
+      fabricCanvas.off('mouse:move', handleMouseMove);
+      fabricCanvas.off('mouse:up', handleMouseUp);
+    };
+  }, [fabricCanvas, activeTool, activeColor, strokeWidth, saveState]);
   /* ===================== TOOL MODE ===================== */
   useEffect(() => {
     if (!fabricCanvas) return;
@@ -108,6 +261,19 @@ export function useCanvas() {
 
     fabricCanvas.defaultCursor = cursors[activeTool];
   }, [fabricCanvas, activeTool, activeColor, strokeWidth]);
+
+  const applyShapeStyle = (obj) => {
+    obj.set({
+      stroke: activeColor,
+      strokeWidth: strokeWidth,
+      strokeDashArray:
+        strokeStyle === "dashed"
+          ? [8, 4]
+          : strokeStyle === "dotted"
+            ? [2, 4]
+            : null,
+    });
+  };
 
   /* ===================== SPACEBAR ===================== */
   useEffect(() => {
@@ -231,75 +397,90 @@ export function useCanvas() {
   };
 
   /* ===================== GRID ===================== */
-    useEffect(() => {
-      if (!fabricCanvas || !showgrid) return;
+  useEffect(() => {
+    if (!fabricCanvas || !showgrid) return;
 
-      const drawGrid = () => {
+    const drawGrid = () => {
 
-        const ctx = fabricCanvas.getContext(); // canvas drawing context
-        const width = fabricCanvas.getWidth();
-        const height = fabricCanvas.getHeight();
-        const vpt = fabricCanvas.viewportTransform;
+      const ctx = fabricCanvas.getContext(); // canvas drawing context
+      const width = fabricCanvas.getWidth();
+      const height = fabricCanvas.getHeight();
+      const vpt = fabricCanvas.viewportTransform;
 
-        ctx.save();
+      ctx.save();
 
 
-        console.log(vpt);
-        ctx.strokeStyle = "#2a2a2a";
-        ctx.lineWidth = 0.5;
+      console.log(vpt);
+      ctx.strokeStyle = "#2a2a2a";
+      ctx.lineWidth = 0.5;
 
-        // Convert screen → world
-        const zoom = vpt[0];
-        const offsetX = vpt[4];
-        const offsetY = vpt[5];
+      // Convert screen → world
+      const zoom = vpt[0];
+      const offsetX = vpt[4];
+      const offsetY = vpt[5];
 
-        // Visible world boundaries
-        const startX = -offsetX / zoom;
-        const startY = -offsetY / zoom;
-        const endX = startX + width / zoom;
-        const endY = startY + height / zoom;
+      // Visible world boundaries
+      const startX = -offsetX / zoom;
+      const startY = -offsetY / zoom;
+      const endX = startX + width / zoom;
+      const endY = startY + height / zoom;
 
-        // Vertical grid lines
-        for (
-          let x = Math.floor(startX / GRID_SIZE) * GRID_SIZE;
-          x < endX;
-          x += GRID_SIZE
-        ) {
-          ctx.beginPath();
-          ctx.moveTo(x * zoom + offsetX, offsetY);
-          ctx.lineTo(x * zoom + offsetX, height + offsetY);
-          ctx.stroke();
-        }
+      // Vertical grid lines
+      for (
+        let x = Math.floor(startX / MINOR_GRID) * MINOR_GRID;
+        x < endX;
+        x += MINOR_GRID
+      ) {
+        const isMajor = x % MAJOR_GRID === 0;
 
-        // Horizontal grid lines
-        for (
-          let y = Math.floor(startY / GRID_SIZE) * GRID_SIZE;
-          y < endY;
-          y += GRID_SIZE
-        ) {
-          ctx.beginPath();
-          ctx.moveTo(offsetX, y * zoom + offsetY);
-          ctx.lineTo(width + offsetX, y * zoom + offsetY);
-          ctx.stroke();
-        }
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor
+          ? "rgba(16, 14, 14, 0.15)" // major line
+          : "rgba(30, 27, 27, 0.05)"; // minor line
+        ctx.lineWidth = isMajor ? 1.2 : 1;
 
-        ctx.restore();
-      };
-
-      fabricCanvas.on("before:render", drawGrid);
-
-      return () => {
-        fabricCanvas.off("before:render", drawGrid);
-      };
-    }, [fabricCanvas,showgrid]);
-    const cangrid = function(){
-      if(showgrid){
-        setshowgrid(false);
+        const screenX = x * zoom + offsetX;
+        ctx.moveTo(screenX, offsetY);
+        ctx.lineTo(screenX, height + offsetY);
+        ctx.stroke();
       }
-      else{
-        setshowgrid(true);
+
+      // Horizontal grid lines
+      for (
+        let y = Math.floor(startY / MINOR_GRID) * MINOR_GRID;
+        y < endY;
+        y += MINOR_GRID
+      ) {
+        const isMajor = y % MAJOR_GRID === 0;
+
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor
+          ? "rgba(19, 18, 18, 0.15)"
+          : "rgba(24, 22, 22, 0.05)";
+        ctx.lineWidth = isMajor ? 1.2 : 1;
+
+        const screenY = y * zoom + offsetY;
+        ctx.moveTo(offsetX, screenY);
+        ctx.lineTo(width + offsetX, screenY);
+        ctx.stroke();
       }
+      ctx.restore();
+    };
+
+    fabricCanvas.on("before:render", drawGrid);
+
+    return () => {
+      fabricCanvas.off("before:render", drawGrid);
+    };
+  }, [fabricCanvas, showgrid]);
+  const cangrid = function () {
+    if (showgrid) {
+      setshowgrid(false);
     }
+    else {
+      setshowgrid(true);
+    }
+  }
   /* ===================== EXPORT API ===================== */
   return {
     canvasRef,
@@ -310,6 +491,8 @@ export function useCanvas() {
     setActiveColor,
     strokeWidth,
     setStrokeWidth,
+    strokeStyle,
+    setStrokeStyle,
     zoom,
     handleZoomIn,
     handleZoomOut,
