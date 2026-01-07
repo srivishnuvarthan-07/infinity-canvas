@@ -12,6 +12,10 @@ export function Sidebar({
   strokeStyle,
   setStrokeStyle,
 }) {
+  const showSidebar = activeTool === "draw" || SHAPE_TOOLS.includes(activeTool);
+
+  if (!showSidebar) return null;
+
   return (
     <aside className="w-56 rounded-xl bg-card shadow-lg p-4 space-y-4">
       {/* STYLE PANEL */}
