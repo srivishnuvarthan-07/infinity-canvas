@@ -1,9 +1,11 @@
 import { useRef, useEffect } from "react";
-import { Rect, Ellipse, Line } from "fabric";
+import { Rect, Ellipse, Line, Polygon } from "fabric";
+import { Arrow } from "../../canvas/shapes/Arrow";
 
 export function useCanvasDrawing(
     fabricCanvas,
     activeTool,
+    setActiveTool,
     activeColor,
     strokeWidth,
     saveState // Required to save state after drawing
@@ -59,16 +61,16 @@ export function useCanvasDrawing(
                     });
                     break;
                 case "diamond":
-                    // Diamond is just a rotated square/rect usually, but we need to handle bounding box
-                    shape = new Rect({
-                        left: pointer.x,
-                        top: pointer.y,
-                        width: 0,
-                        height: 0,
-                        angle: 45,
-                        originX: 'center',
-                        originY: 'center',
-                        ...commonProps
+                    // Diamond as Polygon (4 points)
+                    // Initial points collapsed to start
+                    shape = new Polygon([
+                        { x: pointer.x, y: pointer.y },
+                        { x: pointer.x, y: pointer.y },
+                        { x: pointer.x, y: pointer.y },
+                        { x: pointer.x, y: pointer.y }
+                    ], {
+                        ...commonProps,
+                        objectCaching: false // Dynamic updates
                     });
                     break;
                 case "ellipse":
@@ -82,8 +84,13 @@ export function useCanvasDrawing(
                     });
                     break;
                 case "line":
-                case "arrow":
                     shape = new Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+                        strokeLineCap: "round",
+                        ...commonProps
+                    });
+                    break;
+                case "arrow":
+                    shape = new Arrow([pointer.x, pointer.y, pointer.x, pointer.y], {
                         strokeLineCap: "round",
                         ...commonProps
                     });
@@ -116,16 +123,22 @@ export function useCanvasDrawing(
                     });
                     break;
                 case "diamond":
-                    // Complex logic for diamond to feel right
-                    // For now simply using rect logic but centered
-                    const diagW = Math.abs(pointer.x - startX);
-                    const diagH = Math.abs(pointer.y - startY);
-                    // We set width/height such that the diamond usage feels natural
+                    // Calculate diamond points based on bounding box style drag
+                    const left = Math.min(startX, pointer.x);
+                    const top = Math.min(startY, pointer.y);
+                    const width = Math.abs(pointer.x - startX);
+                    const height = Math.abs(pointer.y - startY);
+                    const centerX = left + width / 2;
+                    const centerY = top + height / 2;
+
+                    // Top, Right, Bottom, Left
                     shape.set({
-                        width: diagW,
-                        height: diagH,
-                        left: (startX + pointer.x) / 2,
-                        top: (startY + pointer.y) / 2
+                        points: [
+                            { x: centerX, y: top },
+                            { x: left + width, y: centerY },
+                            { x: centerX, y: top + height },
+                            { x: left, y: centerY }
+                        ]
                     });
                     break;
                 case "ellipse":
@@ -150,26 +163,14 @@ export function useCanvasDrawing(
                 shape.setCoords(); // Update coords
                 shape.set({ selectable: true, evented: true }); // Make selectable again
 
-                // Handle Arrow Head logic if needed
-                if (activeTool === "arrow") {
-                    const headLength = 15;
-                    const angle = Math.atan2(shape.y2 - shape.y1, shape.x2 - shape.x1);
-                    const arrowHead1 = new Line([
-                        shape.x2, shape.y2,
-                        shape.x2 - headLength * Math.cos(angle - Math.PI / 6),
-                        shape.y2 - headLength * Math.sin(angle - Math.PI / 6)
-                    ], { stroke: activeColor, strokeWidth: strokeWidth, strokeLineCap: 'round' });
-
-                    const arrowHead2 = new Line([
-                        shape.x2, shape.y2,
-                        shape.x2 - headLength * Math.cos(angle + Math.PI / 6),
-                        shape.y2 - headLength * Math.sin(angle + Math.PI / 6)
-                    ], { stroke: activeColor, strokeWidth: strokeWidth, strokeLineCap: 'round' });
-
-                    fabricCanvas.add(arrowHead1, arrowHead2);
-                }
+                // Arrow head logic REMOVED - handled by Arrow class render
 
                 if (saveState) saveState();
+
+                // EXCALIDRAW UX: Auto-select and revert tool
+                fabricCanvas.setActiveObject(shape);
+                fabricCanvas.requestRenderAll();
+                setActiveTool("select");
             }
             isDrawingShape.current = false;
             currentShape.current = null;
@@ -178,8 +179,9 @@ export function useCanvasDrawing(
         // Path created (Freehand)
         const handlePathCreated = () => {
             if (saveState) saveState();
+            // EXCALIDRAW UX: Revert after freehand
+            setActiveTool("select");
         }
-
         fabricCanvas.on("mouse:down", handleMouseDown);
         fabricCanvas.on("mouse:move", handleMouseMove);
         fabricCanvas.on("mouse:up", handleMouseUp);
