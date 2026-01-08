@@ -4,7 +4,7 @@ import { Separator } from "@/components/ui/separator";
 
 const COLORS = ["#ffffff", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
 
-export function FreehandStylePanel({
+export function FreeHandStylePanel({
   strokeColor,
   setStrokeColor,
   strokeWidth,

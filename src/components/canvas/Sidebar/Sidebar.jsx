@@ -1,7 +1,7 @@
-import { FreehandStylePanel } from "./FreehandStylePanel";
+import { FreeHandStylePanel } from "./FreeHandStylePanel";
 import { ShapeStylePanel } from "./ShapeStylePanel";
 
-const SHAPE_TOOLS = ["rectangle", "ellipse", "line", "arrow"];
+const SHAPE_TOOLS = ["rectangle","diamond","ellipse", "line", "arrow"];
 
 export function Sidebar({
   activeTool,
@@ -20,7 +20,7 @@ export function Sidebar({
     <aside className="w-56 rounded-xl bg-card shadow-lg p-4 space-y-4">
       {/* STYLE PANEL */}
       {activeTool === "draw" && (
-        <FreehandStylePanel
+        <FreeHandStylePanel
           strokeColor={strokeColor}
           setStrokeColor={setStrokeColor}
           strokeWidth={strokeWidth}
