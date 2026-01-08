@@ -8,6 +8,7 @@ import { useCanvasZoom } from "./canvas/useCanvasZoom";
 import { useCanvasDrawing } from "./canvas/useCanvasDrawing";
 import { useCanvasGrid } from "./canvas/useCanvasGrid";
 import { useCanvasActions } from "./canvas/useCanvasActions";
+import { useCanvasSelection } from "./canvas/useCanvasSelection";
 
 export function useCanvas() {
   /* ===================== REFS ===================== */
@@ -54,6 +55,9 @@ export function useCanvas() {
   /* ===================== UPDATING CURSOR & BRUSH ===================== */
   useEffect(() => {
     if (!fabricCanvas) return;
+
+    // Fallback enforcement
+    if (!activeTool) setActiveTool("select");
 
     // Update Brush if exists
     if (!fabricCanvas.freeDrawingBrush) {
@@ -104,10 +108,10 @@ export function useCanvas() {
     handleZoomIn,
     handleZoomOut,
     handleZoomReset
-  } = useCanvasZoom(fabricCanvas);
+  } = useCanvasZoom(fabricCanvas, activeTool, setActiveTool);
 
   // 3. Drawing Logic (Shapes)
-  useCanvasDrawing(fabricCanvas, activeTool, activeColor, strokeWidth, saveState);
+  useCanvasDrawing(fabricCanvas, activeTool, setActiveTool, activeColor, strokeWidth, saveState);
 
   // 4. Grid System
   useCanvasGrid(fabricCanvas, showgrid);
@@ -118,6 +122,9 @@ export function useCanvas() {
     handleClear,
     handleAddImage
   } = useCanvasActions(fabricCanvas, saveState, resetHistory);
+
+  // 6. Selection
+  const { selectedElement } = useCanvasSelection(fabricCanvas);
 
 
   /* ===================== EXPORT API ===================== */
@@ -153,5 +160,8 @@ export function useCanvas() {
     handleClear,
     handleExport,
     handleAddImage,
+
+    // Selection
+    selectedElement
   };
 }
