@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import { Rect, Ellipse, Line, Polygon } from "fabric";
 import { Arrow } from "../../canvas/shapes/Arrow";
 
+
 export function useCanvasDrawing(
     fabricCanvas,
     activeTool,
@@ -61,8 +62,7 @@ export function useCanvasDrawing(
                     });
                     break;
                 case "diamond":
-                    // Diamond as Polygon (4 points)
-                    // Initial points collapsed to start
+                    // Diamond as Polygon
                     shape = new Polygon([
                         { x: pointer.x, y: pointer.y },
                         { x: pointer.x, y: pointer.y },
@@ -132,14 +132,25 @@ export function useCanvasDrawing(
                     const centerY = top + height / 2;
 
                     // Top, Right, Bottom, Left
-                    shape.set({
-                        points: [
-                            { x: centerX, y: top },
-                            { x: left + width, y: centerY },
-                            { x: centerX, y: top + height },
-                            { x: left, y: centerY }
-                        ]
+                    const newPoints = [
+                        { x: centerX, y: top },
+                        { x: left + width, y: centerY },
+                        { x: centerX, y: top + height },
+                        { x: left, y: centerY }
+                    ];
+
+                    // Recreate polygon to ensure correct dimensions/rendering
+                    fabricCanvas.remove(shape);
+                    const newDiamond = new Polygon(newPoints, {
+                        stroke: shape.stroke,
+                        strokeWidth: shape.strokeWidth,
+                        fill: shape.fill,
+                        selectable: shape.selectable,
+                        evented: shape.evented,
+                        objectCaching: false
                     });
+                    fabricCanvas.add(newDiamond);
+                    currentShape.current = newDiamond;
                     break;
                 case "ellipse":
                     shape.set({
