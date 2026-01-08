@@ -33,6 +33,7 @@ export function DrawingCanvas() {
         handleClear,
         handleExport,
         handleAddImage,
+        selectedElement // Destructure selectedElement
     } = useCanvas();
 
     return (
@@ -43,7 +44,7 @@ export function DrawingCanvas() {
             {/* FLOATING LEFT STYLE PANEL */}
             <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 pointer-events-auto">
                 <Sidebar
-                    activeTool={activeTool}
+                    selectedElement={selectedElement} // Pass selectedElement
                     strokeColor={activeColor}
                     setStrokeColor={setActiveColor}
                     strokeWidth={strokeWidth}

@@ -1,10 +1,10 @@
 import { FreeHandStylePanel } from "./FreeHandStylePanel";
 import { ShapeStylePanel } from "./ShapeStylePanel";
 
-const SHAPE_TOOLS = ["rectangle","diamond","ellipse", "line", "arrow"];
+const SHAPE_TOOLS = ["rectangle", "diamond", "ellipse", "line", "arrow"];
 
 export function Sidebar({
-  activeTool,
+  selectedElement, // Updated prop
   strokeColor,
   setStrokeColor,
   strokeWidth,
@@ -12,14 +12,19 @@ export function Sidebar({
   strokeStyle,
   setStrokeStyle,
 }) {
-  const showSidebar = activeTool === "draw" || SHAPE_TOOLS.includes(activeTool);
+  if (!selectedElement) return null;
 
-  if (!showSidebar) return null;
+  const type = selectedElement.type;
+  const isFreehand = type === "path" || type === "pencil";
+  const isShape = ["rect", "ellipse", "line", "triangle", "circle", "group"].includes(type);
+
+  // If selection is neither (e.g. image or text), support might be added later
+  if (!isFreehand && !isShape) return null;
 
   return (
     <aside className="w-56 rounded-xl bg-card shadow-lg p-4 space-y-4">
       {/* STYLE PANEL */}
-      {activeTool === "draw" && (
+      {isFreehand && (
         <FreeHandStylePanel
           strokeColor={strokeColor}
           setStrokeColor={setStrokeColor}
@@ -28,7 +33,7 @@ export function Sidebar({
         />
       )}
 
-      {SHAPE_TOOLS.includes(activeTool) && (
+      {isShape && (
         <ShapeStylePanel
           strokeColor={strokeColor}
           setStrokeColor={setStrokeColor}
