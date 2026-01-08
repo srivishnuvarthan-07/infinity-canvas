@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Point } from "fabric";
 
-export function useCanvasZoom(fabricCanvas) {
+export function useCanvasZoom(fabricCanvas, activeTool, setActiveTool) {
     const [zoom, setZoom] = useState(1);
     const isPanning = useRef(false);
     const lastPanPos = useRef({ x: 0, y: 0 });
@@ -81,7 +81,8 @@ export function useCanvasZoom(fabricCanvas) {
         if (!fabricCanvas) return;
 
         const handleMouseDown = (opt) => {
-            if (isSpacePressed.current) {
+            const isHandTool = activeTool === "hand";
+            if (isSpacePressed.current || isHandTool) {
                 isPanning.current = true;
                 lastPanPos.current = { x: opt.e.clientX, y: opt.e.clientY };
                 fabricCanvas.defaultCursor = "grabbing";
@@ -101,10 +102,16 @@ export function useCanvasZoom(fabricCanvas) {
         };
 
         const handleMouseUp = () => {
+            // EXCALIDRAW UX: Transient Hand Tool
             if (isPanning.current) {
                 isPanning.current = false;
                 fabricCanvas.defaultCursor = isSpacePressed.current ? "grab" : "default";
                 fabricCanvas.selection = true; // Re-enable selection
+
+                // Keep hand if spacebar is held, otherwise revert
+                if (activeTool === "hand" && !isSpacePressed.current) {
+                    setActiveTool("select");
+                }
             }
         };
 
@@ -117,7 +124,7 @@ export function useCanvasZoom(fabricCanvas) {
             fabricCanvas.off("mouse:move", handleMouseMove);
             fabricCanvas.off("mouse:up", handleMouseUp);
         };
-    }, [fabricCanvas]);
+    }, [fabricCanvas, activeTool, setActiveTool]);
 
     return {
         zoom,
