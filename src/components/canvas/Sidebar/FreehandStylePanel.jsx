@@ -4,12 +4,10 @@ import { Separator } from "@/components/ui/separator";
 
 const COLORS = ["#ffffff", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
 
-export function FreeHandStylePanel({
-  strokeColor,
-  setStrokeColor,
-  strokeWidth,
-  setStrokeWidth,
-}) {
+export function FreeHandStylePanel({ element, updateElement }) {
+  const strokeColor = element.stroke || "#000000";
+  const strokeWidth = element.strokeWidth || 2;
+
   return (
     <div className="space-y-4">
       <h4 className="text-sm font-semibold">Freehand Style</h4>
@@ -25,7 +23,7 @@ export function FreeHandStylePanel({
               size="icon"
               variant={strokeColor === color ? "default" : "outline"}
               style={{ backgroundColor: color }}
-              onClick={() => setStrokeColor(color)}
+              onClick={() => updateElement({ stroke: color })}
             />
           ))}
         </div>
@@ -39,7 +37,7 @@ export function FreeHandStylePanel({
           min={1}
           max={10}
           step={1}
-          onValueChange={([v]) => setStrokeWidth(v)}
+          onValueChange={([v]) => updateElement({ strokeWidth: v })}
         />
       </div>
     </div>

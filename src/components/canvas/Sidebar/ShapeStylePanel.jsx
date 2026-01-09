@@ -5,14 +5,18 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const COLORS = ["#ffffff", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
 
-export function ShapeStylePanel({
-  strokeColor,
-  setStrokeColor,
-  strokeWidth,
-  setStrokeWidth,
-  strokeStyle,
-  setStrokeStyle,
-}) {
+export function ShapeStylePanel({ element, updateElement }) {
+  // Derive state from element
+  const strokeColor = element.stroke || "#000000";
+  const strokeWidth = element.strokeWidth || 2;
+
+  // Determine stroke type from strokeDashArray
+  let strokeStyle = "solid";
+  if (element.strokeDashArray) {
+    if (element.strokeDashArray[0] > 5) strokeStyle = "dashed";
+    else strokeStyle = "dotted";
+  }
+
   return (
     <div className="space-y-4">
       <h4 className="text-sm font-semibold">Shape Style</h4>
@@ -28,7 +32,7 @@ export function ShapeStylePanel({
               size="icon"
               variant={strokeColor === color ? "default" : "outline"}
               style={{ backgroundColor: color }}
-              onClick={() => setStrokeColor(color)}
+              onClick={() => updateElement({ stroke: color })}
             />
           ))}
         </div>
@@ -42,7 +46,7 @@ export function ShapeStylePanel({
           min={1}
           max={10}
           step={1}
-          onValueChange={([v]) => setStrokeWidth(v)}
+          onValueChange={([v]) => updateElement({ strokeWidth: v })}
         />
       </div>
 
@@ -52,7 +56,13 @@ export function ShapeStylePanel({
         <ToggleGroup
           type="single"
           value={strokeStyle}
-          onValueChange={(v) => v && setStrokeStyle(v)}
+          onValueChange={(v) => {
+            if (!v) return;
+            let dashArray = null;
+            if (v === 'dashed') dashArray = [10, 5];
+            if (v === 'dotted') dashArray = [2, 2];
+            updateElement({ strokeDashArray: dashArray });
+          }}
         >
           <ToggleGroupItem value="solid">Solid</ToggleGroupItem>
           <ToggleGroupItem value="dashed">Dashed</ToggleGroupItem>

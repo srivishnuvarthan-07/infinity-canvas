@@ -126,6 +126,20 @@ export function useCanvas() {
   // 6. Selection
   const { selectedElement } = useCanvasSelection(fabricCanvas);
 
+  const updateSelectedElement = (updates) => {
+    if (!fabricCanvas) return;
+    const activeObject = fabricCanvas.getActiveObject();
+    if (!activeObject) return;
+
+    activeObject.set(updates);
+    if (updates.stroke && activeObject.type === 'arrow') {
+      // Force update for custom arrow caching issues if any
+    }
+
+    fabricCanvas.requestRenderAll();
+    saveState();
+  };
+
 
   /* ===================== EXPORT API ===================== */
   return {
@@ -162,6 +176,7 @@ export function useCanvas() {
     handleAddImage,
 
     // Selection
-    selectedElement
+    selectedElement,
+    updateSelectedElement
   };
 }

@@ -5,12 +5,7 @@ const SHAPE_TOOLS = ["rectangle", "diamond", "ellipse", "line", "arrow"];
 
 export function Sidebar({
   selectedElement, // Updated prop
-  strokeColor,
-  setStrokeColor,
-  strokeWidth,
-  setStrokeWidth,
-  strokeStyle,
-  setStrokeStyle,
+  updateElement,   // Updated prop
 }) {
   if (!selectedElement) return null;
 
@@ -26,21 +21,15 @@ export function Sidebar({
       {/* STYLE PANEL */}
       {isFreehand && (
         <FreeHandStylePanel
-          strokeColor={strokeColor}
-          setStrokeColor={setStrokeColor}
-          strokeWidth={strokeWidth}
-          setStrokeWidth={setStrokeWidth}
+          element={selectedElement}
+          updateElement={updateElement}
         />
       )}
 
       {isShape && (
         <ShapeStylePanel
-          strokeColor={strokeColor}
-          setStrokeColor={setStrokeColor}
-          strokeWidth={strokeWidth}
-          setStrokeWidth={setStrokeWidth}
-          strokeStyle={strokeStyle}
-          setStrokeStyle={setStrokeStyle}
+          element={selectedElement}
+          updateElement={updateElement}
         />
       )}
     </aside>
