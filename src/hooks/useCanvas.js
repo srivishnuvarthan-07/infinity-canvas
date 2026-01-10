@@ -90,18 +90,7 @@ export function useCanvas() {
   }, [fabricCanvas, activeTool, activeColor, strokeWidth]);
 
   // Save state on object modification (move, resize, rotate)
-  useEffect(() => {
-    if (!fabricCanvas) return;
 
-    const handleModification = () => {
-      saveState();
-    };
-
-    fabricCanvas.on("object:modified", handleModification);
-    return () => {
-      fabricCanvas.off("object:modified", handleModification);
-    };
-  }, [fabricCanvas, saveState]);
 
 
   /* ===================== HOOKS COMPOSITION ===================== */
@@ -115,6 +104,20 @@ export function useCanvas() {
     canRedo,
     resetHistory
   } = useCanvasHistory(fabricCanvas);
+
+  // Save state on object modification (move, resize, rotate)
+  useEffect(() => {
+    if (!fabricCanvas) return;
+
+    const handleModification = () => {
+      saveState();
+    };
+
+    fabricCanvas.on("object:modified", handleModification);
+    return () => {
+      fabricCanvas.off("object:modified", handleModification);
+    };
+  }, [fabricCanvas, saveState]);
 
   // 2. Zoom & Pan
   const {

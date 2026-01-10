@@ -1,7 +1,7 @@
-import { useRef, useEffect } from "react";
-import { Rect, Ellipse, Line, Polygon } from "fabric";
+import { Rect, Polygon, Ellipse, Line } from "fabric";
 import { Arrow } from "../../canvas/shapes/Arrow";
-
+import { BASE_SHAPE_PROPS } from "../../canvas/constants";
+import {useRef , useEffect} from "react";
 
 export function useCanvasDrawing(
     fabricCanvas,
@@ -42,11 +42,13 @@ export function useCanvasDrawing(
             shapeStart.current = { x: pointer.x, y: pointer.y };
 
             let shape = null;
+            // Unified properties from constants
             const commonProps = {
+                ...BASE_SHAPE_PROPS,
                 stroke: activeColor,
                 strokeWidth: strokeWidth,
-                fill: "transparent",
                 selectable: false, // Make unselectable while drawing
+                // fill: "transparent",
                 evented: false,
             };
 
