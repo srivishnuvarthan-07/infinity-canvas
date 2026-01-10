@@ -1,4 +1,4 @@
-import { Line, util } from "fabric";
+import { Line } from "fabric";
 
 export class Arrow extends Line {
     static type = "arrow";
