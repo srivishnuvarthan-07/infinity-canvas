@@ -22,29 +22,21 @@ export function useCanvasGrouping(fabricCanvas, saveState) {
         const newGroup = fabricCanvas.getActiveObject();
 
         if (newGroup && newGroup.type === 'group') {
-            // Apply unified schema rules
-            const unifiedGroup = CanvasObjectFactory.createGroup([], {
-                id: crypto.randomUUID(), // Enforce new ID
-                left: newGroup.left,
-                top: newGroup.top
-            });
-
-            // Note: CanvasObjectFactory.createGroup creates a new instance.
-            // But activeObject.toGroup() ALREADY transformed the selection into a group on the canvas.
-            // We just need to PATCH the existing group with unified props.
+            // Setup Unified Group Properties
+            const groupId = crypto.randomUUID();
 
             newGroup.set({
-                id: unifiedGroup.id,
-                ...unifiedGroup // Safety merge
-            });
-
-            // Enforce transparent fill/stroke for container
-            newGroup.set({
+                ...SHAPE_TYPES.BASE_SHAPE_PROPS, // Ensure base props
+                id: groupId,
                 fill: 'transparent',
-                stroke: null
+                stroke: null,
+                subTargetCheck: true,
+                interactive: true
             });
 
             fabricCanvas.requestRenderAll();
+            // Important: Set this new group as the active object explicitly to trigger UI updates
+            fabricCanvas.setActiveObject(newGroup);
             saveState();
         }
 

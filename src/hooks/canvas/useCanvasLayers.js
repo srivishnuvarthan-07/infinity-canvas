@@ -1,59 +1,39 @@
 import { useCallback } from "react";
 
 export function useCanvasLayers(fabricCanvas, saveState) {
-
-    // Normalization helper
-    const normalizeLayers = useCallback(() => {
-        if (!fabricCanvas) return;
-        // In Fabric, object stack order determines rendering. Index 0 is bottom.
-        // We can just ensure objects are properly sorted if we maintain a custom index property,
-        // but typically Fabric's stack is sufficient index.
-    }, [fabricCanvas]);
-
-    const bringToFront = useCallback(() => {
+    const layerAction = useCallback((action) => {
         if (!fabricCanvas) return;
         const activeObject = fabricCanvas.getActiveObject();
         if (!activeObject) return;
 
-        activeObject.bringToFront();
-        fabricCanvas.requestRenderAll();
-        saveState();
-    }, [fabricCanvas, saveState]);
+        // Perform the action
+        switch (action) {
+            case "front":
+                activeObject.bringToFront();
+                break;
+            case "back":
+                activeObject.sendToBack();
+                break;
+            case "forward":
+                activeObject.bringForward();
+                break;
+            case "backward":
+                activeObject.sendBackwards();
+                break;
+        }
 
-    const sendToBack = useCallback(() => {
-        if (!fabricCanvas) return;
-        const activeObject = fabricCanvas.getActiveObject();
-        if (!activeObject) return;
+        // For ActiveSelection (multi-select), Fabric moves the selection group.
+        // Upon deselect, the stack order is preserved.
 
-        activeObject.sendToBack();
-        fabricCanvas.requestRenderAll();
-        saveState();
-    }, [fabricCanvas, saveState]);
-
-    const moveForward = useCallback(() => {
-        if (!fabricCanvas) return;
-        const activeObject = fabricCanvas.getActiveObject();
-        if (!activeObject) return;
-
-        activeObject.bringForward();
-        fabricCanvas.requestRenderAll();
-        saveState();
-    }, [fabricCanvas, saveState]);
-
-    const moveBackward = useCallback(() => {
-        if (!fabricCanvas) return;
-        const activeObject = fabricCanvas.getActiveObject();
-        if (!activeObject) return;
-
-        activeObject.sendBackwards();
+        // Critical: Update primitives and render
         fabricCanvas.requestRenderAll();
         saveState();
     }, [fabricCanvas, saveState]);
 
     return {
-        bringToFront,
-        sendToBack,
-        moveForward,
-        moveBackward
+        bringToFront: () => layerAction("front"),
+        sendToBack: () => layerAction("back"),
+        moveForward: () => layerAction("forward"),
+        moveBackward: () => layerAction("backward")
     };
 }
