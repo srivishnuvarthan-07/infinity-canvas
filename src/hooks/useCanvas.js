@@ -80,6 +80,9 @@ export function useCanvas() {
       fabricCanvas.requestRenderAll();
     }
 
+    // Allow drawing on top of other objects (ignore object events when drawing)
+    fabricCanvas.skipTargetFind = activeTool !== "select";
+
     // Update Cursor
     const cursors = {
       select: "default",
@@ -161,7 +164,7 @@ export function useCanvas() {
   // 9. Selection
 
   // 6. Selection
-  const { selectedElement, setSelectedElement } = useCanvasSelection(fabricCanvas);
+  const { selectedElement } = useCanvasSelection(fabricCanvas);
 
   const updateSelectedElement = (updates) => {
     if (!fabricCanvas) return;
