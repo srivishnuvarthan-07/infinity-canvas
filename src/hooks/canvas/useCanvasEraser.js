@@ -10,8 +10,20 @@ export function useCanvasEraser(fabricCanvas, activeTool, saveState) {
             if (activeTool !== 'eraser') return;
             isErasing.current = true;
 
-            // Explicitly find target since skipTargetFind is true
-            const target = fabricCanvas.findTarget(opt.e, false);
+            const pointer = fabricCanvas.getScenePoint(opt.e);
+
+            // Iterate objects reversely to find top-most
+            const objects = fabricCanvas.getObjects();
+            let target = null;
+
+            for (let i = objects.length - 1; i >= 0; i--) {
+                const obj = objects[i];
+                if (obj.containsPoint(pointer)) {
+                    target = obj;
+                    break;
+                }
+            }
+
             if (target) {
                 fabricCanvas.remove(target);
                 fabricCanvas.requestRenderAll();
@@ -22,14 +34,23 @@ export function useCanvasEraser(fabricCanvas, activeTool, saveState) {
         const handleMouseMove = (opt) => {
             if (activeTool !== 'eraser' || !isErasing.current) return;
 
-            const target = fabricCanvas.findTarget(opt.e, false);
+            const pointer = fabricCanvas.getScenePoint(opt.e);
+
+            // Iterate objects reversely to find top-most
+            const objects = fabricCanvas.getObjects();
+            let target = null;
+
+            for (let i = objects.length - 1; i >= 0; i--) {
+                const obj = objects[i];
+                if (obj.containsPoint(pointer)) {
+                    target = obj;
+                    break;
+                }
+            }
+
             if (target) {
                 fabricCanvas.remove(target);
                 fabricCanvas.requestRenderAll();
-                // Debounce saveState here if needed for performance, 
-                // but direct call is safer for now.
-                // We might want to saveState only on mouseUp for drag-erase to avoid spamming history?
-                // Let's safe update on mouse up actually.
             }
         };
 
