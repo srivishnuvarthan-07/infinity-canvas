@@ -70,13 +70,15 @@ export class CanvasObjectFactory {
                 });
                 break;
             case SHAPE_TYPES.DIAMOND:
-                // Diamond as Polygon (Initial points at center)
-                shape = new Polygon([
+                // Diamond as Polygon
+                const diamondPoints = options.points || [
                     { x: pointer.x, y: pointer.y },
                     { x: pointer.x, y: pointer.y },
                     { x: pointer.x, y: pointer.y },
                     { x: pointer.x, y: pointer.y }
-                ], {
+                ];
+
+                shape = new Polygon(diamondPoints, {
                     ...commonProps
                 });
                 break;
