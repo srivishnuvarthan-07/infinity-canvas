@@ -6,19 +6,19 @@ export function useCanvasLayers(fabricCanvas, saveState) {
         const activeObject = fabricCanvas.getActiveObject();
         if (!activeObject) return;
 
-        // Perform the action
+        // Perform the action using Canvas-level methods (Fabric v6/Safe)
         switch (action) {
             case "front":
-                activeObject.bringToFront();
+                fabricCanvas.bringObjectToFront(activeObject);
                 break;
             case "back":
-                activeObject.sendToBack();
+                fabricCanvas.sendObjectToBack(activeObject);
                 break;
             case "forward":
-                activeObject.bringForward();
+                fabricCanvas.bringObjectForward(activeObject);
                 break;
             case "backward":
-                activeObject.sendBackwards();
+                fabricCanvas.sendObjectBackwards(activeObject);
                 break;
         }
 
