@@ -9,6 +9,9 @@ import { useCanvasDrawing } from "./canvas/useCanvasDrawing";
 import { useCanvasGrid } from "./canvas/useCanvasGrid";
 import { useCanvasActions } from "./canvas/useCanvasActions";
 import { useCanvasSelection } from "./canvas/useCanvasSelection";
+import { useCanvasLayers } from "./canvas/useCanvasLayers";
+import { useCanvasGrouping } from "./canvas/useCanvasGrouping";
+import { useCanvasText } from "./canvas/useCanvasText";
 
 export function useCanvas() {
   /* ===================== REFS ===================== */
@@ -70,6 +73,12 @@ export function useCanvas() {
     const isDrawing = activeTool === "draw";
     fabricCanvas.isDrawingMode = isDrawing;
     fabricCanvas.selection = activeTool === "select";
+
+    // Auto-deselect when switching tools (EXCALIDRAW UX)
+    if (activeTool !== "select") {
+      fabricCanvas.discardActiveObject();
+      fabricCanvas.requestRenderAll();
+    }
 
     // Update Cursor
     const cursors = {
@@ -140,8 +149,19 @@ export function useCanvas() {
     handleAddImage
   } = useCanvasActions(fabricCanvas, saveState, resetHistory);
 
+  // 6. Layers
+  const layerActions = useCanvasLayers(fabricCanvas, saveState);
+
+  // 7. Grouping
+  const groupActions = useCanvasGrouping(fabricCanvas, saveState);
+
+  // 8. Text
+  const { addText } = useCanvasText(fabricCanvas, activeTool, setActiveTool, activeColor, saveState);
+
+  // 9. Selection
+
   // 6. Selection
-  const { selectedElement } = useCanvasSelection(fabricCanvas);
+  const { selectedElement, setSelectedElement } = useCanvasSelection(fabricCanvas);
 
   const updateSelectedElement = (updates) => {
     if (!fabricCanvas) return;
@@ -191,6 +211,13 @@ export function useCanvas() {
     handleClear,
     handleExport,
     handleAddImage,
+    addText, // Exposed for toolbar/sidebar if needed
+
+    // Advanced Manipulation
+    layerActions,
+    groupActions,
+
+    // Selection
 
     // Selection
     selectedElement,
