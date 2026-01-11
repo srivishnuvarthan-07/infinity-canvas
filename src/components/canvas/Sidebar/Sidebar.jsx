@@ -1,11 +1,14 @@
 import { FreeHandStylePanel } from "./FreeHandStylePanel";
 import { ShapeStylePanel } from "./ShapeStylePanel";
+import { ArrangementPanel } from "./ArrangementPanel";
 
 const SHAPE_TOOLS = ["rectangle", "diamond", "ellipse", "line", "arrow"];
 
 export function Sidebar({
-  selectedElement, // Updated prop
-  updateElement,   // Updated prop
+  selectedElement,
+  updateElement,
+  layerActions,
+  groupActions
 }) {
   if (!selectedElement) return null;
 
@@ -27,10 +30,17 @@ export function Sidebar({
       )}
 
       {isShape && (
-        <ShapeStylePanel
-          element={selectedElement}
-          updateElement={updateElement}
-        />
+        <>
+          <ShapeStylePanel
+            element={selectedElement}
+            updateElement={updateElement}
+          />
+          <ArrangementPanel
+            selectedElement={selectedElement}
+            layerActions={layerActions}
+            groupActions={groupActions}
+          />
+        </>
       )}
     </aside>
   );

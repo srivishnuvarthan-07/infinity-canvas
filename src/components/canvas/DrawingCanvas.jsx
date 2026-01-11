@@ -33,8 +33,10 @@ export function DrawingCanvas() {
         handleClear,
         handleExport,
         handleAddImage,
-        selectedElement, // Destructure selectedElement
-        updateSelectedElement // Destructure updateSelectedElement
+        selectedElement,
+        updateSelectedElement,
+        layerActions,
+        groupActions
     } = useCanvas();
 
     return (
@@ -45,14 +47,10 @@ export function DrawingCanvas() {
             {/* FLOATING LEFT STYLE PANEL */}
             <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 pointer-events-auto">
                 <Sidebar
-                    selectedElement={selectedElement} // Pass selectedElement
-                    updateElement={updateSelectedElement} // Pass updateElement
-                    strokeColor={activeColor}
-                    setStrokeColor={setActiveColor}
-                    strokeWidth={strokeWidth}
-                    setStrokeWidth={setStrokeWidth}
-                    strokeStyle={strokeStyle}
-                    setStrokeStyle={setStrokeStyle}
+                    selectedElement={selectedElement}
+                    updateElement={updateSelectedElement}
+                    layerActions={layerActions}
+                    groupActions={groupActions}
                 />
             </div>
 
