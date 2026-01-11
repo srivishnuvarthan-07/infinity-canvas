@@ -7,14 +7,8 @@ export function useCanvasSelection(fabricCanvas) {
         if (!fabricCanvas) return;
 
         const updateSelection = () => {
-            const activeObjects = fabricCanvas.getActiveObjects();
-            if (activeObjects.length === 1) {
-                setSelectedElement(activeObjects[0]);
-            } else {
-                // We don't support multi-selection styling in sidebar yet, or it handles it differently
-                // For now, if multiple or none, set to null
-                setSelectedElement(null);
-            }
+            const activeObject = fabricCanvas.getActiveObject();
+            setSelectedElement(activeObject || null);
         };
 
         fabricCanvas.on("selection:created", updateSelection);
@@ -28,5 +22,5 @@ export function useCanvasSelection(fabricCanvas) {
         };
     }, [fabricCanvas]);
 
-    return { selectedElement};
+    return { selectedElement };
 }
