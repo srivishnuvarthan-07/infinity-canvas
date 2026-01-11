@@ -3,7 +3,7 @@ import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-const COLORS = ["#ffffff", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
+const COLORS = ["#000000", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
 
 export function ShapeStylePanel({ element, updateElement }) {
   // Derive state from element
