@@ -80,6 +80,19 @@ export function useCanvasDrawing(
                     const top = Math.min(startY, pointer.y);
                     const width = Math.abs(pointer.x - startX);
                     const height = Math.abs(pointer.y - startY);
+
+                    // Diamond points relative to the bounding box we just calculated?
+                    // Actually, for a Polygon, it's easier to recreate because 'points' are static after init usually.
+                    // BUT, to avoid thrashing, we can try replacing the whole object less frequently?
+                    // No, smooth dragging needs frequent updates.
+
+                    // Let's stick to recreation but OPTIMIZED.
+                    // The previous issue might be "selectable: false" on the temporary shape not being propagated?
+                    // We ensured that.
+
+                    // Let's try to keep the ID constant?
+                    const currentId = shape.id;
+
                     const centerX = left + width / 2;
                     const centerY = top + height / 2;
 
@@ -90,39 +103,26 @@ export function useCanvasDrawing(
                         { x: left, y: centerY }
                     ];
 
-                    // For polygon, we might need to recreate or update points
-                    // Fabric Polygon points are relative to center if cached? 
-                    // Simpler to remove and re-add for complex polygons during drag if needed, 
-                    // but for performance, let's try setting points if mutable, or recreate.
-                    // Recreating is safer for correct bounding box updates.
+                    // Remove old
+                    fabricCanvas.remove(shape);
 
-                    const newDiamond = CanvasObjectFactory.create(SHAPE_TYPES.DIAMOND, { x: 0, y: 0 }, {
-                        stroke: shape.stroke,
-                        strokeWidth: shape.strokeWidth,
-                        fill: shape.fill,
-                        selectable: shape.selectable,
-                        evented: shape.evented,
-                        objectCaching: false,
-                        id: shape.id // Keep ID
+                    // Create new
+                    // Create new
+                    // We must pass the correct top-left as the 'pointer' to the factory so 'commonProps' has correct left/top.
+                    // Because Fabric's Polygon constructor will derive bounds from points, but 'options' (commonProps) overrides 'left'/'top'.
+                    // If we pass 0, it forces it to 0,0.
+                    // If we pass the actual left/top, it matches what Fabric expects for the absolute points provided.
+                    const newDiamond = CanvasObjectFactory.create(SHAPE_TYPES.DIAMOND, { x: left, y: top }, {
+                        ...shape.toObject(['stroke', 'strokeWidth', 'fill', 'opacity']),
+                        id: currentId,
+                        points: newPoints,
+                        selectable: false,
+                        evented: false,
+                        // Do NOT force left: 0, top: 0 here. Let the factory set them from the pointer arg above.
                     });
 
-                    // Manually set points (Polygon constructor handles it, but factory default is center 0)
-                    // We need to override the factory creation for this dynamic update
-                    // Actually, let's just use the factory for the object properties but manually handle points
-
-                    fabricCanvas.remove(shape);
-                    // Update the new diamond with correct points
-                    newDiamond.set("points", newPoints);
-                    // And correct props that factory might have defaulted based on 0,0
-                    // BUT Polygon constructor takes points as first arg. 
-                    // Our factory handles it. We just need to call it with dummy and replace?
-                    // No, let's just do what the previous code did but use factory logic style
-                    // Actually, reusing the previous logic is fine, just wrapped.
-
-                    // Let's stick to the previous recreation logic for Diamond for now, ensuring props match
                     fabricCanvas.add(newDiamond);
                     currentShape.current = newDiamond;
-
                     break;
                 case SHAPE_TYPES.ELLIPSE:
                     shape.set({
