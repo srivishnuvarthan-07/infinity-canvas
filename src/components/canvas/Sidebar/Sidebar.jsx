@@ -14,7 +14,7 @@ export function Sidebar({
 
   const type = selectedElement.type;
   const isFreehand = type === "path" || type === "pencil";
-  const isShape = ["rect", "ellipse", "line", "triangle", "circle", "group", "diamond", "polygon", "arrow"].includes(type);
+  const isShape = ["rect", "ellipse", "line", "triangle", "circle", "group", "diamond", "polygon", "arrow", "activeSelection"].includes(type);
 
   // If selection is neither (e.g. image or text), support might be added later
   if (!isFreehand && !isShape) return null;
