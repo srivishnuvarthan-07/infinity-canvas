@@ -28,5 +28,5 @@ export function useCanvasSelection(fabricCanvas) {
         };
     }, [fabricCanvas]);
 
-    return { selectedElement };
+    return { selectedElement,setSelectedElement };
 }

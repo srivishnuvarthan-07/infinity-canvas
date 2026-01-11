@@ -1,7 +1,6 @@
-import { Rect, Polygon, Ellipse, Line } from "fabric";
-import { Arrow } from "../../canvas/shapes/Arrow";
-import { BASE_SHAPE_PROPS } from "../../canvas/constants";
-import {useRef , useEffect} from "react";
+import { useRef, useEffect } from "react";
+import { CanvasObjectFactory } from "../../canvas/CanvasObjectFactory";
+import { SHAPE_TYPES } from "../../canvas/constants";
 
 export function useCanvasDrawing(
     fabricCanvas,
@@ -9,7 +8,7 @@ export function useCanvasDrawing(
     setActiveTool,
     activeColor,
     strokeWidth,
-    saveState // Required to save state after drawing
+    saveState
 ) {
     const isDrawingShape = useRef(false);
     const currentShape = useRef(null);
@@ -34,70 +33,22 @@ export function useCanvasDrawing(
         if (!fabricCanvas) return;
 
         const handleMouseDown = (opt) => {
-            const isShapeTool = ["rectangle", "ellipse", "line", "arrow", "diamond"].includes(activeTool);
+            const isShapeTool = Object.values(SHAPE_TYPES).includes(activeTool) && activeTool !== 'text' && activeTool !== 'image' && activeTool !== 'group' && activeTool !== 'path';
             if (!isShapeTool) return;
 
             const pointer = fabricCanvas.getScenePoint(opt.e);
             isDrawingShape.current = true;
             shapeStart.current = { x: pointer.x, y: pointer.y };
 
-            let shape = null;
-            // Unified properties from constants
-            const commonProps = {
-                ...BASE_SHAPE_PROPS,
+            // Create shape using factory
+            // Note: We deliberately use activeTool as the type key. 
+            // Ensure SHAPE_TYPES values match activeTool strings.
+            const shape = CanvasObjectFactory.create(activeTool, pointer, {
                 stroke: activeColor,
                 strokeWidth: strokeWidth,
-                selectable: false, // Make unselectable while drawing
-                // fill: "transparent",
-                evented: false,
-            };
-
-            switch (activeTool) {
-                case "rectangle":
-                    shape = new Rect({
-                        left: pointer.x,
-                        top: pointer.y,
-                        width: 0,
-                        height: 0,
-                        rx: 4, ry: 4,
-                        ...commonProps
-                    });
-                    break;
-                case "diamond":
-                    // Diamond as Polygon
-                    shape = new Polygon([
-                        { x: pointer.x, y: pointer.y },
-                        { x: pointer.x, y: pointer.y },
-                        { x: pointer.x, y: pointer.y },
-                        { x: pointer.x, y: pointer.y }
-                    ], {
-                        ...commonProps,
-                        objectCaching: false // Dynamic updates
-                    });
-                    break;
-                case "ellipse":
-                    shape = new Ellipse({
-                        left: pointer.x,
-                        top: pointer.y,
-                        rx: 0, ry: 0,
-                        originX: 'center',
-                        originY: 'center',
-                        ...commonProps
-                    });
-                    break;
-                case "line":
-                    shape = new Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-                        strokeLineCap: "round",
-                        ...commonProps
-                    });
-                    break;
-                case "arrow":
-                    shape = new Arrow([pointer.x, pointer.y, pointer.x, pointer.y], {
-                        strokeLineCap: "round",
-                        ...commonProps
-                    });
-                    break;
-            }
+                selectable: false,
+                evented: false
+            });
 
             if (shape) {
                 currentShape.current = shape;
@@ -114,7 +65,7 @@ export function useCanvasDrawing(
             const shape = currentShape.current;
 
             switch (activeTool) {
-                case "rectangle":
+                case SHAPE_TYPES.RECT:
                     const w = Math.abs(pointer.x - startX);
                     const h = Math.abs(pointer.y - startY);
                     shape.set({
@@ -124,8 +75,7 @@ export function useCanvasDrawing(
                         top: Math.min(pointer.y, startY)
                     });
                     break;
-                case "diamond":
-                    // Calculate diamond points based on bounding box style drag
+                case SHAPE_TYPES.DIAMOND:
                     const left = Math.min(startX, pointer.x);
                     const top = Math.min(startY, pointer.y);
                     const width = Math.abs(pointer.x - startX);
@@ -133,7 +83,6 @@ export function useCanvasDrawing(
                     const centerX = left + width / 2;
                     const centerY = top + height / 2;
 
-                    // Top, Right, Bottom, Left
                     const newPoints = [
                         { x: centerX, y: top },
                         { x: left + width, y: centerY },
@@ -141,20 +90,41 @@ export function useCanvasDrawing(
                         { x: left, y: centerY }
                     ];
 
-                    // Recreate polygon to ensure correct dimensions/rendering
-                    fabricCanvas.remove(shape);
-                    const newDiamond = new Polygon(newPoints, {
+                    // For polygon, we might need to recreate or update points
+                    // Fabric Polygon points are relative to center if cached? 
+                    // Simpler to remove and re-add for complex polygons during drag if needed, 
+                    // but for performance, let's try setting points if mutable, or recreate.
+                    // Recreating is safer for correct bounding box updates.
+
+                    const newDiamond = CanvasObjectFactory.create(SHAPE_TYPES.DIAMOND, { x: 0, y: 0 }, {
                         stroke: shape.stroke,
                         strokeWidth: shape.strokeWidth,
                         fill: shape.fill,
                         selectable: shape.selectable,
                         evented: shape.evented,
-                        objectCaching: false
+                        objectCaching: false,
+                        id: shape.id // Keep ID
                     });
+
+                    // Manually set points (Polygon constructor handles it, but factory default is center 0)
+                    // We need to override the factory creation for this dynamic update
+                    // Actually, let's just use the factory for the object properties but manually handle points
+
+                    fabricCanvas.remove(shape);
+                    // Update the new diamond with correct points
+                    newDiamond.set("points", newPoints);
+                    // And correct props that factory might have defaulted based on 0,0
+                    // BUT Polygon constructor takes points as first arg. 
+                    // Our factory handles it. We just need to call it with dummy and replace?
+                    // No, let's just do what the previous code did but use factory logic style
+                    // Actually, reusing the previous logic is fine, just wrapped.
+
+                    // Let's stick to the previous recreation logic for Diamond for now, ensuring props match
                     fabricCanvas.add(newDiamond);
                     currentShape.current = newDiamond;
+
                     break;
-                case "ellipse":
+                case SHAPE_TYPES.ELLIPSE:
                     shape.set({
                         rx: Math.abs(pointer.x - startX) / 2,
                         ry: Math.abs(pointer.y - startY) / 2,
@@ -162,9 +132,13 @@ export function useCanvasDrawing(
                         top: (startY + pointer.y) / 2
                     });
                     break;
-                case "line":
-                case "arrow":
+                case SHAPE_TYPES.LINE:
+                case SHAPE_TYPES.ARROW:
                     shape.set({ x2: pointer.x, y2: pointer.y });
+                    break;
+                case SHAPE_TYPES.CIRCLE:
+                    const radius = Math.sqrt(Math.pow(pointer.x - startX, 2) + Math.pow(pointer.y - startY, 2));
+                    shape.set({ radius: radius });
                     break;
             }
             fabricCanvas.renderAll();
@@ -173,14 +147,11 @@ export function useCanvasDrawing(
         const handleMouseUp = () => {
             if (isDrawingShape.current && currentShape.current) {
                 const shape = currentShape.current;
-                shape.setCoords(); // Update coords
-                shape.set({ selectable: true, evented: true }); // Make selectable again
-
-                // Arrow head logic REMOVED - handled by Arrow class render
+                shape.setCoords();
+                shape.set({ selectable: true, evented: true });
 
                 if (saveState) saveState();
 
-                // EXCALIDRAW UX: Auto-select and revert tool
                 fabricCanvas.setActiveObject(shape);
                 fabricCanvas.requestRenderAll();
                 setActiveTool("select");
@@ -189,16 +160,28 @@ export function useCanvasDrawing(
             currentShape.current = null;
         };
 
-        // Path created (Freehand)
         const handlePathCreated = () => {
+            // For freehand, we might want to apply unified props too
+            // Fabric created the path object automatically.
+            // We should find the last object and patch it.
+            const objects = fabricCanvas.getObjects();
+            const lastObject = objects[objects.length - 1];
+            if (lastObject && lastObject.type === 'path') {
+                // Patch ID and Type
+                lastObject.set({
+                    id: crypto.randomUUID(),
+                    // ...BASE_SHAPE_PROPS // Optional: apply base props if needed
+                });
+            }
+
             if (saveState) saveState();
-            // EXCALIDRAW UX: Revert after freehand
             setActiveTool("select");
         }
+
         fabricCanvas.on("mouse:down", handleMouseDown);
         fabricCanvas.on("mouse:move", handleMouseMove);
         fabricCanvas.on("mouse:up", handleMouseUp);
-        fabricCanvas.on("path:created", handlePathCreated); // Capture freehand drawing
+        fabricCanvas.on("path:created", handlePathCreated);
 
         return () => {
             fabricCanvas.off("mouse:down", handleMouseDown);
