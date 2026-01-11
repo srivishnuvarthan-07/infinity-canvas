@@ -12,6 +12,7 @@ import { useCanvasSelection } from "./canvas/useCanvasSelection";
 import { useCanvasLayers } from "./canvas/useCanvasLayers";
 import { useCanvasGrouping } from "./canvas/useCanvasGrouping";
 import { useCanvasText } from "./canvas/useCanvasText";
+import { useCanvasEraser } from "./canvas/useCanvasEraser";
 
 export function useCanvas() {
   /* ===================== REFS ===================== */
@@ -161,9 +162,11 @@ export function useCanvas() {
   // 8. Text
   const { addText } = useCanvasText(fabricCanvas, activeTool, setActiveTool, activeColor, saveState);
 
-  // 9. Selection
+  // 9. Eraser
+  useCanvasEraser(fabricCanvas, activeTool, saveState);
 
-  // 6. Selection
+  // 10. Selection
+
   const { selectedElement } = useCanvasSelection(fabricCanvas);
 
   const updateSelectedElement = (updates) => {
