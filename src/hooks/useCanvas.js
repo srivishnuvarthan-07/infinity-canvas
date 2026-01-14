@@ -11,6 +11,7 @@ import { useCanvasActions } from "./canvas/useCanvasActions";
 import { useCanvasSelection } from "./canvas/useCanvasSelection";
 import { useCanvasLayers } from "./canvas/useCanvasLayers";
 // import { useCanvasGrouping } from "./canvas/useCanvasGrouping";
+import { useCanvasDrag } from "./canvas/useCanvasDrag";
 import { useCanvasText } from "./canvas/useCanvasText";
 import { useCanvasEraser } from "./canvas/useCanvasEraser";
 
@@ -162,12 +163,14 @@ export function useCanvas() {
   // 8. Text
   const { addText } = useCanvasText(fabricCanvas, activeTool, setActiveTool, activeColor, saveState);
 
-  // 9. Eraser
-  useCanvasEraser(fabricCanvas, activeTool, saveState);
-
-  // 10. Selection
-
+  // 9. Selection (Priority handling)
   const { selectedElement } = useCanvasSelection(fabricCanvas);
+
+  // 10. Manual Drag (Rotated Shape Fix)
+  useCanvasDrag(fabricCanvas, activeTool);
+
+  // 11. Eraser
+  useCanvasEraser(fabricCanvas, activeTool, saveState);
 
   const updateSelectedElement = (updates) => {
     if (!fabricCanvas) return;

@@ -70,15 +70,14 @@ export class CanvasObjectFactory {
                 });
                 break;
             case SHAPE_TYPES.DIAMOND:
-                // Diamond as Polygon
-                const diamondPoints = options.points || [
-                    { x: pointer.x, y: pointer.y },
-                    { x: pointer.x, y: pointer.y },
-                    { x: pointer.x, y: pointer.y },
-                    { x: pointer.x, y: pointer.y }
-                ];
-
-                shape = new Polygon(diamondPoints, {
+                // Diamond as Rotated Square
+                // Explicitly use center origin to simplify resizing logic
+                shape = new Rect({
+                    width: 0,
+                    height: 0,
+                    angle: 45,
+                    originX: 'center',
+                    originY: 'center',
                     ...commonProps
                 });
                 break;

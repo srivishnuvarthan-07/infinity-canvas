@@ -76,54 +76,29 @@ export function useCanvasDrawing(
                     });
                     break;
                 case SHAPE_TYPES.DIAMOND:
-                    const left = Math.min(startX, pointer.x);
-                    const top = Math.min(startY, pointer.y);
-                    const width = Math.abs(pointer.x - startX);
-                    const height = Math.abs(pointer.y - startY);
-
-                    // Diamond points relative to the bounding box we just calculated?
-                    // Actually, for a Polygon, it's easier to recreate because 'points' are static after init usually.
-                    // BUT, to avoid thrashing, we can try replacing the whole object less frequently?
-                    // No, smooth dragging needs frequent updates.
-
-                    // Let's stick to recreation but OPTIMIZED.
-                    // The previous issue might be "selectable: false" on the temporary shape not being propagated?
-                    // We ensured that.
-
-                    // Diamond: Recreate with points relative to 0,0, then position at left/top
-                    const currentId = shape.id;
-
-
-
-                    // Center is relative to the width/height box
-                     const relCenterX = width / 2;
-                     const relCenterY = height / 2;
+                    // Symmetric creation from center (midpoint)
+                    const dx = Math.abs(pointer.x - startX);
+                    const dy = Math.abs(pointer.y - startY);
                     
-                    // Points relative to 0,0 origin of the new shape
-        
-                    const newPoints = [
-                        { x: relCenterX, y: 0 },      // Top
-                        { x: width, y: relCenterY },  // Right
-                        { x: relCenterX, y: height }, // Bottom
-                        { x: 0, y: relCenterY }       // Left
-                    ];
+                    // Visual size (bounding box)
+                    const size = Math.max(Math.abs(dx), Math.abs(dy));
 
-                    // Remove old
-                    fabricCanvas.remove(shape);
+                    // Center is midpoint
+                    const centerX = (startX + pointer.x) / 2;
+                    const centerY = (startY + pointer.y) / 2;
+                    // The actual square side length needed to achieve 'size' visual bounds
+                    // For a 45deg aligned square: Side = Size / sqrt(2)
+                    const sideLength = size / Math.sqrt(2);
 
-                    // Create new
-                    // We pass { x: left, y: top } as the pointer to Factory, which sets the object's left/top.
-                    // The points are relative to that origin.
-                    const newDiamond = CanvasObjectFactory.create(SHAPE_TYPES.DIAMOND, { x: left, y: top }, {
-                        ...shape.toObject(['stroke', 'strokeWidth', 'fill', 'opacity']),
-                        id: currentId,
-                        points: newPoints,
-                        selectable: false,
-                        evented: false,
+                    shape.set({
+                        width: sideLength,
+                        height: sideLength,
+                        left: centerX,
+                        top: centerY,
+                        // angle is already 45 from factory
+                        // originX/Y are 'center' from factory
                     });
-
-                    fabricCanvas.add(newDiamond);
-                    currentShape.current = newDiamond;
+                    shape.setCoords();
                     break;
                 case SHAPE_TYPES.ELLIPSE:
                     shape.set({

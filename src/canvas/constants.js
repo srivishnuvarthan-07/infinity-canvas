@@ -24,7 +24,7 @@ export const BASE_SHAPE_PROPS = {
 
     // Rendering
     objectCaching: false,
-    perPixelTargetFind: true, // Allow clicking through transparent fill
+    perPixelTargetFind: false, // Use vector-based hit testing (Local Space) for correct rotation support
 
     // Identity
     id: null, // Should be generated on creation
