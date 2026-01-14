@@ -8,12 +8,15 @@ const SHAPE_TOOLS = ["rectangle", "diamond", "ellipse", "line", "arrow"];
 export function Sidebar({
   selectedElement,
   updateElement,
-  layerActions,
-  groupActions
+  layerActions
 }) {
   if (!selectedElement) return null;
 
   const type = selectedElement.type;
+
+  // Explicitly exclude text types from generic sidebar to avoid confusion
+  if (["i-text", "text", "textbox"].includes(type)) return null;
+
   const isFreehand = type === "path" || type === "pencil";
   const isShape = ["rect", "ellipse", "line", "triangle", "circle", "group", "diamond", "polygon", "arrow", "activeSelection"].includes(type);
 
@@ -45,7 +48,6 @@ export function Sidebar({
           <ArrangementPanel
             selectedElement={selectedElement}
             layerActions={layerActions}
-            groupActions={groupActions}
           />
         </>
       )}
