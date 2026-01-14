@@ -90,35 +90,36 @@ export function useCanvasDrawing(
                     // The previous issue might be "selectable: false" on the temporary shape not being propagated?
                     // We ensured that.
 
-                    // Let's try to keep the ID constant?
+                    // Diamond: Recreate with points relative to 0,0, then position at left/top
                     const currentId = shape.id;
 
-                    const centerX = left + width / 2;
-                    const centerY = top + height / 2;
 
+
+                    // Center is relative to the width/height box
+                     const relCenterX = width / 2;
+                     const relCenterY = height / 2;
+                    
+                    // Points relative to 0,0 origin of the new shape
+        
                     const newPoints = [
-                        { x: centerX, y: top },
-                        { x: left + width, y: centerY },
-                        { x: centerX, y: top + height },
-                        { x: left, y: centerY }
+                        { x: relCenterX, y: 0 },      // Top
+                        { x: width, y: relCenterY },  // Right
+                        { x: relCenterX, y: height }, // Bottom
+                        { x: 0, y: relCenterY }       // Left
                     ];
 
                     // Remove old
                     fabricCanvas.remove(shape);
 
                     // Create new
-                    // Create new
-                    // We must pass the correct top-left as the 'pointer' to the factory so 'commonProps' has correct left/top.
-                    // Because Fabric's Polygon constructor will derive bounds from points, but 'options' (commonProps) overrides 'left'/'top'.
-                    // If we pass 0, it forces it to 0,0.
-                    // If we pass the actual left/top, it matches what Fabric expects for the absolute points provided.
+                    // We pass { x: left, y: top } as the pointer to Factory, which sets the object's left/top.
+                    // The points are relative to that origin.
                     const newDiamond = CanvasObjectFactory.create(SHAPE_TYPES.DIAMOND, { x: left, y: top }, {
                         ...shape.toObject(['stroke', 'strokeWidth', 'fill', 'opacity']),
                         id: currentId,
                         points: newPoints,
                         selectable: false,
                         evented: false,
-                        // Do NOT force left: 0, top: 0 here. Let the factory set them from the pointer arg above.
                     });
 
                     fabricCanvas.add(newDiamond);

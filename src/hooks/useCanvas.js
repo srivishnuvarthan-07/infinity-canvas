@@ -10,7 +10,7 @@ import { useCanvasGrid } from "./canvas/useCanvasGrid";
 import { useCanvasActions } from "./canvas/useCanvasActions";
 import { useCanvasSelection } from "./canvas/useCanvasSelection";
 import { useCanvasLayers } from "./canvas/useCanvasLayers";
-import { useCanvasGrouping } from "./canvas/useCanvasGrouping";
+// import { useCanvasGrouping } from "./canvas/useCanvasGrouping";
 import { useCanvasText } from "./canvas/useCanvasText";
 import { useCanvasEraser } from "./canvas/useCanvasEraser";
 
@@ -156,8 +156,8 @@ export function useCanvas() {
   // 6. Layers
   const layerActions = useCanvasLayers(fabricCanvas, saveState);
 
-  // 7. Grouping
-  const groupActions = useCanvasGrouping(fabricCanvas, activeTool, saveState);
+  // 7. Grouping (Removed per Flat Canvas Architecture)
+  // const groupActions = useCanvasGrouping(fabricCanvas, activeTool, saveState);
 
   // 8. Text
   const { addText } = useCanvasText(fabricCanvas, activeTool, setActiveTool, activeColor, saveState);
@@ -174,7 +174,14 @@ export function useCanvas() {
     const activeObject = fabricCanvas.getActiveObject();
     if (!activeObject) return;
 
-    activeObject.set(updates);
+    if (activeObject.type === 'activeSelection') {
+      activeObject.getObjects().forEach(obj => {
+        obj.set(updates);
+      });
+    } else {
+      activeObject.set(updates);
+    }
+
     if (updates.stroke && activeObject.type === 'arrow') {
       // Force update for custom arrow caching issues if any
     }
@@ -221,7 +228,7 @@ export function useCanvas() {
 
     // Advanced Manipulation
     layerActions,
-    groupActions,
+    // groupActions, (Removed)
 
     // Selection
 
