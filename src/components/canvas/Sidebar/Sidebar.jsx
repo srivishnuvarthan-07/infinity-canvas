@@ -1,5 +1,6 @@
 import { FreeHandStylePanel } from "./FreeHandStylePanel";
 import { ShapeStylePanel } from "./ShapeStylePanel";
+import { TextStylePanel } from "./TextStylePanel";
 import { ArrangementPanel } from "./ArrangementPanel";
 import { Separator } from "@/components/ui/separator";
 
@@ -15,13 +16,14 @@ export function Sidebar({
   const type = selectedElement.type;
 
   // Explicitly exclude text types from generic sidebar to avoid confusion
-  if (["i-text", "text", "textbox"].includes(type)) return null;
+  // if (["i-text", "text", "textbox"].includes(type)) return null; // REMOVED
 
   const isFreehand = type === "path" || type === "pencil";
+  const isText = ["i-text", "text", "textbox"].includes(type);
   const isShape = ["rect", "ellipse", "line", "triangle", "circle", "group", "diamond", "polygon", "arrow", "activeSelection"].includes(type);
 
   // If selection is neither (e.g. image or text), support might be added later
-  if (!isFreehand && !isShape) return null;
+  if (!isFreehand && !isShape && !isText) return null;
 
   return (
     <aside className="w-56 rounded-xl bg-card shadow-lg p-4 space-y-4">
@@ -31,6 +33,20 @@ export function Sidebar({
           element={selectedElement}
           updateElement={updateElement}
         />
+      )}
+
+      {isText && (
+        <>
+          <TextStylePanel
+            element={selectedElement}
+            updateElement={updateElement}
+          />
+          <Separator className="my-2" />
+          <ArrangementPanel
+            selectedElement={selectedElement}
+            layerActions={layerActions}
+          />
+        </>
       )}
 
       {isShape && (

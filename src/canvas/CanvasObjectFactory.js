@@ -66,7 +66,9 @@ export class CanvasObjectFactory {
                 shape = new IText('Type something...', {
                     fontFamily: 'Inter',
                     fontSize: 20,
-                    ...commonProps
+                    ...commonProps,
+                    stroke: null, // Disable outline by default for text
+                    strokeWidth: 0
                 });
                 break;
             case SHAPE_TYPES.DIAMOND:

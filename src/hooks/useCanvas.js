@@ -182,14 +182,36 @@ export function useCanvas() {
         obj.set(updates);
       });
     } else {
+      // Fabric JS often prefers key-value pairs, but .set(obj) should work.
+      // For text, sometimes specific properties need handling.
       activeObject.set(updates);
-    }
 
-    if (updates.stroke && activeObject.type === 'arrow') {
-      // Force update for custom arrow caching issues if any
+      // If updating fill, ensure we dirty the object explicitly
+      if (updates.fill) {
+        if (activeObject.type === 'i-text' || activeObject.type === 'text' || activeObject.type === 'textbox') {
+          // If text has styles (character-level colors), they override object fill.
+          // We must clear them to ensure the new color applies to everything.
+          if (activeObject.styles && Object.keys(activeObject.styles).length > 0) {
+            activeObject.cleanStyle('fill'); // Custom helper or manual iteration
+            // Manual iteration if cleanStyle not available:
+            for (let line in activeObject.styles) {
+              for (let char in activeObject.styles[line]) {
+                delete activeObject.styles[line][char].fill;
+              }
+            }
+          }
+        }
+        activeObject.dirty = true;
+      }
+
+      // If updating fill, ensure we dirty the object explicitly
+      if (updates.fill || updates.stroke) {
+        activeObject.setCoords();
+      }
     }
 
     fabricCanvas.requestRenderAll();
+    fabricCanvas.fire("selection:updated", { target: activeObject });
     saveState();
   };
 
