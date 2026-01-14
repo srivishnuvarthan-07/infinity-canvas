@@ -90,11 +90,11 @@ export function useCanvasDrag(fabricCanvas, activeTool) {
         const handleMouseUp = () => {
             if (isDragging.current && activeObjectRef.current) {
                 // Unlock native movement (optional, but good for cleanliness)
-                // Or keep it locked if we want to permanantly takeover.
-                // Let's unlock so other tools (if any) behave normally, 
-                // BUT next mousedown will lock it again.
                 // activeObjectRef.current.lockMovementX = false;
                 // activeObjectRef.current.lockMovementY = false;
+
+                // Fire modified event so history works
+                fabricCanvas.fire('object:modified', { target: activeObjectRef.current });
 
                 isDragging.current = false;
                 activeObjectRef.current = null;
