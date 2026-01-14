@@ -1,6 +1,7 @@
 import { FreeHandStylePanel } from "./FreeHandStylePanel";
 import { ShapeStylePanel } from "./ShapeStylePanel";
 import { ArrangementPanel } from "./ArrangementPanel";
+import { Separator } from "@/components/ui/separator";
 
 const SHAPE_TOOLS = ["rectangle", "diamond", "ellipse", "line", "arrow"];
 
@@ -31,10 +32,16 @@ export function Sidebar({
 
       {isShape && (
         <>
-          <ShapeStylePanel
-            element={selectedElement}
-            updateElement={updateElement}
-          />
+          {/* Only show ShapeStylePanel for single, stylable shapes. Explicitly exclude activeSelection to prevent crashes. */}
+          {!['activeSelection', 'group'].includes(type) && (
+            <>
+              <ShapeStylePanel
+                element={selectedElement}
+                updateElement={updateElement}
+              />
+              <Separator className="my-2" />
+            </>
+          )}
           <ArrangementPanel
             selectedElement={selectedElement}
             layerActions={layerActions}

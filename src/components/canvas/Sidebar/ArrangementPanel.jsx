@@ -14,16 +14,16 @@ export function ArrangementPanel({ layerActions, groupActions, selectedElement }
             <div className="space-y-2">
                 <span className="text-xs text-muted-foreground">Layers</span>
                 <div className="flex gap-1">
-                    <Button variant="outline" size="icon" onClick={layerActions.bringToFront} title="Bring to Front">
+                    <Button variant="outline" size="icon" onClick={layerActions.bringToFront} onMouseDown={(e) => e.preventDefault()} title="Bring to Front">
                         <ArrowUp className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={layerActions.moveForward} title="Move Forward">
+                    <Button variant="outline" size="icon" onClick={layerActions.moveForward} onMouseDown={(e) => e.preventDefault()} title="Move Forward">
                         <span className="text-xs">↑</span>
                     </Button>
-                    <Button variant="outline" size="icon" onClick={layerActions.moveBackward} title="Move Backward">
+                    <Button variant="outline" size="icon" onClick={layerActions.moveBackward} onMouseDown={(e) => e.preventDefault()} title="Move Backward">
                         <span className="text-xs">↓</span>
                     </Button>
-                    <Button variant="outline" size="icon" onClick={layerActions.sendToBack} title="Send to Back">
+                    <Button variant="outline" size="icon" onClick={layerActions.sendToBack} onMouseDown={(e) => e.preventDefault()} title="Send to Back">
                         <ArrowDown className="h-4 w-4" />
                     </Button>
                 </div>
@@ -31,13 +31,21 @@ export function ArrangementPanel({ layerActions, groupActions, selectedElement }
 
             {/* Grouping */}
             <div className="space-y-2">
-                <span className="text-xs text-muted-foreground">Grouping</span>
+                <span className="text-xs text-muted-foreground">Group</span>
                 <div className="flex gap-2">
                     <Button
                         variant="secondary"
                         size="sm"
                         className="w-full"
-                        onClick={groupActions.groupSelection}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            groupActions.groupSelection();
+                        }}
+                        onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }}
                         disabled={selectedElement.type !== 'activeSelection'}
                     >
                         <Component className="mr-2 h-4 w-4" /> Group
@@ -46,7 +54,15 @@ export function ArrangementPanel({ layerActions, groupActions, selectedElement }
                         variant="secondary"
                         size="sm"
                         className="w-full"
-                        onClick={groupActions.ungroupSelection}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            groupActions.ungroupSelection();
+                        }}
+                        onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }}
                         disabled={selectedElement.type !== 'group'}
                     >
                         <Spline className="mr-2 h-4 w-4" /> Ungroup

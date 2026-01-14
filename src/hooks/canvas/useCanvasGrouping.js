@@ -1,43 +1,67 @@
 import { useCallback } from "react";
 import { ActiveSelection } from "fabric";
 import { CanvasObjectFactory } from "../../canvas/CanvasObjectFactory";
-import { SHAPE_TYPES } from "../../canvas/constants";
+import { SHAPE_TYPES, BASE_SHAPE_PROPS } from "../../canvas/constants";
 
-export function useCanvasGrouping(fabricCanvas, saveState) {
+export function useCanvasGrouping(fabricCanvas, activeTool, saveState) {
 
     const groupSelection = useCallback(() => {
-        if (!fabricCanvas) return;
-        const activeObject = fabricCanvas.getActiveObject();
-
-        if (!activeObject || activeObject.type !== 'activeSelection') {
+        if (!fabricCanvas) {
+            console.error("[Grouping] Failed: No fabricCanvas instance.");
             return;
         }
 
-        // ActiveSelection is a special type in Fabric.
-        // We convert it to a formal Group.
-        activeObject.toGroup();
+        // 1. Validate Tool State
+        console.log(`[Grouping] Tool Check. ActiveTool: '${activeTool}'`);
 
-        // Fabric creates a default group. We need to enforce our ID and Schema.
-        // The `toGroup` method returns the new group but sets it as active object.
-        const newGroup = fabricCanvas.getActiveObject();
+        if (activeTool !== 'select') {
+            console.warn(`[Grouping] Failed: Grouping only allowed in 'select' mode. Current: ${activeTool}`);
+            return;
+        }
 
-        if (newGroup && newGroup.type === 'group') {
-            // Setup Unified Group Properties
-            const groupId = crypto.randomUUID();
+        const activeObject = fabricCanvas.getActiveObject();
+        console.log("[Grouping] Triggered. Active Object Type:", activeObject?.type);
+        console.log("[Grouping] Canvas Selection Enabled:", fabricCanvas.selection);
 
-            newGroup.set({
-                ...SHAPE_TYPES.BASE_SHAPE_PROPS, // Ensure base props
+        if (!activeObject) {
+            console.warn("[Grouping] Failed: No active object found (Selection cleared?).");
+            return;
+        }
+
+        if (activeObject.type !== 'activeSelection') {
+            console.warn(`[Grouping] Failed: Active object is '${activeObject.type}', expected 'activeSelection'.`);
+            return;
+        }
+
+        // 1. Convert to Group
+        // 'toGroup' automatically removes the activeSelection and adds the new Group to canvas
+        const group = activeObject.toGroup();
+
+        if (group && group.type === 'group') {
+            console.log("[Grouping] Group created successfully.", group);
+
+            // 2. Enforce Unified Properties & ID
+            // We preserve existing ID if it was re-grouped, or generate new if fresh.
+            // Usually valid groups need a stable ID.
+            const groupId = group.id || crypto.randomUUID();
+
+            group.set({
+                ...BASE_SHAPE_PROPS,
                 id: groupId,
                 fill: 'transparent',
-                stroke: null,
-                subTargetCheck: true,
+                stroke: null, // Groups shouldn't have a stroke themselves usually
+                objectCaching: false, // Help with rendering artifacts
+                subTargetCheck: true, // Allow selecting items inside if needed
                 interactive: true
             });
 
+            // 3. Update Canvas
+            fabricCanvas.setActiveObject(group);
             fabricCanvas.requestRenderAll();
-            // Important: Set this new group as the active object explicitly to trigger UI updates
-            fabricCanvas.setActiveObject(newGroup);
             saveState();
+            console.log("[Grouping] Group finalized and active.", group.id);
+        } else {
+            console.error("[Grouping] 'toGroup' failed to return a valid Group object.");
         }
 
     }, [fabricCanvas, saveState]);
@@ -46,14 +70,26 @@ export function useCanvasGrouping(fabricCanvas, saveState) {
         if (!fabricCanvas) return;
         const activeObject = fabricCanvas.getActiveObject();
 
+        console.log("[Ungrouping] Attempting to ungroup. Active Object:", activeObject?.type);
+
         if (!activeObject || activeObject.type !== 'group') {
+            console.warn("[Ungrouping] Failed: Selection is not a Group.");
             return;
         }
 
-        // Ungroup
-        activeObject.toActiveSelection();
-        fabricCanvas.requestRenderAll();
-        saveState();
+        // 1. Ungroup
+        // 'toActiveSelection' explodes the group back into selected items
+        const activeSelection = activeObject.toActiveSelection();
+
+        if (activeSelection) {
+            console.log("[Ungrouping] Success. Restored active selection.");
+
+            // 2. Update Canvas
+            fabricCanvas.requestRenderAll();
+            saveState();
+        } else {
+            console.error("[Ungrouping] 'toActiveSelection' failed.");
+        }
 
     }, [fabricCanvas, saveState]);
 

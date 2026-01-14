@@ -157,7 +157,7 @@ export function useCanvas() {
   const layerActions = useCanvasLayers(fabricCanvas, saveState);
 
   // 7. Grouping
-  const groupActions = useCanvasGrouping(fabricCanvas, saveState);
+  const groupActions = useCanvasGrouping(fabricCanvas, activeTool, saveState);
 
   // 8. Text
   const { addText } = useCanvasText(fabricCanvas, activeTool, setActiveTool, activeColor, saveState);
