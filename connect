@@ -1,0 +1,26 @@
+# Project Update: Pixel-Perfect Selection System
+
+## Core Features Implemented
+1.  **Pixel-Perfect Hit Testing**:
+    -   Replaced Fabric's default bounding-box selection with a custom **Local-Space Hit Testing** engine (`hitTest.js`).
+    -   **Rotated Shapes**: Correctly selects rotated shapes (e.g., Diamonds) based on their actual geometry, not their bounding box.
+    -   **Nested Selection**: Iterates properly from top-to-bottom, ensuring the visual "top" element is always selected.
+
+2.  **Selection Invariant (Transparent Shapes)**:
+    -   **Rule**: "A shape may only capture interior pointer hits if it has a visible fill."
+    -   **Behavior**: Transparent Rectangles, Circles, and Ellipses now allow clicks to **pass through** their empty centers to select objects behind them. They can only be selected by clicking their **border/stroke**.
+
+3.  **Enhanced Pencil/Path Selection**:
+    -   **Tolerance**: Implemented a proximity check (`isPointNearPath`) that allows selecting thin pencil strokes by clicking *near* them (within ~5px), solving the "hard to click" issue.
+    -   **Pass-through**: Transparent pencil loops correctly allow selecting objects "inside" the loop.
+
+4.  **Robust Dragging**:
+    -   Updated Drag logic to use the same strict hit-test, ensuring you drag exactly what you click.
+    -   Fixed Undo/Redo support for manual drag operations.
+
+## Technical Changes
+-   Created `src/canvas/utils/hitTest.js`.
+-   Refactored `useCanvasSelection.js` and `useCanvasDrag.js`.
+-   Enforced Local Space coordinate transformation for all interaction.
+
+The system now matches professional vector design tools (like Excalidraw) in selection feel and accuracy.

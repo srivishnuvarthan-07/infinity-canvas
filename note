@@ -49,3 +49,29 @@ To reach full feature parity with tools like Excalidraw, the following features 
 ## 3. Maintenance Notes
 *   **Performance**: Watch out for `saveState` on every drag frame. Ensure it only fires on `mouse:up` or throttled events for large canvases.
 *   **Testing**: Add unit tests for the custom hooks to ensure logic stability during future refactors.
+
+---
+
+## 4. Completed Milestones (Jan 2026) -> Selection & Text Logic
+We have successfully implemented a robust, pixel-perfect selection system and fully integrated Text support.
+
+### A. Pixel-Perfect Selection Engine
+*   **Problem**: Transparent shapes blocked selection of underlying objects; rotated shapes (Diamond) had inaccurate hit boxes; thin lines were hard to click.
+*   **Solution**: Implemented a custom `hitTest.js` engine that:
+    *   Uses **Local Coordinate Space** transformation for accurate rotation support.
+    *   Enforces a **Selection Invariant**: Transparent shapes only capture hits on their stroke (border), allowing click-through to underlying objects.
+    *   **Tolerance**: Added "fuzzy" selection for paths/pencil strokes, making them easy to grab without pixel-perfect precision.
+
+### B. Text Features & Sidebar Integration
+*   **Text Support**: Added `IText` and `Textbox` to the supported shape types.
+*   **Selection Rule**: Text is always selectable by its bounding box (no click-through), ensuring easy manipulation.
+*   **Double-Click Edit**: Implemented "Safeguard 2" — distinct modes for Selection (Single Click) vs Editing (Double Click).
+*   **Styling**: 
+    *   Created `TextStylePanel` in Sidebar.
+    *   Supports **Color**, **Font Size**, and **Font Family**.
+    *   **Smart Updates**: Resolved issue where character-level styles prevented color changes by auto-clearing styles on global update.
+    *   **Visual Fix**: Removed default black stroke from text objects to ensure colors render correctly.
+
+### C. Architecture Improvements
+*   **Live UI Updates**: Modified `useCanvas` to fire `selection:updated` on property changes, ensuring the Sidebar UI stays in sync with the Canvas state.
+*   **Layer Management**: Integrated `ArrangementPanel` (Bring to Front/Send to Back) for all shapes including Text.
