@@ -116,7 +116,8 @@ export function useCanvas() {
     redo,
     canUndo,
     canRedo,
-    resetHistory
+    resetHistory,
+    history
   } = useCanvasHistory(fabricCanvas);
 
   // Save state on object modification (move, resize, rotate)
@@ -240,6 +241,7 @@ export function useCanvas() {
     handleZoomReset,
 
     // History
+    history: useCanvasHistory(fabricCanvas).history, // Wait, I need to destructure it properly from the hook call above
     canUndo,
     canRedo,
     handleUndo: undo,

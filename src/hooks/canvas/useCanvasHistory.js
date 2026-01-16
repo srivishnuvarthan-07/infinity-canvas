@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { createSceneAnimator } from "../../canvas/utils/animator";
 
 export function useCanvasHistory(fabricCanvas) {
     const [history, setHistory] = useState([]);
@@ -31,29 +32,44 @@ export function useCanvasHistory(fabricCanvas) {
     }, [fabricCanvas, currentIndex, history.length]);
 
     // Undo
-    const undo = useCallback(() => {
+    const undo = useCallback(async () => {
         if (!fabricCanvas || currentIndex <= 0) return;
 
         const prevIndex = currentIndex - 1;
         const prevState = history[prevIndex];
 
-        fabricCanvas.loadFromJSON(prevState, () => {
-            fabricCanvas.requestRenderAll();
-            setCurrentIndex(prevIndex);
-        });
+        // Parse JSON string to Object once for the animator
+        const targetState = JSON.parse(prevState);
+
+        // Optimistically update index
+        setCurrentIndex(prevIndex);
+
+        // Create Animator Controller
+        const animator = await createSceneAnimator(fabricCanvas, targetState);
+
+        // Run Animation
+        await animator.start(300);
+
+        // Commit Final State (Hard Snap)
+        await animator.commit();
+
     }, [fabricCanvas, currentIndex, history]);
 
     // Redo
-    const redo = useCallback(() => {
+    const redo = useCallback(async () => {
         if (!fabricCanvas || currentIndex >= history.length - 1) return;
 
         const nextIndex = currentIndex + 1;
         const nextState = history[nextIndex];
 
-        fabricCanvas.loadFromJSON(nextState, () => {
-            fabricCanvas.requestRenderAll();
-            setCurrentIndex(nextIndex);
-        });
+        const targetState = JSON.parse(nextState);
+
+        setCurrentIndex(nextIndex);
+
+        const animator = await createSceneAnimator(fabricCanvas, targetState);
+        await animator.start(300);
+        await animator.commit();
+
     }, [fabricCanvas, currentIndex, history]);
 
     // Reset history (for clear canvas)
@@ -63,6 +79,7 @@ export function useCanvasHistory(fabricCanvas) {
     }, []);
 
     return {
+        history,
         saveState,
         undo,
         redo,
