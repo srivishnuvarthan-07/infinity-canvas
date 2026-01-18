@@ -41,7 +41,8 @@ export function DrawingCanvas() {
         updateSelectedElement,
         layerActions,
         groupActions,
-        history // Destructure history
+        history, // Destructure history
+        fabricCanvas // Destructure fabricCanvas
     } = useCanvas();
 
     return (
@@ -52,7 +53,7 @@ export function DrawingCanvas() {
             {/* ANIMATION TOOLBAR (Conditional Overlay) */}
             {showAnimation && (
                 <AnimationToolbar
-                    canvasRef={canvasRef}
+                    canvasInstance={fabricCanvas}
                     history={history}
                     onClose={() => setShowAnimation(false)}
                 />
