@@ -1,29 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Pause, Download, StopCircle, X, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SequenceAnimator } from '../../canvas/utils/sequenceAnimator';
 import { GifExporter } from '../../canvas/utils/gifExporter';
 import { useToast } from "@/hooks/use-toast";
 
-export const AnimationToolbar = ({ canvasRef, history, onClose }) => {
+export const AnimationToolbar = ({ canvasInstance, history, onClose }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [animator, setAnimator] = useState(null);
+    const [playbackIndex, setPlaybackIndex] = useState(0); // Track current frame
     const { toast } = useToast();
 
-    const handlePlay = async () => {
-        if (!canvasRef.current || !history || history.length < 2) return;
+    // Auto-play on mount
+    useEffect(() => {
+        handlePlay();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-        // Initialize Animator
-        const newAnimator = new SequenceAnimator(canvasRef.current, history);
+    const handlePlay = async () => {
+        if (!canvasInstance || !history || history.length < 2) return;
+
+        // Reset to start if at end or if we just mounted
+        const startIdx = 0; // Always start from beginning for "Play" unless we implement resume
+
+        const newAnimator = new SequenceAnimator(canvasInstance, history);
         setAnimator(newAnimator);
         setIsPlaying(true);
+        setPlaybackIndex(0);
 
         try {
-            await newAnimator.play();
+            await newAnimator.play(startIdx);
         } finally {
             setIsPlaying(false);
             setAnimator(null);
+            setPlaybackIndex(history.length - 1); // Assume finished
+        }
+    };
+
+    const handleStep = async () => {
+        if (!canvasInstance || !history || history.length < 2) return;
+        if (playbackIndex >= history.length - 1) return;
+
+        const newAnimator = new SequenceAnimator(canvasInstance, history);
+        setIsPlaying(true);
+
+        try {
+            // Ensure we are at the visual state of 'playbackIndex'
+            // For robustness, we could force load:
+            if (playbackIndex === 0) {
+                const startState = JSON.parse(history[0]);
+                await new Promise(resolve => canvasInstance.loadFromJSON(startState, resolve));
+                canvasInstance.requestRenderAll();
+            }
+
+            // Step Forward
+            await newAnimator.step(playbackIndex);
+            setPlaybackIndex(prev => prev + 1);
+        } finally {
+            setIsPlaying(false);
         }
     };
 
@@ -35,13 +70,13 @@ export const AnimationToolbar = ({ canvasRef, history, onClose }) => {
     };
 
     const handleExport = async () => {
-        if (!canvasRef.current || !history || history.length < 2) return;
+        if (!canvasInstance || !history || history.length < 2) return;
 
         setIsExporting(true);
         toast({ title: "Exporting GIF...", description: "Rendering frames. This may take a moment." });
 
         try {
-            const exporter = new GifExporter(canvasRef.current, history);
+            const exporter = new GifExporter(canvasInstance, history);
             const blob = await exporter.export({ width: 800, delay: 500, fps: 20 });
 
             // Download
@@ -74,6 +109,10 @@ export const AnimationToolbar = ({ canvasRef, history, onClose }) => {
                     <StopCircle className="h-5 w-5 text-red-500" />
                 </Button>
             )}
+
+            <Button variant="ghost" size="icon" onClick={handleStep} disabled={isPlaying || isExporting || isDisabled || playbackIndex >= history.length - 1}>
+                <SkipForward className="h-5 w-5" />
+            </Button>
 
             <div className="w-px h-6 bg-gray-200 mx-1"></div>
 
