@@ -233,6 +233,7 @@ export function useCanvas() {
     setStrokeStyle,
     showgrid,
     setshowgrid,
+    fabricCanvas, // Expose Fabric Instance
 
     // Zoom
     zoom,
@@ -241,7 +242,7 @@ export function useCanvas() {
     handleZoomReset,
 
     // History
-    history: useCanvasHistory(fabricCanvas).history, // Wait, I need to destructure it properly from the hook call above
+    history, // Use destructured history
     canUndo,
     canRedo,
     handleUndo: undo,
@@ -256,8 +257,6 @@ export function useCanvas() {
     // Advanced Manipulation
     layerActions,
     // groupActions, (Removed)
-
-    // Selection
 
     // Selection
     selectedElement,

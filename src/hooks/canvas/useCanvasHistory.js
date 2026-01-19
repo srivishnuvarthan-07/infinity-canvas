@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { createSceneAnimator } from "../../canvas/utils/animator";
 
 export function useCanvasHistory(fabricCanvas) {
@@ -27,9 +27,17 @@ export function useCanvasHistory(fabricCanvas) {
         setCurrentIndex((prev) => {
             const newIndex = prev + 1;
             // Adjust if we shifted
+            // Adjust if we shifted
             return history.length >= 50 ? 49 : newIndex;
         });
     }, [fabricCanvas, currentIndex, history.length]);
+
+    // Save initial state on load
+    useEffect(() => {
+        if (fabricCanvas && history.length === 0) {
+            saveState();
+        }
+    }, [fabricCanvas, history.length, saveState]);
 
     // Undo
     const undo = useCallback(async () => {
