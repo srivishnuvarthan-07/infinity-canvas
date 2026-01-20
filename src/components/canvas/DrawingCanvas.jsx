@@ -1,3 +1,4 @@
+
 import { useCanvas } from "@/hooks/useCanvas";
 import { Toolbar } from "./Toolbar";
 import { ColorPicker } from "./ColorPicker";
@@ -6,12 +7,10 @@ import { ActionBar } from "./ActionBar";
 import { ZoomControls } from "./ZoomControls";
 import { Logo } from "./Logo";
 import { Sidebar } from "@/components/canvas/Sidebar/Sidebar";
-import { AnimationToolbar } from "../ui/AnimationToolbar"; // Import new component
 import { useState } from "react";
 
 
 export function DrawingCanvas() {
-    const [showAnimation, setShowAnimation] = useState(false);
 
     const {
         canvasRef,
@@ -50,17 +49,10 @@ export function DrawingCanvas() {
             ref={containerRef}
             className="relative w-full h-screen overflow-hidden bg-background"
         >
-            {/* ANIMATION TOOLBAR (Conditional Overlay) */}
-            {showAnimation && (
-                <AnimationToolbar
-                    canvasInstance={fabricCanvas}
-                    history={history}
-                    onClose={() => setShowAnimation(false)}
-                />
-            )}
+
 
             {/* FLOATING LEFT STYLE PANEL */}
-            <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-20 pointer-events-auto ${showAnimation ? "hidden" : ""}`}>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 pointer-events-auto">
                 <Sidebar
                     selectedElement={selectedElement}
                     updateElement={updateSelectedElement}
@@ -70,7 +62,7 @@ export function DrawingCanvas() {
             </div>
 
             {/* TOP BAR */}
-            <div className={`absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none ${showAnimation ? "hidden" : ""}`}>
+            <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
                 <div className="pointer-events-auto">
                     <Logo />
                 </div>
@@ -91,13 +83,12 @@ export function DrawingCanvas() {
                         onClear={handleClear}
                         onExport={handleExport}
                         onAddImage={handleAddImage}
-                        onToggleAnimation={() => setShowAnimation(!showAnimation)}
                     />
                 </div>
             </div>
 
             {/* ZOOM */}
-            <div className={`absolute bottom-4 right-4 z-10 pointer-events-auto ${showAnimation ? "hidden" : ""}`}>
+            <div className="absolute bottom-4 right-4 z-10 pointer-events-auto">
                 <ZoomControls
                     zoom={zoom}
                     onZoomIn={handleZoomIn}
