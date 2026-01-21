@@ -11,21 +11,20 @@ export function useCanvasSelection(fabricCanvas) {
         const updateSelection = () => {
             const activeObject = fabricCanvas.getActiveObject();
             setSelectedElement(activeObject || null);
-            setVersion(v => v + 1); // Always force update on selection events
+            setVersion(v => v + 1);
         };
 
         const handleMouseDown = (opt) => {
-            // Only run custom selection logic if we are in select mode
-            if (fabricCanvas.isDrawingMode) return;
-            if (fabricCanvas.activeTool && fabricCanvas.activeTool !== 'select') return;
+            // Only custom selection if active tool is select and not drawing mode
+            if (fabricCanvas.isDrawingMode || (fabricCanvas.activeTool && fabricCanvas.activeTool !== 'select')) return;
 
-            // Check if user is editing text (let Fabric handle caret/selection events)
             const activeObject = fabricCanvas.getActiveObject();
+            // Let Fabric handle editing text
             if (activeObject && (activeObject.isEditing || (activeObject.type === 'i-text' && activeObject.isEditing))) {
                 return;
             }
 
-            // Check Control Interaction (let Fabric handle it - don't deselect)
+            // Let Fabric handle controls
             if (opt.target && opt.target === activeObject && opt.target.__corner) {
                 return;
             }
@@ -34,14 +33,11 @@ export function useCanvasSelection(fabricCanvas) {
             const target = getShapeAtPointer(fabricCanvas, pointer);
 
             if (target) {
-                // Check if already selected to avoid flicker, or just re-select
                 if (fabricCanvas.getActiveObject() !== target) {
                     fabricCanvas.setActiveObject(target);
-                    // Force update version managed in updateSelection via event
                     fabricCanvas.requestRenderAll();
                 }
             } else {
-                // Clicked on empty space -> Deselect
                 if (fabricCanvas.getActiveObject()) {
                     fabricCanvas.discardActiveObject();
                     fabricCanvas.requestRenderAll();
@@ -51,8 +47,7 @@ export function useCanvasSelection(fabricCanvas) {
 
         const handleDoubleClick = (opt) => {
             const target = opt.target;
-            if (target && (target.type === 'i-text' || target.type === 'textbox' || target.type === 'text')) {
-                // Determine pointer position for cursor placement if needed, or just enter edit
+            if (target && ['i-text', 'textbox', 'text'].includes(target.type)) {
                 if (target.enterEditing) {
                     target.enterEditing();
                     fabricCanvas.requestRenderAll();
