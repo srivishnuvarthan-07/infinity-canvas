@@ -151,7 +151,9 @@ export function useCanvas() {
   const {
     handleExport,
     handleClear,
-    handleAddImage
+    handleAddImage,
+    handleSaveAs,
+    handleLoad
   } = useCanvasActions(fabricCanvas, saveState, resetHistory);
 
   // 6. Layers
