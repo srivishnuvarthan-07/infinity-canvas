@@ -11,18 +11,14 @@ import { SHAPE_TYPES } from "../constants";
  */
 export function toLocalSpace(shape, pointer) {
     const center = shape.getCenterPoint();
-    const point = new Point(pointer.x, pointer.y);
-
-    // 1. Translate to center
-    const dx = point.x - center.x;
-    const dy = point.y - center.y;
-
-    // 2. Rotate by -angle (inverse rotation)
+    const dx = pointer.x - center.x;
+    const dy = pointer.y - center.y;
     const angleRad = -shape.angle * (Math.PI / 180);
-    const localX = dx * Math.cos(angleRad) - dy * Math.sin(angleRad);
-    const localY = dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
 
-    return new Point(localX, localY);
+    return new Point(
+        dx * Math.cos(angleRad) - dy * Math.sin(angleRad),
+        dx * Math.sin(angleRad) + dy * Math.cos(angleRad)
+    );
 }
 
 /**

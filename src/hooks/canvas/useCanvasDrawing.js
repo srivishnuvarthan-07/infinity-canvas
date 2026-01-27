@@ -33,16 +33,15 @@ export function useCanvasDrawing(
         if (!fabricCanvas) return;
 
         const handleMouseDown = (opt) => {
-            const isShapeTool = Object.values(SHAPE_TYPES).includes(activeTool) && activeTool !== 'text' && activeTool !== 'image' && activeTool !== 'group' && activeTool !== 'path';
+            const isShapeTool = Object.values(SHAPE_TYPES).includes(activeTool) &&
+                !['text', 'image', 'group', 'path'].includes(activeTool);
+
             if (!isShapeTool) return;
 
             const pointer = fabricCanvas.getScenePoint(opt.e);
             isDrawingShape.current = true;
             shapeStart.current = { x: pointer.x, y: pointer.y };
 
-            // Create shape using factory
-            // Note: We deliberately use activeTool as the type key. 
-            // Ensure SHAPE_TYPES values match activeTool strings.
             const shape = CanvasObjectFactory.create(activeTool, pointer, {
                 stroke: activeColor,
                 strokeWidth: strokeWidth,
@@ -66,37 +65,21 @@ export function useCanvasDrawing(
 
             switch (activeTool) {
                 case SHAPE_TYPES.RECT:
-                    const w = Math.abs(pointer.x - startX);
-                    const h = Math.abs(pointer.y - startY);
                     shape.set({
-                        width: w,
-                        height: h,
+                        width: Math.abs(pointer.x - startX),
+                        height: Math.abs(pointer.y - startY),
                         left: Math.min(pointer.x, startX),
                         top: Math.min(pointer.y, startY)
                     });
                     break;
                 case SHAPE_TYPES.DIAMOND:
-                    // Symmetric creation from center (midpoint)
-                    const dx = Math.abs(pointer.x - startX);
-                    const dy = Math.abs(pointer.y - startY);
-                    
-                    // Visual size (bounding box)
-                    const size = Math.max(Math.abs(dx), Math.abs(dy));
-
-                    // Center is midpoint
-                    const centerX = (startX + pointer.x) / 2;
-                    const centerY = (startY + pointer.y) / 2;
-                    // The actual square side length needed to achieve 'size' visual bounds
-                    // For a 45deg aligned square: Side = Size / sqrt(2)
+                    const size = Math.max(Math.abs(pointer.x - startX), Math.abs(pointer.y - startY));
                     const sideLength = size / Math.sqrt(2);
-
                     shape.set({
                         width: sideLength,
                         height: sideLength,
-                        left: centerX,
-                        top: centerY,
-                        // angle is already 45 from factory
-                        // originX/Y are 'center' from factory
+                        left: (startX + pointer.x) / 2,
+                        top: (startY + pointer.y) / 2,
                     });
                     shape.setCoords();
                     break;
@@ -137,17 +120,10 @@ export function useCanvasDrawing(
         };
 
         const handlePathCreated = () => {
-            // For freehand, we might want to apply unified props too
-            // Fabric created the path object automatically.
-            // We should find the last object and patch it.
             const objects = fabricCanvas.getObjects();
             const lastObject = objects[objects.length - 1];
             if (lastObject && lastObject.type === 'path') {
-                // Patch ID and Type
-                lastObject.set({
-                    id: crypto.randomUUID(),
-                    // ...BASE_SHAPE_PROPS // Optional: apply base props if needed
-                });
+                lastObject.set({ id: crypto.randomUUID() });
             }
 
             if (saveState) saveState();

@@ -10,7 +10,6 @@ import { useCanvasGrid } from "./canvas/useCanvasGrid";
 import { useCanvasActions } from "./canvas/useCanvasActions";
 import { useCanvasSelection } from "./canvas/useCanvasSelection";
 import { useCanvasLayers } from "./canvas/useCanvasLayers";
-// import { useCanvasGrouping } from "./canvas/useCanvasGrouping";
 import { useCanvasDrag } from "./canvas/useCanvasDrag";
 import { useCanvasText } from "./canvas/useCanvasText";
 import { useCanvasEraser } from "./canvas/useCanvasEraser";
@@ -116,7 +115,8 @@ export function useCanvas() {
     redo,
     canUndo,
     canRedo,
-    resetHistory
+    resetHistory,
+    history
   } = useCanvasHistory(fabricCanvas);
 
   // Save state on object modification (move, resize, rotate)
@@ -151,14 +151,15 @@ export function useCanvas() {
   const {
     handleExport,
     handleClear,
-    handleAddImage
+    handleAddImage,
+    handleSaveAs,
+    handleLoad
   } = useCanvasActions(fabricCanvas, saveState, resetHistory);
 
   // 6. Layers
   const layerActions = useCanvasLayers(fabricCanvas, saveState);
 
   // 7. Grouping (Removed per Flat Canvas Architecture)
-  // const groupActions = useCanvasGrouping(fabricCanvas, activeTool, saveState);
 
   // 8. Text
   const { addText } = useCanvasText(fabricCanvas, activeTool, setActiveTool, activeColor, saveState);
@@ -188,23 +189,12 @@ export function useCanvas() {
 
       // If updating fill, ensure we dirty the object explicitly
       if (updates.fill) {
-        if (activeObject.type === 'i-text' || activeObject.type === 'text' || activeObject.type === 'textbox') {
-          // If text has styles (character-level colors), they override object fill.
-          // We must clear them to ensure the new color applies to everything.
-          if (activeObject.styles && Object.keys(activeObject.styles).length > 0) {
-            activeObject.cleanStyle('fill'); // Custom helper or manual iteration
-            // Manual iteration if cleanStyle not available:
-            for (let line in activeObject.styles) {
-              for (let char in activeObject.styles[line]) {
-                delete activeObject.styles[line][char].fill;
-              }
-            }
-          }
+        if (['i-text', 'text', 'textbox'].includes(activeObject.type) && activeObject.styles) {
+          activeObject.cleanStyle('fill');
         }
         activeObject.dirty = true;
       }
 
-      // If updating fill, ensure we dirty the object explicitly
       if (updates.fill || updates.stroke) {
         activeObject.setCoords();
       }
@@ -232,6 +222,7 @@ export function useCanvas() {
     setStrokeStyle,
     showgrid,
     setshowgrid,
+    fabricCanvas, // Expose Fabric Instance
 
     // Zoom
     zoom,
@@ -240,6 +231,7 @@ export function useCanvas() {
     handleZoomReset,
 
     // History
+    history, // Use destructured history
     canUndo,
     canRedo,
     handleUndo: undo,
@@ -254,8 +246,6 @@ export function useCanvas() {
     // Advanced Manipulation
     layerActions,
     // groupActions, (Removed)
-
-    // Selection
 
     // Selection
     selectedElement,

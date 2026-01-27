@@ -1,3 +1,4 @@
+
 import { useCanvas } from "@/hooks/useCanvas";
 import { Toolbar } from "./Toolbar";
 import { ColorPicker } from "./ColorPicker";
@@ -6,9 +7,11 @@ import { ActionBar } from "./ActionBar";
 import { ZoomControls } from "./ZoomControls";
 import { Logo } from "./Logo";
 import { Sidebar } from "@/components/canvas/Sidebar/Sidebar";
+import { useState } from "react";
 
 
 export function DrawingCanvas() {
+
     const {
         canvasRef,
         containerRef,
@@ -36,7 +39,9 @@ export function DrawingCanvas() {
         selectedElement,
         updateSelectedElement,
         layerActions,
-        groupActions
+        groupActions,
+        history, // Destructure history
+        fabricCanvas // Destructure fabricCanvas
     } = useCanvas();
 
     return (
@@ -44,6 +49,8 @@ export function DrawingCanvas() {
             ref={containerRef}
             className="relative w-full h-screen overflow-hidden bg-background"
         >
+
+
             {/* FLOATING LEFT STYLE PANEL */}
             <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 pointer-events-auto">
                 <Sidebar
