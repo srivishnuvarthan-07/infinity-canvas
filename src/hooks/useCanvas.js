@@ -184,29 +184,34 @@ export function useCanvas() {
         obj.set(updates);
       });
     } else {
+      // Check for fill related updates
+      const currentFillColor = updates.fillColor !== undefined ? updates.fillColor : activeObject.fillColor;
+      const currentFillStyle = updates.fillStyle !== undefined ? updates.fillStyle : activeObject.fillStyle;
+
+      if (updates.fillColor || updates.fillStyle) {
+        if (currentFillColor && currentFillStyle) {
+          import("@/utils/canvas/patterns").then(({ getPattern }) => {
+            const pattern = getPattern(currentFillColor, currentFillStyle);
+            activeObject.set("fill", pattern);
+            activeObject.set("fillColor", currentFillColor);
+            activeObject.set("fillStyle", currentFillStyle);
+            fabricCanvas.requestRenderAll();
+            saveState();
+          });
+        }
+      }
+
       // Fabric JS often prefers key-value pairs, but .set(obj) should work.
-      // For text, sometimes specific properties need handling.
       activeObject.set(updates);
 
       // If updating fill, ensure we dirty the object explicitly
       if (updates.fill) {
-        if (activeObject.type === 'i-text' || activeObject.type === 'text' || activeObject.type === 'textbox') {
-          // If text has styles (character-level colors), they override object fill.
-          // We must clear them to ensure the new color applies to everything.
-          if (activeObject.styles && Object.keys(activeObject.styles).length > 0) {
-            activeObject.cleanStyle('fill'); // Custom helper or manual iteration
-            // Manual iteration if cleanStyle not available:
-            for (let line in activeObject.styles) {
-              for (let char in activeObject.styles[line]) {
-                delete activeObject.styles[line][char].fill;
-              }
-            }
-          }
+        if (['i-text', 'text', 'textbox'].includes(activeObject.type) && activeObject.styles) {
+          activeObject.cleanStyle('fill');
         }
         activeObject.dirty = true;
       }
 
-      // If updating fill, ensure we dirty the object explicitly
       if (updates.fill || updates.stroke) {
         activeObject.setCoords();
       }

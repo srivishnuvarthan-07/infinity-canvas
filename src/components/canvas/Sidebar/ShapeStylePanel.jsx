@@ -22,6 +22,45 @@ export function ShapeStylePanel({ element, updateElement }) {
       <h4 className="text-sm font-semibold">Shape Style</h4>
       <Separator />
 
+      {/* Fill Color */}
+      <div className="space-y-2">
+        <span className="text-xs text-muted-foreground">Fill Color</span>
+        <div className="flex gap-2">
+          {COLORS.map((color) => (
+            <Button
+              key={color}
+              size="icon"
+              variant={element.fillColor === color ? "default" : "outline"}
+              style={{ backgroundColor: color }}
+              onClick={() => updateElement({ fillColor: color })}
+            />
+          ))}
+          <Button
+            size="icon"
+            variant={element.fillColor === "transparent" ? "default" : "outline"}
+            className="bg-transparent border border-dashed border-foreground"
+            onClick={() => updateElement({ fillColor: "transparent" })}
+            title="Transparent"
+          />
+        </div>
+      </div>
+
+      {/* Fill Style */}
+      <div className="space-y-2">
+        <span className="text-xs text-muted-foreground">Fill Style</span>
+        <ToggleGroup
+          type="single"
+          value={element.fillStyle || "solid"}
+          onValueChange={(v) => {
+            if (v) updateElement({ fillStyle: v });
+          }}
+        >
+          <ToggleGroupItem value="solid">Solid</ToggleGroupItem>
+          <ToggleGroupItem value="hachure">Hachure</ToggleGroupItem>
+          <ToggleGroupItem value="cross-hatch">Cross-Hatch</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
       {/* Stroke Color */}
       <div className="space-y-2">
         <span className="text-xs text-muted-foreground">Stroke Color</span>
