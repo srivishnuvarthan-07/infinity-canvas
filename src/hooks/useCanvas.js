@@ -201,6 +201,7 @@ export function useCanvas() {
         }
       }
 
+<<<<<<< HEAD
       // Check for Sloppiness updates
       if (updates.sloppiness) {
         const mode = updates.sloppiness;
@@ -237,6 +238,8 @@ export function useCanvas() {
         }
       }
 
+=======
+>>>>>>> 7f226d666374b737c84086b9989f102e5191cfd6
       // Fabric JS often prefers key-value pairs, but .set(obj) should work.
       activeObject.set(updates);
 

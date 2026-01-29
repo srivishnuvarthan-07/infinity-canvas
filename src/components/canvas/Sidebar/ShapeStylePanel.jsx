@@ -61,30 +61,6 @@ export function ShapeStylePanel({ element, updateElement }) {
         </ToggleGroup>
       </div>
 
-      <Separator />
-
-      {/* Sloppiness */}
-      <div className="space-y-2">
-        <span className="text-xs text-muted-foreground">Sloppiness</span>
-        <ToggleGroup
-          type="single"
-          value={element.sloppiness || "architect"}
-          onValueChange={(v) => {
-            if (v) updateElement({ sloppiness: v });
-          }}
-        >
-          <ToggleGroupItem value="architect" title="Architect">
-            Sharp
-          </ToggleGroupItem>
-          <ToggleGroupItem value="artist" title="Artist">
-            Sketchy
-          </ToggleGroupItem>
-          <ToggleGroupItem value="cartoonist" title="Cartoonist">
-            Round
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
       {/* Stroke Color */}
       <div className="space-y-2">
         <span className="text-xs text-muted-foreground">Stroke Color</span>
