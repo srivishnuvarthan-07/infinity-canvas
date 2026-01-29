@@ -1,6 +1,7 @@
 import { useCanvas } from "@/hooks/useCanvas";
 import { Toolbar } from "./Toolbar";
 import { ColorPicker } from "./ColorPicker";
+import { MenuToolbar } from "./MenuToolbar";
 import { StrokeWidth } from "./StrokeWidth";
 import { ActionBar } from "./ActionBar";
 import { ZoomControls } from "./ZoomControls";
@@ -35,6 +36,8 @@ export function DrawingCanvas() {
         handleAddImage,
         selectedElement,
         updateSelectedElement,
+        handleSaveAs,
+        handleLoad,
         layerActions,
         groupActions
     } = useCanvas();
@@ -56,7 +59,13 @@ export function DrawingCanvas() {
 
             {/* TOP BAR */}
             <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
-                <div className="pointer-events-auto">
+                <div className="pointer-events-auto flex items-center gap-2">
+                    <MenuToolbar
+                        onOpen={handleLoad}
+                        onSaveAs={handleSaveAs}
+                        onExport={handleExport}
+                        onReset={handleClear}
+                    />
                     <Logo />
                 </div>
 

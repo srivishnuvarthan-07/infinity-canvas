@@ -151,7 +151,9 @@ export function useCanvas() {
   const {
     handleExport,
     handleClear,
-    handleAddImage
+    handleAddImage,
+    handleSaveAs,
+    handleLoad
   } = useCanvasActions(fabricCanvas, saveState, resetHistory);
 
   // 6. Layers
@@ -249,6 +251,8 @@ export function useCanvas() {
     handleClear,
     handleExport,
     handleAddImage,
+    handleSaveAs,
+    handleLoad,
     addText, // Exposed for toolbar/sidebar if needed
 
     // Advanced Manipulation
@@ -256,9 +260,8 @@ export function useCanvas() {
     // groupActions, (Removed)
 
     // Selection
-
-    // Selection
     selectedElement,
     updateSelectedElement
   };
 }
+

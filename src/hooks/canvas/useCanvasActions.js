@@ -66,7 +66,7 @@ export function useCanvasActions(fabricCanvas, saveState, resetHistory) {
                     saveState();
                 };
             };
-            reader.readAsDataURL(file);
+            reader.readAsText(file);
         };
 
         input.click();
