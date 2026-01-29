@@ -66,15 +66,53 @@ export function useCanvasActions(fabricCanvas, saveState, resetHistory) {
                     saveState();
                 };
             };
-            reader.readAsText(file);
+            reader.readAsDataURL(file);
         };
 
+        input.click();
+    }, [fabricCanvas, saveState]);
+
+    // Save as .infinity (JSON)
+    const handleSaveAs = useCallback(() => {
+        if (!fabricCanvas) return;
+        const json = fabricCanvas.toJSON();
+        const jsonString = JSON.stringify(json);
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `infinity-canvas-${Date.now()}.infinity`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [fabricCanvas]);
+
+    // Load from .infinity (JSON)
+    const handleLoad = useCallback(() => {
+        if (!fabricCanvas) return;
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".infinity";
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => {
+                const json = f.target.result;
+                fabricCanvas.loadFromJSON(json, () => {
+                    fabricCanvas.renderAll();
+                    saveState();
+                });
+            };
+            reader.readAsText(file);
+        };
         input.click();
     }, [fabricCanvas, saveState]);
 
     return {
         handleClear,
         handleExport,
-        handleAddImage
+        handleAddImage,
+        handleSaveAs,
+        handleLoad
     };
 }
