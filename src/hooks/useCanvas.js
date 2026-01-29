@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Canvas as FabricCanvas, PencilBrush } from "fabric";
+import { Canvas as FabricCanvas, PencilBrush, Shadow } from "fabric";
 import { DRAWING_COLORS } from "@/types/canvas";
 
 // Import modular hooks
@@ -197,6 +197,42 @@ export function useCanvas() {
             activeObject.set("fillStyle", currentFillStyle);
             fabricCanvas.requestRenderAll();
             saveState();
+          });
+        }
+      }
+
+      // Check for Sloppiness updates
+      if (updates.sloppiness) {
+        const mode = updates.sloppiness;
+        activeObject.set("sloppiness", mode);
+
+        if (mode === "architect") {
+          activeObject.set({
+            strokeLineCap: 'butt',
+            strokeLineJoin: 'miter',
+            strokeDashArray: null,
+            shadow: null
+          });
+        } else if (mode === "artist") {
+          // Sketchy look
+          activeObject.set({
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            strokeDashArray: [10, 5, 2, 5], // Irregular dash
+            shadow: null
+          });
+        } else if (mode === "cartoonist") {
+          // Bold and Round
+          activeObject.set({
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            strokeDashArray: null,
+            shadow: new fabric.Shadow({
+              color: 'rgba(0,0,0,0.5)',
+              blur: 0,
+              offsetX: 4,
+              offsetY: 4
+            })
           });
         }
       }
