@@ -44,7 +44,12 @@ export function DrawingCanvas() {
         layerActions,
         groupActions,
         history, // Destructure history
-        fabricCanvas // Destructure fabricCanvas
+        fabricCanvas, // Destructure fabricCanvas
+
+        // Custom Engine
+        renderMode,
+        customCanvasRef,
+        toggleRenderMode,
     } = useCanvas();
 
     return (
@@ -107,7 +112,28 @@ export function DrawingCanvas() {
             </div>
 
             {/* CANVAS */}
-            <canvas ref={canvasRef} className="w-full h-full" />
+            <div style={{ display: renderMode === 'fabric' ? 'block' : 'none', width: '100%', height: '100%' }}>
+                <canvas ref={canvasRef} className="w-full h-full" />
+            </div>
+
+            {/* CUSTOM ENGINE CANVAS */}
+            <div style={{ display: renderMode === 'custom' ? 'block' : 'none', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, pointerEvents: 'auto' }}>
+                <canvas ref={customCanvasRef} className="w-full h-full" />
+                {/* Pointer events are auto now to allow interaction */}
+            </div>
+
+            {/* RENDER MODE TOGGLE (Temporary Dev UI) */}
+            <div className="absolute bottom-4 left-4 z-50 pointer-events-auto bg-background/80 p-2 rounded border border-border">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono">mode: {renderMode}</span>
+                    <button
+                        onClick={toggleRenderMode}
+                        className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
+                    >
+                        Switch
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
