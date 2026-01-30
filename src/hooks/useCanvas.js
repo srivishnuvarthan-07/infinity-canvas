@@ -14,6 +14,7 @@ import { useCanvasDrag } from "./canvas/useCanvasDrag";
 import { useCanvasText } from "./canvas/useCanvasText";
 import { useCanvasEraser } from "./canvas/useCanvasEraser";
 
+
 export function useCanvas() {
   /* ===================== REFS ===================== */
   const canvasRef = useRef(null);
@@ -183,8 +184,40 @@ export function useCanvas() {
         obj.set(updates);
       });
     } else {
+      // Check for fill related updates
+      const currentFillColor = updates.fillColor !== undefined ? updates.fillColor : activeObject.fillColor;
+      const currentFillStyle = updates.fillStyle !== undefined ? updates.fillStyle : activeObject.fillStyle;
+
+      if (updates.fillColor || updates.fillStyle) {
+        if (currentFillColor && currentFillStyle) {
+          import("@/utils/canvas/patterns").then(({ getPattern }) => {
+            const pattern = getPattern(currentFillColor, currentFillStyle);
+            activeObject.set("fill", pattern);
+            activeObject.set("fillColor", currentFillColor);
+            activeObject.set("fillStyle", currentFillStyle);
+            fabricCanvas.requestRenderAll();
+            saveState();
+          });
+        }
+      }
+
+
+
+      // Handle Fill Styles
+      if (updates.fillColor !== undefined) {
+        activeObject.set("fillColor", updates.fillColor);
+        // Ensure standard fill is updated for non-artist modes
+        if (activeObject.sloppiness !== 'artist') {
+          // For non-artist, we set standard fill
+          activeObject.set("fill", updates.fillColor === 'transparent' ? '' : updates.fillColor);
+        }
+      }
+
+      if (updates.fillStyle !== undefined) {
+        activeObject.set("fillStyle", updates.fillStyle);
+      }
+
       // Fabric JS often prefers key-value pairs, but .set(obj) should work.
-      // For text, sometimes specific properties need handling.
       activeObject.set(updates);
 
       // If updating fill, ensure we dirty the object explicitly
@@ -241,6 +274,8 @@ export function useCanvas() {
     handleClear,
     handleExport,
     handleAddImage,
+    handleSaveAs,
+    handleLoad,
     addText, // Exposed for toolbar/sidebar if needed
 
     // Advanced Manipulation
@@ -252,3 +287,4 @@ export function useCanvas() {
     updateSelectedElement
   };
 }
+
