@@ -13,6 +13,7 @@ import { useCanvasLayers } from "./canvas/useCanvasLayers";
 import { useCanvasDrag } from "./canvas/useCanvasDrag";
 import { useCanvasText } from "./canvas/useCanvasText";
 import { useCanvasEraser } from "./canvas/useCanvasEraser";
+import { useCustomEngine } from "./useCustomEngine";
 
 
 export function useCanvas() {
@@ -28,10 +29,27 @@ export function useCanvas() {
   const [strokeStyle, setStrokeStyle] = useState("solid");
   const [showgrid, setshowgrid] = useState(false);
 
+  /* ===================== HISTORY HOOK (MOVED UP) ===================== */
+  // Initialize history early to avoid ReferenceError (TDZ)
+  const {
+    saveState = () => { },
+    undo = () => { },
+    redo = () => { },
+    canUndo = false,
+    canRedo = false,
+    resetHistory = () => { },
+    history = []
+  } = useCanvasHistory(fabricCanvas) || {};
+
   /* ===================== INIT CANVAS ===================== */
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
 
+    // ===========================================
+    // ⚠️ LEGACY CODE - MIGRATION IN PROGRESS ⚠️
+    // DO NOT MODIFY THIS CONFIGURATION
+    // See MIGRATION.md for details
+    // ===========================================
     const canvas = new FabricCanvas(canvasRef.current, {
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
@@ -104,23 +122,6 @@ export function useCanvas() {
   }, [fabricCanvas, activeTool, activeColor, strokeWidth]);
 
   // Save state on object modification (move, resize, rotate)
-
-
-
-  /* ===================== HOOKS COMPOSITION ===================== */
-
-  // 1. History (Undo/Redo)
-  const {
-    saveState,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    resetHistory,
-    history
-  } = useCanvasHistory(fabricCanvas);
-
-  // Save state on object modification (move, resize, rotate)
   useEffect(() => {
     if (!fabricCanvas) return;
 
@@ -133,6 +134,9 @@ export function useCanvas() {
       fabricCanvas.off("object:modified", handleModification);
     };
   }, [fabricCanvas, saveState]);
+
+
+  /* ===================== HOOKS COMPOSITION ===================== */
 
   // 2. Zoom & Pan
   const {
@@ -201,8 +205,6 @@ export function useCanvas() {
         }
       }
 
-
-
       // Handle Fill Styles
       if (updates.fillColor !== undefined) {
         activeObject.set("fillColor", updates.fillColor);
@@ -239,10 +241,68 @@ export function useCanvas() {
   };
 
 
+  /* ===================== MIGRATION: DUAL RENDER MODE ===================== */
+  const [renderMode, setRenderMode] = useState("fabric"); // 'fabric' | 'custom'
+  const {
+    customCanvasRef,
+    start: startCustom,
+    stop: stopCustom,
+    syncFromFabric,
+    syncToFabric,
+    undo: customUndo,
+    redo: customRedo,
+    canUndo: canCustomUndo,
+    canRedo: canCustomRedo
+  } = useCustomEngine(fabricCanvas, {
+    activeTool,
+    setActiveTool, // Pass it down
+    activeColor,
+    strokeWidth,
+    strokeStyle,
+  });
+
+  // Toggle Mode
+  const toggleRenderMode = () => {
+    if (renderMode === 'fabric') {
+      // Switch to Custom
+      syncFromFabric();
+      startCustom();
+      setRenderMode('custom');
+    } else {
+      // Switch to Fabric
+      stopCustom();
+      syncToFabric();
+      setRenderMode('fabric');
+    }
+  };
+
   /* ===================== EXPORT API ===================== */
+
+  // History Wrapper
+  const handleUndoWrapper = () => {
+    if (renderMode === 'custom') {
+      customUndo();
+    } else {
+      undo();
+    }
+  };
+
+  const handleRedoWrapper = () => {
+    if (renderMode === 'custom') {
+      customRedo();
+    } else {
+      redo();
+    }
+  };
+
   return {
     canvasRef,
     containerRef,
+
+    // Migration: Custom Engine
+    customCanvasRef,
+    renderMode,
+    toggleRenderMode,
 
     // State
     activeTool,
@@ -265,14 +325,20 @@ export function useCanvas() {
 
     // History
     history, // Use destructured history
-    canUndo,
-    canRedo,
-    handleUndo: undo,
-    handleRedo: redo,
+    canUndo: renderMode === 'custom' ? canCustomUndo : canUndo,
+    canRedo: renderMode === 'custom' ? canCustomRedo : canRedo,
+    handleUndo: handleUndoWrapper,
+    handleRedo: handleRedoWrapper,
 
     // Actions
     handleClear,
-    handleExport,
+    handleExport: () => {
+      if (renderMode === 'custom') {
+        syncToFabric(); // Sync first so export works
+        // Small delay might be needed if sync is async (it's not currently)
+      }
+      handleExport();
+    },
     handleAddImage,
     handleSaveAs,
     handleLoad,
@@ -280,11 +346,9 @@ export function useCanvas() {
 
     // Advanced Manipulation
     layerActions,
-    // groupActions, (Removed)
 
     // Selection
     selectedElement,
     updateSelectedElement
   };
 }
-

@@ -31,6 +31,35 @@ export function useCustomEngine(fabricCanvas, {
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 }); // Used for Drag AND Creation Start Point
     const [startDimensions, setStartDimensions] = useState(null); // { x, y, width, height, rotation }
 
+    // History State
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+
+    // Save State Helper
+    const saveState = useCallback((newShapes) => {
+        const snapshot = JSON.parse(JSON.stringify(newShapes));
+        setHistory(prev => {
+            const newHistory = prev.slice(0, historyIndex + 1);
+            newHistory.push(snapshot);
+            return newHistory;
+        });
+        setHistoryIndex(prev => prev + 1);
+    }, [historyIndex]);
+
+    const undo = useCallback(() => {
+        if (historyIndex > 0) {
+            setHistoryIndex(prev => prev - 1);
+            setShapes(history[historyIndex - 1]);
+        }
+    }, [history, historyIndex]);
+
+    const redo = useCallback(() => {
+        if (historyIndex < history.length - 1) {
+            setHistoryIndex(prev => prev + 1);
+            setShapes(history[historyIndex + 1]);
+        }
+    }, [history, historyIndex]);
+
     // Initialize Renderer
     useEffect(() => {
         if (!canvasRef.current) return;
@@ -348,7 +377,7 @@ export function useCustomEngine(fabricCanvas, {
         } else {
             setSelectedShapeId(null);
         }
-    }, [shapes, selectedShapeId, activeTool, activeColor, strokeWidth, strokeStyle]);
+    }, [shapes, selectedShapeId, activeTool, activeColor, strokeWidth, strokeStyle, saveState]);
 
     const handlePointerUp = useCallback((e) => {
         if (isCreating) {
@@ -510,35 +539,6 @@ export function useCustomEngine(fabricCanvas, {
 
         fabricCanvas.requestRenderAll();
     }, [fabricCanvas, shapes]);
-
-    // History State
-    const [history, setHistory] = useState([]);
-    const [historyIndex, setHistoryIndex] = useState(-1);
-
-    // Save State Helper
-    const saveState = useCallback((newShapes) => {
-        const snapshot = JSON.parse(JSON.stringify(newShapes));
-        setHistory(prev => {
-            const newHistory = prev.slice(0, historyIndex + 1);
-            newHistory.push(snapshot);
-            return newHistory;
-        });
-        setHistoryIndex(prev => prev + 1);
-    }, [historyIndex]);
-
-    const undo = useCallback(() => {
-        if (historyIndex > 0) {
-            setHistoryIndex(prev => prev - 1);
-            setShapes(history[historyIndex - 1]);
-        }
-    }, [history, historyIndex]);
-
-    const redo = useCallback(() => {
-        if (historyIndex < history.length - 1) {
-            setHistoryIndex(prev => prev + 1);
-            setShapes(history[historyIndex + 1]);
-        }
-    }, [history, historyIndex]);
 
     return {
         customCanvasRef: canvasRef,
