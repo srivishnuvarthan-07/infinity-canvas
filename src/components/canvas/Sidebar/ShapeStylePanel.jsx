@@ -61,6 +61,8 @@ export function ShapeStylePanel({ element, updateElement }) {
         </ToggleGroup>
       </div>
 
+
+
       {/* Stroke Color */}
       <div className="space-y-2">
         <span className="text-xs text-muted-foreground">Stroke Color</span>

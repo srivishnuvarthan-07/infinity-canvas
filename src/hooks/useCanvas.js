@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Canvas as FabricCanvas, PencilBrush, Shadow } from "fabric";
+import { Canvas as FabricCanvas, PencilBrush } from "fabric";
 import { DRAWING_COLORS } from "@/types/canvas";
 
 // Import modular hooks
@@ -14,6 +14,7 @@ import { useCanvasLayers } from "./canvas/useCanvasLayers";
 import { useCanvasDrag } from "./canvas/useCanvasDrag";
 import { useCanvasText } from "./canvas/useCanvasText";
 import { useCanvasEraser } from "./canvas/useCanvasEraser";
+
 
 export function useCanvas() {
   /* ===================== REFS ===================== */
@@ -201,45 +202,22 @@ export function useCanvas() {
         }
       }
 
-<<<<<<< HEAD
-      // Check for Sloppiness updates
-      if (updates.sloppiness) {
-        const mode = updates.sloppiness;
-        activeObject.set("sloppiness", mode);
 
-        if (mode === "architect") {
-          activeObject.set({
-            strokeLineCap: 'butt',
-            strokeLineJoin: 'miter',
-            strokeDashArray: null,
-            shadow: null
-          });
-        } else if (mode === "artist") {
-          // Sketchy look
-          activeObject.set({
-            strokeLineCap: 'round',
-            strokeLineJoin: 'round',
-            strokeDashArray: [10, 5, 2, 5], // Irregular dash
-            shadow: null
-          });
-        } else if (mode === "cartoonist") {
-          // Bold and Round
-          activeObject.set({
-            strokeLineCap: 'round',
-            strokeLineJoin: 'round',
-            strokeDashArray: null,
-            shadow: new fabric.Shadow({
-              color: 'rgba(0,0,0,0.5)',
-              blur: 0,
-              offsetX: 4,
-              offsetY: 4
-            })
-          });
+
+      // Handle Fill Styles
+      if (updates.fillColor !== undefined) {
+        activeObject.set("fillColor", updates.fillColor);
+        // Ensure standard fill is updated for non-artist modes
+        if (activeObject.sloppiness !== 'artist') {
+          // For non-artist, we set standard fill
+          activeObject.set("fill", updates.fillColor === 'transparent' ? '' : updates.fillColor);
         }
       }
 
-=======
->>>>>>> 7f226d666374b737c84086b9989f102e5191cfd6
+      if (updates.fillStyle !== undefined) {
+        activeObject.set("fillStyle", updates.fillStyle);
+      }
+
       // Fabric JS often prefers key-value pairs, but .set(obj) should work.
       activeObject.set(updates);
 
