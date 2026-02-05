@@ -8,6 +8,7 @@ import { ActionBar } from "./ActionBar";
 import { ZoomControls } from "./ZoomControls";
 import { Logo } from "./Logo";
 import { Sidebar } from "@/components/canvas/Sidebar/Sidebar";
+import { TextEditorOverlay } from "./TextEditorOverlay";
 import { useState } from "react";
 
 
@@ -50,6 +51,12 @@ export function DrawingCanvas() {
         renderMode,
         customCanvasRef,
         toggleRenderMode,
+        editingShapeId,
+        setEditingShapeId,
+
+        customShapes,
+        updateCustomShape,
+        viewport
     } = useCanvas();
 
     return (
@@ -120,20 +127,28 @@ export function DrawingCanvas() {
             <div style={{ display: renderMode === 'custom' ? 'block' : 'none', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, pointerEvents: 'auto' }}>
                 <canvas ref={customCanvasRef} className="w-full h-full" />
                 {/* Pointer events are auto now to allow interaction */}
+
+                {renderMode === 'custom' && editingShapeId && customShapes && (
+                    (() => {
+                        const shape = customShapes.find(s => s.id === editingShapeId);
+                        if (shape) {
+                            return (
+                                <TextEditorOverlay
+                                    key={shape.id}
+                                    shape={shape}
+                                    canvasRef={customCanvasRef}
+                                    updateShape={updateCustomShape}
+                                    onBlur={() => setEditingShapeId(null)}
+                                    viewport={viewport}
+                                />
+                            );
+                        }
+                        return null;
+                    })()
+                )}
             </div>
 
-            {/* RENDER MODE TOGGLE (Temporary Dev UI) */}
-            <div className="absolute bottom-4 left-4 z-50 pointer-events-auto bg-background/80 p-2 rounded border border-border">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono">mode: {renderMode}</span>
-                    <button
-                        onClick={toggleRenderMode}
-                        className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
-                    >
-                        Switch
-                    </button>
-                </div>
-            </div>
+
         </div>
     );
 }

@@ -1,12 +1,43 @@
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ArrowUp, ArrowDown } from "lucide-react";
-export function ArrangementPanel({ layerActions, selectedElement }) {
+import { ArrowUp, ArrowDown, Group, Ungroup } from "lucide-react"; // Wait, Lucide might not have Group/Ungroup icons clearly. Text is better. 
+// Just keeping imports clean.
+export function ArrangementPanel({ layerActions, selectedElement, groupActions }) {
     if (!selectedElement) return null;
 
     return (
         <div className="space-y-4">
             <h4 className="text-sm font-semibold">Arrangement</h4>
+            <Separator />
+
+            {/* Grouping */}
+            {groupActions && (
+                <div className="space-y-2">
+                    <span className="text-xs text-muted-foreground">Grouping</span>
+                    <div className="flex gap-1">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={groupActions.group}
+                            disabled={!groupActions.canGroup}
+                            onMouseDown={(e) => e.preventDefault()}
+                        >
+                            Group
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={groupActions.ungroup}
+                            disabled={!groupActions.canUngroup}
+                            onMouseDown={(e) => e.preventDefault()}
+                        >
+                            Ungroup
+                        </Button>
+                    </div>
+                </div>
+            )}
             <Separator />
 
             {/* Layers */}

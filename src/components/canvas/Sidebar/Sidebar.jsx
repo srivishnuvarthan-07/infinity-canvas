@@ -9,7 +9,8 @@ const SHAPE_TOOLS = ["rectangle", "diamond", "ellipse", "line", "arrow"];
 export function Sidebar({
   selectedElement,
   updateElement,
-  layerActions
+  layerActions,
+  groupActions
 }) {
   if (!selectedElement) return null;
 
@@ -20,7 +21,7 @@ export function Sidebar({
 
   const isFreehand = type === "path" || type === "pencil";
   const isText = ["i-text", "text", "textbox"].includes(type);
-  const isShape = ["rect", "ellipse", "line", "triangle", "circle", "group", "diamond", "polygon", "arrow", "activeSelection"].includes(type);
+  const isShape = ["rect", "rectangle", "ellipse", "line", "triangle", "circle", "group", "diamond", "polygon", "arrow", "activeSelection"].includes(type);
 
   // If selection is neither (e.g. image or text), support might be added later
   if (!isFreehand && !isShape && !isText) return null;
@@ -45,6 +46,7 @@ export function Sidebar({
           <ArrangementPanel
             selectedElement={selectedElement}
             layerActions={layerActions}
+            groupActions={groupActions}
           />
         </>
       )}
@@ -64,6 +66,7 @@ export function Sidebar({
           <ArrangementPanel
             selectedElement={selectedElement}
             layerActions={layerActions}
+            groupActions={groupActions}
           />
         </>
       )}

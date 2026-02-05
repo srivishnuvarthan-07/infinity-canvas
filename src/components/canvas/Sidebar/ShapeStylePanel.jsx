@@ -7,12 +7,12 @@ const COLORS = ["#000000", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
 
 export function ShapeStylePanel({ element, updateElement }) {
   // Derive state from element
-  const strokeColor = element.stroke || "#000000";
+  const strokeColor = element.stroke || element.strokeColor || "#000000";
   const strokeWidth = element.strokeWidth || 2;
 
-  // Determine stroke type from strokeDashArray
-  let strokeStyle = "solid";
-  if (element.strokeDashArray) {
+  // Determine stroke type from strokeDashArray OR strokeStyle
+  let strokeStyle = element.strokeStyle || "solid";
+  if (!element.strokeStyle && element.strokeDashArray) {
     if (element.strokeDashArray[0] > 5) strokeStyle = "dashed";
     else strokeStyle = "dotted";
   }
@@ -21,6 +21,22 @@ export function ShapeStylePanel({ element, updateElement }) {
     <div className="space-y-4">
       <h4 className="text-sm font-semibold">Shape Style</h4>
       <Separator />
+
+      {/* Sloppiness */}
+      <div className="space-y-2">
+        <span className="text-xs text-muted-foreground">Sloppiness</span>
+        <ToggleGroup
+          type="single"
+          value={element.sloppiness || "architect"} // Default to architect?
+          onValueChange={(v) => {
+            if (v) updateElement({ sloppiness: v });
+          }}
+        >
+          <ToggleGroupItem value="architect" title="Clean Lines">Arch</ToggleGroupItem>
+          <ToggleGroupItem value="artist" title="Hand Drawn">Artist</ToggleGroupItem>
+          <ToggleGroupItem value="cartoonist" title="Cartoon">Toon</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
 
       {/* Fill Color */}
       <div className="space-y-2">
@@ -32,14 +48,14 @@ export function ShapeStylePanel({ element, updateElement }) {
               size="icon"
               variant={element.fillColor === color ? "default" : "outline"}
               style={{ backgroundColor: color }}
-              onClick={() => updateElement({ fillColor: color })}
+              onClick={() => updateElement({ fillColor: color, fill: color })}
             />
           ))}
           <Button
             size="icon"
             variant={element.fillColor === "transparent" ? "default" : "outline"}
             className="bg-transparent border border-dashed border-foreground"
-            onClick={() => updateElement({ fillColor: "transparent" })}
+            onClick={() => updateElement({ fillColor: "transparent", fill: '' })}
             title="Transparent"
           />
         </div>
@@ -73,7 +89,7 @@ export function ShapeStylePanel({ element, updateElement }) {
               size="icon"
               variant={strokeColor === color ? "default" : "outline"}
               style={{ backgroundColor: color }}
-              onClick={() => updateElement({ stroke: color })}
+              onClick={() => updateElement({ stroke: color, strokeColor: color })}
             />
           ))}
         </div>
@@ -102,7 +118,7 @@ export function ShapeStylePanel({ element, updateElement }) {
             let dashArray = null;
             if (v === 'dashed') dashArray = [10, 5];
             if (v === 'dotted') dashArray = [2, 2];
-            updateElement({ strokeDashArray: dashArray });
+            updateElement({ strokeDashArray: dashArray, strokeStyle: v });
           }}
         >
           <ToggleGroupItem value="solid">Solid</ToggleGroupItem>
