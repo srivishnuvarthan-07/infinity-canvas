@@ -10,8 +10,8 @@ export function drawPencil(ctx, shape) {
 
     ctx.fillStyle = shape.strokeColor;
 
-    // 1. Simple Polyline (Architect/Cartoonist)
-    if (shape.sloppiness !== 'artist') {
+    // 1. Simple Polyline (Architect)
+    if (shape.sloppiness !== 'artist' && shape.sloppiness !== 'cartoonist') {
         ctx.strokeStyle = shape.strokeColor;
         ctx.lineWidth = shape.strokeWidth;
         ctx.lineCap = 'round';
