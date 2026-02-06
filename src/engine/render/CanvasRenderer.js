@@ -4,6 +4,8 @@ import { drawEllipse } from './shapes/ellipse';
 import { drawLine } from './shapes/line';
 import { drawDiamond } from './shapes/diamond';
 import { drawText } from './shapes/text';
+import { drawPencil } from './shapes/pencil';
+import rough from 'roughjs';
 
 export class CanvasRenderer {
     /**
@@ -14,6 +16,8 @@ export class CanvasRenderer {
         this.ctx = canvas.getContext('2d');
         this.width = canvas.width;
         this.height = canvas.height;
+        this.roughCanvas = rough.canvas(canvas);
+        this.roughCache = new WeakMap();
     }
 
     /**
@@ -62,17 +66,100 @@ export class CanvasRenderer {
             this.drawShape(shape);
 
             // Draw Overlay (Hover)
-            if (shape.id === overlayState.hoveredId && shape.id !== overlayState.selectedId) {
+            // Note: overlayState.hoveredId is legacy?
+            // overlayState now probably has multiple IDs?
+            // Assuming hoveredId is still single string for valid hover.
+            if (shape.id === overlayState.hoveredId && (!overlayState.selectedIds || !overlayState.selectedIds.has(shape.id))) {
                 this.drawSelectionOutline(shape, 'rgba(0, 150, 255, 0.3)');
-            }
-
-            // Draw Overlay (Selection)
-            if (shape.id === overlayState.selectedId) {
-                // this.drawSelectionOutline(shape, 'rgba(0, 100, 255, 0.8)');
-                this.drawControls(shape);
             }
         }
 
+        // Draw Selection Overlay
+        const selectedIds = overlayState.selectedIds; // Set<string>
+        if (selectedIds && selectedIds.size > 0) {
+            if (selectedIds.size === 1) {
+                // Single Selection: Draw Normal Controls
+                const id = [...selectedIds][0];
+                const shape = shapes.find(s => s.id === id);
+                if (shape) this.drawControls(shape);
+            } else {
+                // Multi Selection: Draw Group Bounds
+                this.drawGroupSelection(shapes, selectedIds);
+            }
+        }
+
+        // Draw Drag Selection Box (Rubber Band)
+        if (overlayState.selectionBox) {
+            const { startX, startY, currentX, currentY } = overlayState.selectionBox;
+            const x = Math.min(startX, currentX);
+            const y = Math.min(startY, currentY);
+            const w = Math.abs(currentX - startX);
+            const h = Math.abs(currentY - startY);
+
+            this.ctx.save();
+            this.ctx.fillStyle = 'rgba(0, 100, 255, 0.1)';
+            this.ctx.strokeStyle = 'rgba(0, 100, 255, 0.8)';
+            this.ctx.lineWidth = 1;
+            this.ctx.fillRect(x, y, w, h);
+            this.ctx.strokeRect(x, y, w, h);
+            this.ctx.restore();
+        }
+
+        this.ctx.restore();
+    }
+
+    drawGroupSelection(shapes, selectedIds) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let found = false;
+
+        for (const shape of shapes) {
+            if (selectedIds.has(shape.id)) {
+                // Calculate bounds of this shape
+                // Simplified: AABB of rotated shape
+                // Actually, for V1, just use current bbox logic or shape.x/y/w/h
+                // But shape.x/y is center.
+                const hw = shape.width / 2;
+                const hh = shape.height / 2;
+
+                // If rotated, bounding box is larger. 
+                // Let's compute 4 corners and expand.
+                const corners = [
+                    { x: -hw, y: -hh },
+                    { x: hw, y: -hh },
+                    { x: hw, y: hh },
+                    { x: -hw, y: hh }
+                ];
+
+                const rad = (shape.rotation * Math.PI) / 180;
+                const cos = Math.cos(rad);
+                const sin = Math.sin(rad);
+
+                corners.forEach(p => {
+                    const gx = shape.x + (p.x * cos - p.y * sin);
+                    const gy = shape.y + (p.x * sin + p.y * cos);
+                    minX = Math.min(minX, gx);
+                    minY = Math.min(minY, gy);
+                    maxX = Math.max(maxX, gx);
+                    maxY = Math.max(maxY, gy);
+                });
+                found = true;
+            }
+        }
+
+        if (!found) return;
+
+        const padding = 10;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+
+        this.ctx.save();
+        this.ctx.strokeStyle = '#3b82f6';
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([4, 4]);
+        this.ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+        this.ctx.setLineDash([]);
         this.ctx.restore();
     }
 
@@ -111,23 +198,81 @@ export class CanvasRenderer {
         const w = (shape.width || 0);
         const h = (shape.height || 0);
         const color = '#3b82f6'; // Blue-500
-        const handleSize = 10; // Match physics constant roughly
+        const handleSize = 10;
 
-        // 1. Boundary
-        this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(-w / 2, -h / 2, w, h);
-
-        // 2. Handles
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = 1;
-
+        // Common Handle Drawer
         const drawHandle = (x, y) => {
             this.ctx.fillRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
             this.ctx.strokeRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
         };
 
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 1;
+        this.ctx.fillStyle = '#ffffff';
+
+        // 1. Two-Point Shapes (Line, Arrow)
+        if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
+            // ... (existing code)
+            let pEnd = { x: shape.width, y: 0 };
+            if (shape.points && shape.points.length > 1) {
+                pEnd = shape.points[1];
+            }
+
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+            this.ctx.moveTo(0, 0);
+            this.ctx.lineTo(pEnd.x, pEnd.y);
+            this.ctx.stroke();
+
+            drawHandle(0, 0);
+            drawHandle(pEnd.x, pEnd.y);
+
+            this.ctx.restore();
+            return;
+        }
+
+        // 2. Text (Selection Box Only, No Handles)
+        if (shape.type === SHAPE_TYPES.TEXT) {
+            const x = 0;
+            const y = 0;
+            // Width/Height should be roughly correct from shape
+            // Alignment? 
+            // Currently drawText centers it if align is center?
+            // No, drawText draws relative to 0,0 based on align.
+            // But hitTest assumes 0,0 is anchor. 
+            // CanvasRenderer controls are translated to shape.x, shape.y.
+            // If shape.x/y is center, then -w/2 to w/2 is correct.
+            // BUT user wants anchor based. 
+            // IF we changed hitTest to respect align, we must match visuals here.
+
+            let minX, maxX, minY, maxY;
+            const align = shape.textAlign || 'center';
+            // const vAlign = shape.verticalAlign || 'middle';
+
+            if (align === 'left') {
+                minX = 0; maxX = w;
+            } else if (align === 'right') {
+                minX = -w; maxX = 0;
+            } else {
+                minX = -w / 2; maxX = w / 2;
+            }
+            minY = -h / 2; maxY = h / 2; // Assuming middle baseline for now
+
+            this.ctx.strokeStyle = '#3b82f6';
+            this.ctx.lineWidth = 1;
+            this.ctx.setLineDash([5, 5]); // Dashed for text selection?
+            this.ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+            this.ctx.setLineDash([]);
+
+            this.ctx.restore();
+            return;
+        }
+
+        // 2. Box Shapes (Rect, Ellipse, Diamond, Text, Pencil)
+        // Draw Boundary
+        this.ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+        // Draw Handles
         // Corners
         drawHandle(-w / 2, -h / 2); // TL
         drawHandle(w / 2, -h / 2);  // TR
@@ -158,6 +303,9 @@ export class CanvasRenderer {
     /**
      * @param {import('../schema').BaseShapeSchema} shape 
      */
+    /**
+     * @param {import('../schema').BaseShapeSchema} shape 
+     */
     drawShape(shape) {
         if (!shape) return;
 
@@ -168,25 +316,40 @@ export class CanvasRenderer {
         this.ctx.translate(shape.x, shape.y);
         this.ctx.rotate((shape.rotation * Math.PI) / 180);
 
+        // Rough.js Context
+        const isRough = shape.sloppiness === 'artist' || shape.sloppiness === 'cartoonist';
+        const roughOps = isRough ? {
+            roughCanvas: this.roughCanvas,
+            getRoughDrawable: this.getRoughDrawable.bind(this)
+        } : null;
+
         // Dispatch to specific shape renderer
         switch (shape.type) {
             case SHAPE_TYPES.RECTANGLE:
-                drawRect(this.ctx, shape);
+                drawRect(this.ctx, shape, roughOps);
                 break;
             case SHAPE_TYPES.ELLIPSE:
-                drawEllipse(this.ctx, shape);
+                drawEllipse(this.ctx, shape, roughOps);
                 break;
             case SHAPE_TYPES.DIAMOND:
-                drawDiamond(this.ctx, shape);
+                drawDiamond(this.ctx, shape, roughOps);
                 break;
             case SHAPE_TYPES.LINE:
-                drawLine(this.ctx, shape);
+                drawLine(this.ctx, shape, false, roughOps);
                 break;
             case SHAPE_TYPES.ARROW:
-                drawLine(this.ctx, shape, true); // isArrow = true
+                drawLine(this.ctx, shape, true, roughOps); // isArrow = true
                 break;
             case SHAPE_TYPES.TEXT:
-                drawText(this.ctx, shape);
+                drawText(this.ctx, shape); // Text usually not rough?
+                break;
+            case SHAPE_TYPES.PENCIL:
+                drawPencil(this.ctx, shape, roughOps);
+                break;
+            case SHAPE_TYPES.GROUP:
+                if (shape.children) {
+                    shape.children.forEach(child => this.drawShape(child));
+                }
                 break;
             default:
                 // console.warn('Unknown shape type:', shape.type);
@@ -194,5 +357,26 @@ export class CanvasRenderer {
         }
 
         this.ctx.restore();
+    }
+
+    /**
+     * Helper to get or create a cached rough drawable
+     * @param {import('../schema').BaseShapeSchema} shape 
+     * @param {Function} generatorFn - Function that returns the drawable from generator
+     */
+    getRoughDrawable(shape, generatorFn) {
+        // 1. Check Cache
+        let cached = this.roughCache.get(shape);
+        if (cached) return cached;
+
+        // 2. Generate
+        try {
+            const drawable = generatorFn(this.roughCanvas.generator, shape);
+            this.roughCache.set(shape, drawable);
+            return drawable;
+        } catch (err) {
+            console.error('Error generating rough drawable:', err);
+            return null;
+        }
     }
 }
