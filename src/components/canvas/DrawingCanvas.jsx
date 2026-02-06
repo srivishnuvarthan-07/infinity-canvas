@@ -15,8 +15,6 @@ import { useState } from "react";
 export function DrawingCanvas() {
 
     const {
-        canvasRef,
-        containerRef,
         activeTool,
         setActiveTool,
         activeColor,
@@ -44,19 +42,16 @@ export function DrawingCanvas() {
         handleLoad,
         layerActions,
         groupActions,
-        history, // Destructure history
-        fabricCanvas, // Destructure fabricCanvas
 
         // Custom Engine
-        renderMode,
         customCanvasRef,
-        toggleRenderMode,
         editingShapeId,
         setEditingShapeId,
 
         customShapes,
         updateCustomShape,
-        viewport
+        viewport,
+        canvasHandlers
     } = useCanvas();
 
     return (
@@ -119,16 +114,14 @@ export function DrawingCanvas() {
             </div>
 
             {/* CANVAS */}
-            <div style={{ display: renderMode === 'fabric' ? 'block' : 'none', width: '100%', height: '100%' }}>
-                <canvas ref={canvasRef} className="w-full h-full" />
-            </div>
+            <div className="absolute top-0 left-0 w-full h-full pointer-events-auto">
+                <canvas
+                    ref={customCanvasRef}
+                    className="w-full h-full"
+                    {...canvasHandlers}
+                />
 
-            {/* CUSTOM ENGINE CANVAS */}
-            <div style={{ display: renderMode === 'custom' ? 'block' : 'none', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, pointerEvents: 'auto' }}>
-                <canvas ref={customCanvasRef} className="w-full h-full" />
-                {/* Pointer events are auto now to allow interaction */}
-
-                {renderMode === 'custom' && editingShapeId && customShapes && (
+                {editingShapeId && customShapes && (
                     (() => {
                         const shape = customShapes.find(s => s.id === editingShapeId);
                         if (shape) {
