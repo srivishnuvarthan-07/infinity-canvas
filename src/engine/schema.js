@@ -37,6 +37,7 @@ export const SHAPE_TYPES = {
     TEXT: 'text',
     PENCIL: 'pencil',
     GROUP: 'group',
+    IMAGE: 'image',
 };
 
 /**
