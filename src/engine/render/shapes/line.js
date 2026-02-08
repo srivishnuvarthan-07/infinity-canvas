@@ -19,7 +19,8 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
                 seed: getShapeSeed(shape)
             };
 
-            const line = gen.line(0, 0, pEnd.x, pEnd.y, options);
+            const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
+            const line = gen.line(pStart.x, pStart.y, pEnd.x, pEnd.y, options);
 
             if (!isArrow) return line;
 
@@ -81,8 +82,10 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
         ctx.setLineDash([]);
     }
 
+    const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
+
     ctx.beginPath();
-    ctx.moveTo(0, 0); // Local P0
+    ctx.moveTo(pStart.x, pStart.y); // Local P0
     ctx.lineTo(pEnd.x, pEnd.y); // Local P1
     ctx.stroke();
 
