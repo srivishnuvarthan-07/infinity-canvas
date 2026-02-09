@@ -267,6 +267,13 @@ export function hitTest(shape, x, y, zoom = 1) {
             }
             return false;
 
+        case SHAPE_TYPES.GROUP:
+            // Simple Bounding Box Hit Test for the Group Container
+            // We treat the group as a single object (Rect)
+            // (rx, ry) is already in local unrotated space relative to group center
+            return Math.abs(rx) <= (shape.width / 2) + padding &&
+                Math.abs(ry) <= (shape.height / 2) + padding;
+
         default:
             return false;
     }

@@ -18,6 +18,7 @@ export class CanvasRenderer {
         this.height = canvas.height;
         this.roughCanvas = rough.canvas(canvas);
         this.roughCache = new WeakMap();
+        this.imageCache = new Map(); // Cache ID -> HTMLImageElement
     }
 
     /**
@@ -213,6 +214,7 @@ export class CanvasRenderer {
         // 1. Two-Point Shapes (Line, Arrow)
         if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
             // ... (existing code)
+            const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
             let pEnd = { x: shape.width, y: 0 };
             if (shape.points && shape.points.length > 1) {
                 pEnd = shape.points[1];
@@ -220,11 +222,11 @@ export class CanvasRenderer {
 
             this.ctx.beginPath();
             this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
-            this.ctx.moveTo(0, 0);
+            this.ctx.moveTo(pStart.x, pStart.y);
             this.ctx.lineTo(pEnd.x, pEnd.y);
             this.ctx.stroke();
 
-            drawHandle(0, 0);
+            drawHandle(pStart.x, pStart.y);
             drawHandle(pEnd.x, pEnd.y);
 
             this.ctx.restore();
@@ -351,12 +353,41 @@ export class CanvasRenderer {
                     shape.children.forEach(child => this.drawShape(child));
                 }
                 break;
+            case SHAPE_TYPES.IMAGE:
+                this.drawImage(shape);
+                break;
             default:
                 // console.warn('Unknown shape type:', shape.type);
                 break;
         }
 
         this.ctx.restore();
+    }
+
+
+
+    /**
+     * Draws an image shape
+     * @param {import('../schema').BaseShapeSchema} shape 
+     */
+    drawImage(shape) {
+        if (!shape.src) return;
+
+        let img = this.imageCache.get(shape.id);
+        if (!img) {
+            img = new Image();
+            img.src = shape.src;
+            img.onload = () => {
+                // Trigger re-render? The loop will handle it next frame usually. 
+                // Or if we are in static mode, we might need to force update.
+                // For now, assume render loop picks it up.
+            };
+            this.imageCache.set(shape.id, img);
+        }
+
+        if (img.complete && img.naturalWidth > 0) {
+            this.ctx.drawImage(img, -shape.width / 2, -shape.height / 2, shape.width, shape.height);
+        }
     }
 
     /**
