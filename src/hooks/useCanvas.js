@@ -1,308 +1,215 @@
-import { useEffect, useRef, useState } from "react";
-import { Canvas as FabricCanvas, PencilBrush } from "fabric";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { DRAWING_COLORS } from "@/types/canvas";
-
-// Import modular hooks
-import { useCanvasHistory } from "./canvas/useCanvasHistory";
-import { useCanvasZoom } from "./canvas/useCanvasZoom";
-import { useCanvasDrawing } from "./canvas/useCanvasDrawing";
-import { useCanvasGrid } from "./canvas/useCanvasGrid";
-import { useCanvasActions } from "./canvas/useCanvasActions";
-import { useCanvasSelection } from "./canvas/useCanvasSelection";
-import { useCanvasLayers } from "./canvas/useCanvasLayers";
-import { useCanvasDrag } from "./canvas/useCanvasDrag";
-import { useCanvasText } from "./canvas/useCanvasText";
-import { useCanvasEraser } from "./canvas/useCanvasEraser";
 import { useCustomEngine } from "./useCustomEngine";
+import { exportToPng } from "@/engine/utils/export";
+import { saveToFile, loadFromFile } from "@/engine/utils/file";
 
-
+/**
+ * useCanvas Hook - Custom Engine Version
+ * 
+ * Simplified hook that serves as the bridge between the UI components 
+ * and the Custom Rendering Engine.
+ */
 export function useCanvas() {
   /* ===================== REFS ===================== */
-  const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
   /* ===================== STATE ===================== */
-  const [fabricCanvas, setFabricCanvas] = useState(null);
   const [activeTool, setActiveTool] = useState("select");
   const [activeColor, setActiveColor] = useState(DRAWING_COLORS[0].value);
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [strokeStyle, setStrokeStyle] = useState("solid");
   const [showgrid, setshowgrid] = useState(false);
 
-  /* ===================== HISTORY HOOK (MOVED UP) ===================== */
-  // Initialize history early to avoid ReferenceError (TDZ)
+  /* ===================== CUSTOM ENGINE ===================== */
   const {
-    saveState = () => { },
-    undo = () => { },
-    redo = () => { },
-    canUndo = false,
-    canRedo = false,
-    resetHistory = () => { },
-    history = []
-  } = useCanvasHistory(fabricCanvas) || {};
+    canvasRef,
+    start,
+    stop,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    updateShapes,
+    editingShapeId,
+    setEditingShapeId,
 
-  /* ===================== INIT CANVAS ===================== */
-  useEffect(() => {
-    if (!canvasRef.current || !containerRef.current) return;
+    shapes: customShapes,
+    setShapes,
+    clearCanvas,
+    viewport: customViewport,
+    selectedShapeIds,
+    groupShapes,
+    ungroupShapes,
+    bringToFront,
+    sendToBack,
+    bringForward,
+    sendBackward,
+    setCanvasState, // Destructure setCanvasState
 
-    // ===========================================
-    // ⚠️ LEGACY CODE - MIGRATION IN PROGRESS ⚠️
-    // DO NOT MODIFY THIS CONFIGURATION
-    // See MIGRATION.md for details
-    // ===========================================
-    const canvas = new FabricCanvas(canvasRef.current, {
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight,
-      backgroundColor: "transparent",
-      selection: true,
-      preserveObjectStacking: true, // Better for editing
-    });
+    // Zoom
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    handlers
 
-    setFabricCanvas(canvas);
-
-    const resize = () => {
-      canvas.setDimensions({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
-      });
-      canvas.requestRenderAll();
-    };
-
-    window.addEventListener("resize", resize);
-    return () => {
-      window.removeEventListener("resize", resize);
-      canvas.dispose();
-    };
-  }, []);
-
-  /* ===================== UPDATING CURSOR & BRUSH ===================== */
-  useEffect(() => {
-    if (!fabricCanvas) return;
-
-    // Fallback enforcement
-    if (!activeTool) setActiveTool("select");
-
-    // Update Brush if exists
-    if (!fabricCanvas.freeDrawingBrush) {
-      fabricCanvas.freeDrawingBrush = new PencilBrush(fabricCanvas);
-    }
-    fabricCanvas.freeDrawingBrush.color = activeColor;
-    fabricCanvas.freeDrawingBrush.width = strokeWidth;
-
-    // Update Selection Mode or Drawing Mode
-    const isDrawing = activeTool === "draw";
-    fabricCanvas.isDrawingMode = isDrawing;
-    fabricCanvas.selection = activeTool === "select";
-
-    // Auto-deselect when switching tools (EXCALIDRAW UX)
-    if (activeTool !== "select") {
-      fabricCanvas.discardActiveObject();
-      fabricCanvas.requestRenderAll();
-    }
-
-    // Allow drawing on top of other objects (ignore object events when drawing)
-    fabricCanvas.skipTargetFind = activeTool !== "select";
-
-    // Update Cursor
-    const cursors = {
-      select: "default",
-      hand: "grab",
-      draw: "crosshair",
-      rectangle: "crosshair",
-      ellipse: "crosshair",
-      diamond: "crosshair",
-      line: "crosshair",
-      arrow: "crosshair",
-      text: "text",
-      eraser: "crosshair",
-    };
-    fabricCanvas.defaultCursor = cursors[activeTool] || "default";
-    fabricCanvas.requestRenderAll();
-
-  }, [fabricCanvas, activeTool, activeColor, strokeWidth]);
-
-  // Save state on object modification (move, resize, rotate)
-  useEffect(() => {
-    if (!fabricCanvas) return;
-
-    const handleModification = () => {
-      saveState();
-    };
-
-    fabricCanvas.on("object:modified", handleModification);
-    return () => {
-      fabricCanvas.off("object:modified", handleModification);
-    };
-  }, [fabricCanvas, saveState]);
-
-
-  /* ===================== HOOKS COMPOSITION ===================== */
-
-  // 2. Zoom & Pan
-  const {
-    zoom,
-    handleZoomIn,
-    handleZoomOut,
-    handleZoomReset
-  } = useCanvasZoom(fabricCanvas, activeTool, setActiveTool);
-
-  // 3. Drawing Logic (Shapes)
-  useCanvasDrawing(fabricCanvas, activeTool, setActiveTool, activeColor, strokeWidth, saveState);
-
-  // 4. Grid System
-  useCanvasGrid(fabricCanvas, showgrid);
-
-  // 5. Actions (Export, Clear, Image)
-  const {
-    handleExport,
-    handleClear,
-    handleAddImage,
-    handleSaveAs,
-    handleLoad
-  } = useCanvasActions(fabricCanvas, saveState, resetHistory);
-
-  // 6. Layers
-  const layerActions = useCanvasLayers(fabricCanvas, saveState);
-
-  // 7. Grouping (Removed per Flat Canvas Architecture)
-
-  // 8. Text
-  const { addText } = useCanvasText(fabricCanvas, activeTool, setActiveTool, activeColor, saveState);
-
-  // 9. Selection (Priority handling)
-  const { selectedElement } = useCanvasSelection(fabricCanvas);
-
-  // 10. Manual Drag (Rotated Shape Fix)
-  useCanvasDrag(fabricCanvas, activeTool);
-
-  // 11. Eraser
-  useCanvasEraser(fabricCanvas, activeTool, saveState);
-
-  const updateSelectedElement = (updates) => {
-    if (!fabricCanvas) return;
-    const activeObject = fabricCanvas.getActiveObject();
-    if (!activeObject) return;
-
-    if (activeObject.type === 'activeSelection') {
-      activeObject.getObjects().forEach(obj => {
-        obj.set(updates);
-      });
-    } else {
-      // Check for fill related updates
-      const currentFillColor = updates.fillColor !== undefined ? updates.fillColor : activeObject.fillColor;
-      const currentFillStyle = updates.fillStyle !== undefined ? updates.fillStyle : activeObject.fillStyle;
-
-      if (updates.fillColor || updates.fillStyle) {
-        if (currentFillColor && currentFillStyle) {
-          import("@/utils/canvas/patterns").then(({ getPattern }) => {
-            const pattern = getPattern(currentFillColor, currentFillStyle);
-            activeObject.set("fill", pattern);
-            activeObject.set("fillColor", currentFillColor);
-            activeObject.set("fillStyle", currentFillStyle);
-            fabricCanvas.requestRenderAll();
-            saveState();
-          });
-        }
-      }
-
-      // Handle Fill Styles
-      if (updates.fillColor !== undefined) {
-        activeObject.set("fillColor", updates.fillColor);
-        // Ensure standard fill is updated for non-artist modes
-        if (activeObject.sloppiness !== 'artist') {
-          // For non-artist, we set standard fill
-          activeObject.set("fill", updates.fillColor === 'transparent' ? '' : updates.fillColor);
-        }
-      }
-
-      if (updates.fillStyle !== undefined) {
-        activeObject.set("fillStyle", updates.fillStyle);
-      }
-
-      // Fabric JS often prefers key-value pairs, but .set(obj) should work.
-      activeObject.set(updates);
-
-      // If updating fill, ensure we dirty the object explicitly
-      if (updates.fill) {
-        if (['i-text', 'text', 'textbox'].includes(activeObject.type) && activeObject.styles) {
-          activeObject.cleanStyle('fill');
-        }
-        activeObject.dirty = true;
-      }
-
-      if (updates.fill || updates.stroke) {
-        activeObject.setCoords();
-      }
-    }
-
-    fabricCanvas.requestRenderAll();
-    fabricCanvas.fire("selection:updated", { target: activeObject });
-    saveState();
-  };
-
-
-  /* ===================== MIGRATION: DUAL RENDER MODE ===================== */
-  const [renderMode, setRenderMode] = useState("fabric"); // 'fabric' | 'custom'
-  const {
-    customCanvasRef,
-    start: startCustom,
-    stop: stopCustom,
-    syncFromFabric,
-    syncToFabric,
-    undo: customUndo,
-    redo: customRedo,
-    canUndo: canCustomUndo,
-    canRedo: canCustomRedo
-  } = useCustomEngine(fabricCanvas, {
+  } = useCustomEngine({
     activeTool,
-    setActiveTool, // Pass it down
+    setActiveTool,
     activeColor,
     strokeWidth,
     strokeStyle,
   });
 
-  // Toggle Mode
-  const toggleRenderMode = () => {
-    if (renderMode === 'fabric') {
-      // Switch to Custom
-      syncFromFabric();
-      startCustom();
-      setRenderMode('custom');
+  // Auto-Start Engine
+  useEffect(() => {
+    start();
+    return () => stop();
+  }, [start, stop]);
+
+
+  /* ===================== ADAPTERS FOR UI ===================== */
+
+  // Selection Adapter
+  const selectedElement = useMemo(() => {
+    if (!customShapes || !selectedShapeIds || selectedShapeIds.size === 0) return null;
+
+    if (selectedShapeIds.size === 1) {
+      const id = [...selectedShapeIds][0];
+      return customShapes.find(s => s.id === id) || null;
     } else {
-      // Switch to Fabric
-      stopCustom();
-      syncToFabric();
-      setRenderMode('fabric');
+      // Proxy for Multi-Selection
+      const objects = customShapes.filter(s => selectedShapeIds.has(s.id));
+      if (objects.length === 0) return null;
+
+      return {
+        id: 'selection-group',
+        type: 'activeSelection',
+        stroke: objects[0].strokeColor,
+        strokeWidth: objects[0].strokeWidth,
+        opacity: objects[0].opacity,
+        sloppiness: objects[0].sloppiness,
+        objects: objects
+      };
+    }
+  }, [customShapes, selectedShapeIds]);
+
+  const updateSelectedElement = (updates) => {
+    if (selectedShapeIds && selectedShapeIds.size > 0) {
+      updateShapes(selectedShapeIds, updates);
     }
   };
 
-  /* ===================== EXPORT API ===================== */
-
-  // History Wrapper
-  const handleUndoWrapper = () => {
-    if (renderMode === 'custom') {
-      customUndo();
-    } else {
-      undo();
+  // Action Adapters
+  const handleClear = () => {
+    if (confirm("Are you sure you want to clear the canvas?")) {
+      clearCanvas();
     }
   };
 
-  const handleRedoWrapper = () => {
-    if (renderMode === 'custom') {
-      customRedo();
-    } else {
-      redo();
-    }
+  // Stubs for features not yet implemented or migrated
+  const handleExport = () => {
+    exportToPng(customShapes, 'infinity-canvas.png');
   };
+  const handleSaveAs = () => {
+    saveToFile(customShapes, 'infinity-canvas.json');
+  };
+
+  const handleAddImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const src = event.target.result;
+        const img = new Image();
+        img.onload = () => {
+          // Add to canvas
+          const id = crypto.randomUUID();
+          // Default to center of viewport
+          const x = -customViewport.x / customViewport.zoom + (window.innerWidth / 2) / customViewport.zoom;
+          const y = -customViewport.y / customViewport.zoom + (window.innerHeight / 2) / customViewport.zoom;
+
+          // Clamp max size
+          let w = img.naturalWidth;
+          let h = img.naturalHeight;
+          const MAX_SIZE = 500;
+          if (w > MAX_SIZE || h > MAX_SIZE) {
+            const ratio = w / h;
+            if (w > h) { w = MAX_SIZE; h = MAX_SIZE / ratio; }
+            else { h = MAX_SIZE; w = MAX_SIZE * ratio; }
+          }
+
+          const newShape = {
+            id,
+            type: 'image',
+            x,
+            y,
+            width: w,
+            height: h,
+            rotation: 0,
+            opacity: 1,
+            src: src,
+            strokeColor: 'transparent',
+            // Add other defaults to avoid crashes in generic utils
+            strokeWidth: 0,
+            strokeStyle: 'solid',
+            sloppiness: 'architect'
+          };
+
+          setShapes(prev => [...prev, newShape]);
+        };
+        img.src = src;
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const handleLoad = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const shapes = await loadFromFile(file);
+        setCanvasState(shapes);
+      } catch (err) {
+        alert('Failed to load file: ' + err.message);
+      }
+    };
+    input.click();
+  };
+
+  // Group Actions Adapter
+  const groupActions = useMemo(() => {
+    const isGroup = selectedShapeIds && selectedShapeIds.size === 1 && customShapes.find(s => s.id === [...selectedShapeIds][0])?.type === 'group';
+    return {
+      group: groupShapes,
+      ungroup: ungroupShapes,
+      canGroup: selectedShapeIds && selectedShapeIds.size > 1,
+      canUngroup: isGroup
+    };
+  }, [groupShapes, ungroupShapes, selectedShapeIds, customShapes]);
+
+  // Layer Actions Adapter
+  const layerActions = useMemo(() => ({
+    bringForward: bringForward,
+    sendBackwards: sendBackward, // Note name match: UI calls it sendBackwards, hook has sendBackward
+    bringToFront: bringToFront,
+    sendToBack: sendToBack,
+  }), [bringForward, sendBackward, bringToFront, sendToBack]);
 
   return {
-    canvasRef,
+    // Refs
     containerRef,
-
-    // Migration: Custom Engine
-    customCanvasRef,
-    renderMode,
-    toggleRenderMode,
+    customCanvasRef: canvasRef, // Expose as customCanvasRef for compatibility
 
     // State
     activeTool,
@@ -315,40 +222,40 @@ export function useCanvas() {
     setStrokeStyle,
     showgrid,
     setshowgrid,
-    fabricCanvas, // Expose Fabric Instance
 
-    // Zoom
-    zoom,
-    handleZoomIn,
-    handleZoomOut,
-    handleZoomReset,
+    // Viewport
+    zoom: customViewport.zoom,
+    handleZoomIn: zoomIn,
+    handleZoomOut: zoomOut,
+    handleZoomReset: resetZoom,
+    viewport: customViewport,
 
     // History
-    history, // Use destructured history
-    canUndo: renderMode === 'custom' ? canCustomUndo : canUndo,
-    canRedo: renderMode === 'custom' ? canCustomRedo : canRedo,
-    handleUndo: handleUndoWrapper,
-    handleRedo: handleRedoWrapper,
+    canUndo,
+    canRedo,
+    handleUndo: undo,
+    handleRedo: redo,
 
     // Actions
     handleClear,
-    handleExport: () => {
-      if (renderMode === 'custom') {
-        syncToFabric(); // Sync first so export works
-        // Small delay might be needed if sync is async (it's not currently)
-      }
-      handleExport();
-    },
+    handleExport,
     handleAddImage,
     handleSaveAs,
     handleLoad,
-    addText, // Exposed for toolbar/sidebar if needed
-
-    // Advanced Manipulation
-    layerActions,
 
     // Selection
     selectedElement,
-    updateSelectedElement
+    updateSelectedElement,
+
+    // Helpers
+    layerActions,
+    groupActions,
+
+    // Engine Specifics
+    customShapes,
+    updateCustomShape: updateShapes,
+    editingShapeId,
+    setEditingShapeId,
+    canvasHandlers: handlers
   };
 }
