@@ -183,7 +183,8 @@ export function useEngineInteraction({
                         x: selectedShape.x, y: selectedShape.y,
                         width: selectedShape.width, height: selectedShape.height,
                         rotation: selectedShape.rotation,
-                        points: selectedShape.points
+                        points: selectedShape.points,
+                        children: selectedShape.children ? JSON.parse(JSON.stringify(selectedShape.children)) : undefined
                     });
                     if (canvasRef.current.setPointerCapture) canvasRef.current.setPointerCapture(e.pointerId);
                     return;
@@ -293,7 +294,26 @@ export function useEngineInteraction({
                     return { ...shape, points: [...(shape.points || []), { x: x - startX, y: y - startY }] };
                 }
                 if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
-                    return { ...shape, points: [{ x: 0, y: 0 }, { x: x - startX, y: y - startY }] };
+                    const startX = dragOffset.startX;
+                    const startY = dragOffset.startY;
+                    const w = Math.abs(x - startX);
+                    const h = Math.abs(y - startY);
+                    const centerX = startX + (x - startX) / 2;
+                    const centerY = startY + (y - startY) / 2;
+
+                    // Points relative to center
+                    // Start (startX, startY) - Center (centerX, centerY)
+                    const p0 = { x: startX - centerX, y: startY - centerY };
+                    const p1 = { x: x - centerX, y: y - centerY };
+
+                    return {
+                        ...shape,
+                        x: centerX,
+                        y: centerY,
+                        width: w,
+                        height: h,
+                        points: [p0, p1]
+                    };
                 }
 
                 const left = Math.min(startX, x);
@@ -346,6 +366,46 @@ export function useEngineInteraction({
                         const newPoints = startDimensions.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
                         return { ...shape, ...updates, points: newPoints };
                     }
+
+                    // Group Scaling
+                    if (shape.type === SHAPE_TYPES.GROUP && startDimensions.children) {
+                        const scaleX = updates.width / startDimensions.width;
+                        const scaleY = updates.height / startDimensions.height;
+
+                        const newChildren = startDimensions.children.map(child => {
+                            // Scale Position
+                            const nx = child.x * scaleX;
+                            const ny = child.y * scaleY;
+
+                            // Scale Dimensions
+                            const nw = child.width * scaleX;
+                            const nh = child.height * scaleY;
+
+                            // Scale Points (if line/arrow/pencil)
+                            let nPoints = child.points;
+                            if (child.points) {
+                                nPoints = child.points.map(p => ({
+                                    x: p.x * scaleX,
+                                    y: p.y * scaleY
+                                }));
+                            }
+
+                            // TODO: Scale Stroke Width? FontSize?
+                            // For MVP, position and size is critical.
+
+                            return {
+                                ...child,
+                                x: nx,
+                                y: ny,
+                                width: nw,
+                                height: nh,
+                                points: nPoints
+                            };
+                        });
+
+                        return { ...shape, ...updates, children: newChildren };
+                    }
+
                     return { ...shape, ...updates };
                 }
                 return shape;
@@ -428,7 +488,14 @@ export function useEngineInteraction({
                     }
                     return s;
                 }).filter(s => {
-                    if (s.id === creationId) return s.width > 5 || s.height > 5 || (s.type === SHAPE_TYPES.PENCIL && s.points.length > 2);
+                    if (s.id === creationId) {
+                        // Keep if large enough OR if it's a line/arrow/pencil with content
+                        if (s.type === SHAPE_TYPES.PENCIL && s.points.length > 2) return true;
+                        if (s.width > 5 || s.height > 5) return true;
+                        // Force keep lines if they have length (width/height might be small if horizontal/vertical)
+                        if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (s.width > 5 || s.height > 5)) return true;
+                        return false;
+                    }
                     return true;
                 });
                 saveState(newShapes);
