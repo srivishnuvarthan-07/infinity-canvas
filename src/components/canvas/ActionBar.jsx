@@ -1,8 +1,8 @@
-import { Undo2, Redo2, Trash2, Download, Image } from "lucide-react";
+import { Undo2, Redo2, Trash2, Download, Image, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 
-export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport, onAddImage, onToggleGrid }) {
+export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport, onAddImage, onToggleGrid, layerActions }) {
     return (
         <div className="toolbar-container animate-fade-in">
             <Tooltip>
@@ -40,6 +40,51 @@ export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport,
                     <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded font-mono">⌘⇧Z</kbd>
                 </TooltipContent>
             </Tooltip>
+
+            <Separator orientation="vertical" className="h-6 mx-1" />
+
+            {/* Layer Management */}
+            {layerActions && (
+                <>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button className="tool-button" onClick={layerActions.bringToFront}>
+                                <ArrowUpToLine className="w-5 h-5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">Bring to Front</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button className="tool-button" onClick={layerActions.bringForward}>
+                                <ArrowUp className="w-5 h-5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">Bring Forward</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button className="tool-button" onClick={layerActions.sendBackwards}>
+                                <ArrowDown className="w-5 h-5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">Send Backward</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button className="tool-button" onClick={layerActions.sendToBack}>
+                                <ArrowDownToLine className="w-5 h-5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">Send to Back</TooltipContent>
+                    </Tooltip>
+
+                    <Separator orientation="vertical" className="h-6 mx-1" />
+                </>
+            )}
 
             <Separator orientation="vertical" className="h-6 mx-1" />
 

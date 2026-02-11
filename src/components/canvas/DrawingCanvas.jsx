@@ -1,9 +1,7 @@
 
 import { useCanvas } from "@/hooks/useCanvas";
 import { Toolbar } from "./Toolbar";
-import { ColorPicker } from "./ColorPicker";
 import { MenuToolbar } from "./MenuToolbar";
-import { StrokeWidth } from "./StrokeWidth";
 import { ActionBar } from "./ActionBar";
 import { ZoomControls } from "./ZoomControls";
 import { Logo } from "./Logo";
@@ -15,6 +13,7 @@ import { useState } from "react";
 export function DrawingCanvas() {
 
     const {
+        containerRef,
         activeTool,
         setActiveTool,
         activeColor,
@@ -99,6 +98,7 @@ export function DrawingCanvas() {
                         onClear={handleClear}
                         onExport={handleExport}
                         onAddImage={handleAddImage}
+                        layerActions={layerActions}
                     />
                 </div>
             </div>
