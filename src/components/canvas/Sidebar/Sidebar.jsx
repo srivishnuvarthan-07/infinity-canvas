@@ -27,7 +27,7 @@ export function Sidebar({
   if (!isFreehand && !isShape && !isText) return null;
 
   return (
-    <aside className="w-56 rounded-xl bg-card shadow-lg p-4 space-y-4">
+    <div className="space-y-4">
       {/* STYLE PANEL */}
       {isFreehand && (
         <FreeHandStylePanel
@@ -70,6 +70,6 @@ export function Sidebar({
           />
         </>
       )}
-    </aside>
+    </div>
   );
 }
