@@ -2,138 +2,70 @@ import { Undo2, Redo2, Trash2, Download, Image, ArrowUp, ArrowDown, ArrowUpToLin
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 
-export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport, onAddImage, onToggleGrid, layerActions }) {
+export function ActionBar({ canUndo, canRedo, onUndo, onRedo, onClear, onExport, onAddImage }) {
     return (
-        <div className="toolbar-container animate-fade-in">
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        className="tool-button"
-                        onClick={onUndo}
-                        disabled={!canUndo}
-                        style={{ opacity: canUndo ? 1 : 0.4 }}
-                    >
-                        <Undo2 className="w-5 h-5" />
-                    </button>
-                </TooltipTrigger>
+        <div className="flex flex-col gap-2 p-1">
+            <div className="grid grid-cols-2 gap-2">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            className="flex items-center justify-center p-2 rounded-lg hover:bg-muted transition-colors disabled:opacity-40"
+                            onClick={onUndo}
+                            disabled={!canUndo}
+                        >
+                            <Undo2 className="w-5 h-5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Undo (⌘Z)</TooltipContent>
+                </Tooltip>
 
-                <TooltipContent side="bottom" className="flex items-center gap-2">
-                    <span>Undo</span>
-                    <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded font-mono">⌘Z</kbd>
-                </TooltipContent>
-            </Tooltip>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            className="flex items-center justify-center p-2 rounded-lg hover:bg-muted transition-colors disabled:opacity-40"
+                            onClick={onRedo}
+                            disabled={!canRedo}
+                        >
+                            <Redo2 className="w-5 h-5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Redo (⌘⇧Z)</TooltipContent>
+                </Tooltip>
+            </div>
 
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        className="tool-button"
-                        onClick={onRedo}
-                        disabled={!canRedo}
-                        style={{ opacity: canRedo ? 1 : 0.4 }}
-                    >
-                        <Redo2 className="w-5 h-5" />
-                    </button>
-                </TooltipTrigger>
+            <Separator className="my-1" />
 
-                <TooltipContent side="bottom" className="flex items-center gap-2">
-                    <span>Redo</span>
-                    <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded font-mono">⌘⇧Z</kbd>
-                </TooltipContent>
-            </Tooltip>
+            <div className="flex flex-col gap-2">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button className="flex items-center justify-center p-2 rounded-lg hover:bg-muted transition-colors" onClick={onAddImage}>
+                            <Image className="w-5 h-5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Add Image</TooltipContent>
+                </Tooltip>
 
-            <Separator orientation="vertical" className="h-6 mx-1" />
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button className="flex items-center justify-center p-2 rounded-lg hover:bg-muted transition-colors" onClick={onExport}>
+                            <Download className="w-5 h-5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Export PNG</TooltipContent>
+                </Tooltip>
 
-            {/* Layer Management */}
-            {layerActions && (
-                <>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button className="tool-button" onClick={layerActions.bringToFront}>
-                                <ArrowUpToLine className="w-5 h-5" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">Bring to Front</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button className="tool-button" onClick={layerActions.bringForward}>
-                                <ArrowUp className="w-5 h-5" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">Bring Forward</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button className="tool-button" onClick={layerActions.sendBackwards}>
-                                <ArrowDown className="w-5 h-5" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">Send Backward</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button className="tool-button" onClick={layerActions.sendToBack}>
-                                <ArrowDownToLine className="w-5 h-5" />
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">Send to Back</TooltipContent>
-                    </Tooltip>
-
-                    <Separator orientation="vertical" className="h-6 mx-1" />
-                </>
-            )}
-
-            <Separator orientation="vertical" className="h-6 mx-1" />
-
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button className="tool-button" onClick={onAddImage}>
-                        <Image className="w-5 h-5" />
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Add Image</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button className="tool-button" onClick={onExport}>
-                        <Download className="w-5 h-5" />
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Export PNG</TooltipContent>
-            </Tooltip>
-
-
-
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        className="tool-button text-destructive hover:text-destructive"
-                        onClick={onClear}
-                    >
-                        <Trash2 className="w-5 h-5" />
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Clear Canvas</TooltipContent>
-            </Tooltip>
-            <Separator orientation="vertical" className="h-6 mx-1" />
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        className="tool-button text-destructive hover:text-destructive"
-                        onClick={() => {
-                            onToggleGrid((prev) => !prev)
-                            console.log("onToggleGrid:", onToggleGrid);
-                        }}
-                    >
-                        {/* <Trash2 className="w-5 h-5" /> */}
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">grid Toggle</TooltipContent>
-            </Tooltip>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            className="flex items-center justify-center p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                            onClick={onClear}
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Clear Canvas</TooltipContent>
+                </Tooltip>
+            </div>
         </div>
     );
 }
