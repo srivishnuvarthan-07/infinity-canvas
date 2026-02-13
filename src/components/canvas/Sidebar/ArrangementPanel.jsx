@@ -42,18 +42,18 @@ export function ArrangementPanel({ layerActions, selectedElement, groupActions }
 
             {/* Layers */}
             <div className="space-y-2">
-                <span className="text-xs text-muted-foreground">Layers</span>
-                <div className="flex gap-1">
-                    <Button variant="outline" size="icon" onClick={layerActions.bringToFront} onMouseDown={(e) => e.preventDefault()} title="Bring to Front">
+                <span className="text-xs text-muted-foreground">Order</span>
+                <div className="grid grid-cols-4 gap-2">
+                    <Button variant="outline" size="icon" className="h-8 w-full" onClick={layerActions.bringToFront} title="Bring into Front">
                         <ArrowUp className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={layerActions.moveForward} onMouseDown={(e) => e.preventDefault()} title="Move Forward">
-                        <span className="text-xs">↑</span>
+                    <Button variant="outline" size="icon" className="h-8 w-full" onClick={layerActions.bringForward} title="Bring Forward">
+                        <span className="text-xs font-bold font-mono">↑</span>
                     </Button>
-                    <Button variant="outline" size="icon" onClick={layerActions.moveBackward} onMouseDown={(e) => e.preventDefault()} title="Move Backward">
-                        <span className="text-xs">↓</span>
+                    <Button variant="outline" size="icon" className="h-8 w-full" onClick={layerActions.sendBackwards} title="Send Backward">
+                        <span className="text-xs font-bold font-mono">↓</span>
                     </Button>
-                    <Button variant="outline" size="icon" onClick={layerActions.sendToBack} onMouseDown={(e) => e.preventDefault()} title="Send to Back">
+                    <Button variant="outline" size="icon" className="h-8 w-full" onClick={layerActions.sendToBack} title="Send to Back">
                         <ArrowDown className="h-4 w-4" />
                     </Button>
                 </div>
