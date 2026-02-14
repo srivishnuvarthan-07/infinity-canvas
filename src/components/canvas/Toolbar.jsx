@@ -31,8 +31,8 @@ export function Toolbar({ activeTool, onToolChange, orientation = "horizontal" }
   return (
     <div className={`
         flex ${isVertical ? "flex-col" : "flex-row"} 
-        gap-2 bg-card/50 p-1 rounded-xl
-        ${!isVertical ? "border shadow-sm" : ""}
+        gap-2 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-2xl border border-neutral-200/50
+        transition-all duration-300 hover:scale-105 hover:bg-white/90
     `}>
       {tools.map((tool) => (
         <Tooltip key={tool.type}>
