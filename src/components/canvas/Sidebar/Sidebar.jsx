@@ -10,7 +10,8 @@ export function Sidebar({
   selectedElement,
   updateElement,
   layerActions,
-  groupActions
+  groupActions,
+  onAddToLibrary
 }) {
   if (!selectedElement) return null;
 
@@ -36,6 +37,18 @@ export function Sidebar({
         />
       )}
 
+      {isFreehand && (
+        <>
+          <Separator className="my-2" />
+          <ArrangementPanel
+            selectedElement={selectedElement}
+            layerActions={layerActions}
+            groupActions={groupActions}
+            onAddToLibrary={onAddToLibrary}
+          />
+        </>
+      )}
+
       {isText && (
         <>
           <TextStylePanel
@@ -47,6 +60,7 @@ export function Sidebar({
             selectedElement={selectedElement}
             layerActions={layerActions}
             groupActions={groupActions}
+            onAddToLibrary={onAddToLibrary}
           />
         </>
       )}
@@ -67,6 +81,7 @@ export function Sidebar({
             selectedElement={selectedElement}
             layerActions={layerActions}
             groupActions={groupActions}
+            onAddToLibrary={onAddToLibrary}
           />
         </>
       )}

@@ -23,7 +23,7 @@ export function FreeHandStylePanel({ element, updateElement }) {
               size="icon"
               className="h-6 w-6 p-0 border border-border/50"
               style={{ backgroundColor: color }}
-              onClick={() => updateElement({ stroke: color })}
+              onClick={() => updateElement({ stroke: color, strokeColor: color })}
             >
               {strokeColor === color && <div className="w-1.5 h-1.5 rounded-full bg-white ring-1 ring-black/50" />}
             </Button>
