@@ -7,6 +7,7 @@ import { useEngineRenderer } from './engine/useEngineRenderer';
 import { useEngineInteraction } from './engine/useEngineInteraction';
 
 export function useCustomEngine({
+    initialShapes = [],
     activeTool,
     setActiveTool,
     activeColor,
@@ -41,7 +42,7 @@ export function useCustomEngine({
         sendToBack,
         bringForward,
         sendBackward
-    } = useEngineState();
+    } = useEngineState(initialShapes);
 
     // 2. Viewport Management (Zoom, Pan, Coordinates)
     const {
@@ -132,7 +133,9 @@ export function useCustomEngine({
         undo,
         redo,
         canUndo,
+        canUndo,
         canRedo,
+        saveState, // Add this export
 
         viewport,
         setViewport,
