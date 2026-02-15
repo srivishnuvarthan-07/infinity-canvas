@@ -1,3 +1,5 @@
+import { getPatternCanvas } from "../../../utils/canvas/patterns";
+
 export function drawEllipse(ctx, shape, roughOps = null) {
     const rx = shape.width / 2;
     const ry = shape.height / 2;
@@ -27,7 +29,23 @@ export function drawEllipse(ctx, shape, roughOps = null) {
     // STANDARD MODE
     ctx.strokeStyle = shape.strokeColor;
     ctx.lineWidth = shape.strokeWidth;
-    ctx.fillStyle = shape.fillColor;
+
+    // Handle Fill Style
+    if (shape.fillColor && shape.fillColor !== 'transparent') {
+        if (shape.fillStyle === 'hachure' || shape.fillStyle === 'cross-hatch') {
+            const patternCanvas = getPatternCanvas(shape.fillColor, shape.fillStyle);
+            if (patternCanvas) {
+                const pattern = ctx.createPattern(patternCanvas, 'repeat');
+                ctx.fillStyle = pattern;
+            } else {
+                ctx.fillStyle = shape.fillColor;
+            }
+        } else {
+            ctx.fillStyle = shape.fillColor;
+        }
+    } else {
+        ctx.fillStyle = 'transparent';
+    }
 
     if (shape.strokeStyle === 'dashed') {
         ctx.setLineDash([shape.strokeWidth * 3, shape.strokeWidth * 3]);

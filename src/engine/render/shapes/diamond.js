@@ -1,3 +1,5 @@
+import { getPatternCanvas } from "../../../utils/canvas/patterns";
+
 export function drawDiamond(ctx, shape, roughOps = null) {
     const w = shape.width;
     const h = shape.height;
@@ -32,7 +34,23 @@ export function drawDiamond(ctx, shape, roughOps = null) {
     // Setup styles
     ctx.strokeStyle = shape.strokeColor;
     ctx.lineWidth = shape.strokeWidth;
-    ctx.fillStyle = shape.fillColor;
+
+    // Handle Fill Style
+    if (shape.fillColor && shape.fillColor !== 'transparent') {
+        if (shape.fillStyle === 'hachure' || shape.fillStyle === 'cross-hatch') {
+            const patternCanvas = getPatternCanvas(shape.fillColor, shape.fillStyle);
+            if (patternCanvas) {
+                const pattern = ctx.createPattern(patternCanvas, 'repeat');
+                ctx.fillStyle = pattern;
+            } else {
+                ctx.fillStyle = shape.fillColor;
+            }
+        } else {
+            ctx.fillStyle = shape.fillColor;
+        }
+    } else {
+        ctx.fillStyle = 'transparent';
+    }
 
     // Handle Dashed/Dotted
     if (shape.strokeStyle === 'dashed') {
