@@ -7,21 +7,9 @@ import { Logo } from "./Logo";
 import { Sidebar } from "@/components/canvas/Sidebar/Sidebar";
 import { TextEditorOverlay } from "./TextEditorOverlay";
 import { CommandMenu } from "./CommandMenu";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-
-// Simple Debounce Hook Implementation since I don't want to rely on external
-function useDebouncedCallback(callback, delay) {
-    const timeoutRef = useRef(null);
-    return (...args) => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            callback(...args);
-        }, delay);
-    };
-}
 
 export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddToLibrary }) {
 

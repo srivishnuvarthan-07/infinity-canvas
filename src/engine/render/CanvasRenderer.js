@@ -53,9 +53,13 @@ export class CanvasRenderer {
      * @param {string} [overlayState.hoveredId]
      * @param {string} [overlayState.selectedId]
      * @param {Object} viewport - Transform for pan/zoom
+     * @param {Object} [options] - Render options
+     * @param {boolean} [options.clear=true] - Whether to clear canvas before rendering
      */
-    render(shapes, overlayState = {}, viewport = { x: 0, y: 0, zoom: 1 }) {
-        this.clear();
+    render(shapes, overlayState = {}, viewport = { x: 0, y: 0, zoom: 1 }, options = { clear: true }) {
+        if (options.clear !== false) {
+            this.clear();
+        }
         this.ctx.save();
 
         // Apply Viewport Transform

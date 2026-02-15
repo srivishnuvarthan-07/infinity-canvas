@@ -55,21 +55,6 @@ export function useCustomEngine({
         resetZoom
     } = useEngineViewport();
 
-    // 3. Renderer (Canvas Lifecycle)
-    const {
-        rendererRef,
-        start,
-        stop
-    } = useEngineRenderer({
-        canvasRef, // Pass explicit ref
-        shapes,
-        viewport,
-        hoveredShapeId,
-        selectedShapeIds,
-        selectionBox, // Pass down to render overlay
-        editingShapeId
-    });
-
     const {
         handlePointerDown,
         handlePointerMove,
@@ -77,7 +62,8 @@ export function useCustomEngine({
         handleKeyDown,
         handleKeyUp,
         handleDoubleClick,
-        handleWheel // Destructure handleWheel
+        handleWheel,
+        isDragging // Get this
     } = useEngineInteraction({
         canvasRef,
         shapes,
@@ -85,8 +71,8 @@ export function useCustomEngine({
         selectedShapeIds,
         setSelectedShapeIds,
         setHoveredShapeId,
-        editingShapeId, // Pass down
-        setEditingShapeId, // Pass down
+        editingShapeId,
+        setEditingShapeId,
         viewport,
         setViewport,
         toWorld,
@@ -102,6 +88,22 @@ export function useCustomEngine({
         activeColor,
         strokeWidth,
         strokeStyle
+    });
+
+    // 3. Renderer (Canvas Lifecycle)
+    const {
+        rendererRef,
+        start,
+        stop
+    } = useEngineRenderer({
+        canvasRef,
+        shapes,
+        viewport,
+        hoveredShapeId,
+        selectedShapeIds,
+        selectionBox,
+        editingShapeId,
+        isDragging // Pass to renderer
     });
 
     // 5. Global Event Listeners (Keyboard)
