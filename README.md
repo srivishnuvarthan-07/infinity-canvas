@@ -1,56 +1,92 @@
 # Infinity Canvas
 
-A powerful implementation of an infinite drawing canvas built with React and Fabric.js. This application allows users to sketch, draw shapes, and take notes on a limitless workspace.
+**Infinity Canvas** is a powerful, infinite whiteboard application built for architects, artists, and cartoonists. It features a custom high-performance rendering engine that supports various visual styles, from clean architectural lines to rough, hand-drawn sketches.
 
-## Features
+![Infinity Canvas](./public/og-image.png)
 
-### Drawing Tools
-- **Selection**: Move and manipulate objects on the canvas (Shortcut: `V`)
-- **Hand/Pan**: Navigate around the infinite canvas (Shortcut: `H`)
-- **Pencil**: Freehand drawing with customizable stroke width (Shortcut: `P`)
-- **Eraser**: Remove objects or parts of drawings (Shortcut: `E`)
+## 🚀 Features
 
-### Shapes & Objects
-- **Basic Shapes**:
-  - Line (Shortcut: `L`)
-  - Arrow (Shortcut: `A`)
-  - Rectangle (Shortcut: `R`)
-  - Diamond (Shortcut: `D`)
-  - Ellipse (Shortcut: `O`)
-- **Text**: Add text labels and notes (Shortcut: `T`)
+### Core Tools
+- **Infinite Canvas**: Pan and zoom freely without boundaries.
+- **Shapes**: Rectangle, Diamond, Ellipse, Arrow, Line.
+- **Freehand**: Smooth pencil tool powered by `perfect-freehand`.
+- **Text**: Interactive text boxes with in-place editing.
+- **Eraser**: Intuitive shape removal.
 
-### Styling & Customization
-- **Stroke Color**: Choose from a palette of vibrant colors.
-- **Stroke Width**: Adjust the thickness of your lines and shapes.
-- **Stroke Style**: Toggle between Solid, Dashed, and Dotted lines.
+### Smart Styling
+- **Sloppiness Modes**:
+  - 🏛️ **Architect**: Clean, precise lines.
+  - 🎨 **Artist**: Sketchy, multi-stroke rough style.
+  - 🦸 **Cartoonist**: Bold, stylized appearance.
+- **Stroke Styles**: Solid, Dashed, Dotted.
+- **Fill Patterns**: Solid, Hachure, Cross-Hatch.
+- **Colors**: Curated palette of vibrant colors.
 
-### Canvas Controls
-- **Zoom Controls**: Zoom in/out for detailed work or an overview.
-- **Infinite Scrolling**: Panning capability to extend your workspace indefinitely.
+### Controls & Shortcuts
+| Action | Shortcut |
+|--------|----------|
+| **Pan** | `Space` + Drag / Mouse Wheel / `Shift` + Wheel |
+| **Zoom** | `Ctrl` + Wheel / `Meta` + Wheel |
+| **Multi-Select** | `Shift` + Click / Drag Selection |
+| **Delete** | `Backspace` / `Delete` |
+| **Edit Text** | Double Click on Text |
+| **Undo/Redo** | `Ctrl+Z` / `Ctrl+Y` |
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-- **Framework**: React + Vite
-- **Canvas Engine**: Fabric.js
-- **UI Components**: Shadcn UI (@radix-ui)
-- **Styling**: Tailwind CSS
-- **Icons**: Lucide React
+- **Framework**: [React](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) + [Shadcn UI](https://ui.shadcn.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Rendering**: Custom 2D Engine (Canvas API)
+- **Algorithms**: [Perfect Freehand](https://github.com/steveruizok/perfect-freehand)
 
-## Getting Started
+## 📦 Getting Started
 
-Follow these steps to set up the project locally:
+### Prerequisites
+- Node.js (v18+ recommended)
 
-1. **Install Dependencies**
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/infinity-canvas.git
+   ```
+
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-2. **Run Development Server**
+3. Start the development server:
    ```bash
    npm run dev
    ```
 
-3. **Build for Production**
+4. Build for production:
    ```bash
    npm run build
    ```
+
+## 📂 Project Structure
+
+```
+src/
+├── components/         # UI Components
+│   ├── canvas/         # Canvas-specific widgets (Toolbar, Sidebar)
+│   └── ui/             # Generic UI kit (Buttons, Inputs)
+├── engine/             # Core Visualization Engine
+│   ├── render/         # Drawing logic for shapes
+│   ├── physics/        # Hit testing and math helpers
+│   └── utils/          # Geometry and serialization utils
+├── hooks/              # React integration hooks
+│   ├── engine/         # Interaction & State logic hooks
+│   └── useCanvas.js    # Main entry point for UI
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is open-source and available under the [MIT License](LICENSE).
