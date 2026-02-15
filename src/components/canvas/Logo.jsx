@@ -7,7 +7,8 @@ export function Logo() {
         <Sparkles className="w-5 h-5 text-primary-foreground" />
       </div>
 
-      <div className="flex flex-col">
+      <div className="hidden flex-col">
+        {/* Hidden for narrow sidebar layout */}
         <span className="text-lg font-semibold text-foreground leading-tight">SketchFlow</span>
         <span className="text-xs text-muted-foreground">Collaborative Canvas</span>
       </div>

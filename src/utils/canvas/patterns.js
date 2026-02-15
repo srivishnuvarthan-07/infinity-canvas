@@ -1,13 +1,11 @@
-import { Pattern } from "fabric";
-
 /**
- * Generates a Fabric Pattern for the given color and type.
+ * Generates a Canvas element with the pattern drawn on it.
  * @param {string} color - The color of the pattern lines.
  * @param {string} type - 'hachure' | 'cross-hatch'.
- * @returns {Pattern | string} - A Fabric Pattern object or the color string if solid.
+ * @returns {HTMLCanvasElement | null} - The canvas element or null if solid/invalid.
  */
-export const getPattern = (color, type) => {
-    if (type === "solid") return color;
+export const getPatternCanvas = (color, type) => {
+    if (type === "solid") return null;
 
     const patternSource = document.createElement("canvas");
     const ctx = patternSource.getContext("2d");
@@ -37,6 +35,21 @@ export const getPattern = (color, type) => {
         ctx.lineTo(size, size);
         ctx.stroke();
     }
+
+    return patternSource;
+};
+
+/**
+ * Generates a Fabric Pattern for the given color and type.
+ * @param {string} color - The color of the pattern lines.
+ * @param {string} type - 'hachure' | 'cross-hatch'.
+ * @returns {Pattern | string} - A Fabric Pattern object or the color string if solid.
+ */
+export const getPattern = (color, type) => {
+    if (type === "solid") return color;
+
+    const patternSource = getPatternCanvas(color, type);
+    if (!patternSource) return color;
 
     return new Pattern({
         source: patternSource,

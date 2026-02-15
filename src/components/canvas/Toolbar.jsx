@@ -25,21 +25,33 @@ const tools = [
   { type: "eraser", icon: Eraser, label: "Eraser", shortcut: "E" },
 ];
 
-export function Toolbar({ activeTool, onToolChange }) {
+export function Toolbar({ activeTool, onToolChange, orientation = "horizontal" }) {
+  const isVertical = orientation === "vertical";
+
   return (
-    <div className="toolbar-container animate-fade-in">
+    <div className={`
+        flex ${isVertical ? "flex-col" : "flex-row"} 
+        gap-2 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-2xl border border-neutral-200/50
+        transition-all duration-300 hover:scale-105 hover:bg-white/90
+    `}>
       {tools.map((tool) => (
         <Tooltip key={tool.type}>
           <TooltipTrigger asChild>
             <button
-              className={`tool-button ${activeTool === tool.type ? "active" : ""}`}
+              className={`
+                flex items-center justify-center rounded-lg p-2.5 transition-all duration-200
+                ${activeTool === tool.type
+                  ? "bg-primary text-primary-foreground shadow-md scale-105"
+                  : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                }
+              `}
               onClick={() => onToolChange(tool.type)}
             >
               <tool.icon className="w-5 h-5" />
             </button>
           </TooltipTrigger>
 
-          <TooltipContent side="bottom" className="flex items-center gap-2">
+          <TooltipContent side={isVertical ? "right" : "bottom"} className="flex items-center gap-2">
             <span>{tool.label}</span>
             <kbd className="px-1.5 py-0.5 text-xs bg-muted rounded font-mono">
               {tool.shortcut}
