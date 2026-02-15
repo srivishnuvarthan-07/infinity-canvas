@@ -42,3 +42,17 @@ export function loadFromFile(file) {
         reader.readAsText(file);
     });
 }
+
+/**
+ * Loads an image from a file.
+ * @param {File} file - The image file to load.
+ * @returns {Promise<string>} - A promise that resolves to the image data URL.
+ */
+export function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(new Error("Failed to load image"));
+        reader.readAsDataURL(file);
+    });
+}

@@ -552,12 +552,56 @@ export function useEngineInteraction({
         }
     }, [shapes, toWorld, viewport.zoom, setEditingShapeId, setSelectedShapeIds, canvasRef]);
 
+    const handleWheel = useCallback((e) => {
+        if (!canvasRef.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.ctrlKey || e.metaKey) {
+            // ZOOM
+            const rect = canvasRef.current.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // 1. Calculate World Point before zoom
+            const { x: worldX, y: worldY } = toWorld(mouseX, mouseY);
+
+            // 2. Calculate new Zoom
+            let newZoom = viewport.zoom;
+            // Use smaller steps for finer control
+            newZoom *= e.deltaY > 0 ? 0.95 : 1.05;
+            newZoom = Math.min(Math.max(newZoom, 0.1), 10);
+
+            // 3. New Viewport to keep mouse under same world point
+            // mouseX = (worldX * newZoom) + newViewportX
+            // newViewportX = mouseX - (worldX * newZoom)
+            const newViewportX = mouseX - worldX * newZoom;
+            const newViewportY = mouseY - worldY * newZoom;
+
+            setViewport({ x: newViewportX, y: newViewportY, zoom: newZoom });
+        } else {
+            // PAN
+            let deltaX = e.deltaX;
+            let deltaY = e.deltaY;
+            if (e.shiftKey && deltaY !== 0 && Math.abs(deltaX) === 0) {
+                deltaX = deltaY;
+                deltaY = 0;
+            }
+            setViewport(prev => ({
+                ...prev,
+                x: prev.x - deltaX,
+                y: prev.y - deltaY
+            }));
+        }
+    }, [canvasRef, viewport, setViewport, toWorld]);
+
     return {
         handlePointerDown,
         handlePointerMove,
         handlePointerUp,
         handleKeyDown,
         handleKeyUp,
-        handleDoubleClick
+        handleDoubleClick,
+        handleWheel
     };
 }

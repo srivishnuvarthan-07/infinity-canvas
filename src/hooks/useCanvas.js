@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { DRAWING_COLORS } from "@/types/canvas";
 import { useCustomEngine } from "./useCustomEngine";
 import { exportToPng } from "@/engine/utils/export";
-import { saveToFile, loadFromFile } from "@/engine/utils/file";
+import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file";
 
 /**
  * useCanvas Hook - Custom Engine Version
@@ -119,13 +119,12 @@ export function useCanvas() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const src = event.target.result;
+      try {
+        const src = await loadImageFromFile(file);
         const img = new Image();
         img.onload = () => {
           // Add to canvas
@@ -164,8 +163,9 @@ export function useCanvas() {
           setShapes(prev => [...prev, newShape]);
         };
         img.src = src;
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.error("Failed to load image", err);
+      }
     };
     input.click();
   };

@@ -75,7 +75,8 @@ export function useCustomEngine({
         handlePointerUp,
         handleKeyDown,
         handleKeyUp,
-        handleDoubleClick
+        handleDoubleClick,
+        handleWheel // Destructure handleWheel
     } = useEngineInteraction({
         canvasRef,
         shapes,
@@ -115,75 +116,13 @@ export function useCustomEngine({
     // 6. Wheel Event (Passive false for zoom)
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        // Zoom/Pan logic is inside Interaction? 
-        // Wait, handleWheel wasn't in useEngineInteraction return, let's check.
-        // Ah, checked file: handleWheel was MISSING in useEngineInteraction.js!
-        // I need to add it or implement it here.
-        // It fits in Interaction or Viewport. Viewport usually handles the logic, but event is on Canvas.
-
-    }, []);
-
-    // I missed handleWheel in useEngineInteraction! 
-    // And logic was in previous useCustomEngine. UseEngineViewport has logic but not event handler attached to DOM.
-    // Let's re-implement handleWheel here using viewport helpers, or add to Interaction.
-    // Interaction is better.
-    // For now, I will implement it here to save a file write, using viewport helpers.
-
-    const handleWheel = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (e.ctrlKey || e.metaKey) {
-            // ZOOM
-            const rect = canvasRef.current.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            // 1. Calculate World Point before zoom
-            const worldX = (mouseX - viewport.x) / viewport.zoom;
-            const worldY = (mouseY - viewport.y) / viewport.zoom;
-
-            // 2. Calculate new Zoom
-            let newZoom = viewport.zoom;
-            newZoom *= e.deltaY > 0 ? 0.95 : 1.05;
-            newZoom = Math.min(Math.max(newZoom, 0.1), 10);
-
-            // 3. New Viewport
-            const newViewportX = mouseX - worldX * newZoom;
-            const newViewportY = mouseY - worldY * newZoom;
-
-            setViewport({ x: newViewportX, y: newViewportY, zoom: newZoom });
-        } else {
-            // PAN
-            let deltaX = e.deltaX;
-            let deltaY = e.deltaY;
-            if (e.shiftKey && deltaY !== 0 && Math.abs(deltaX) === 0) {
-                deltaX = deltaY;
-                deltaY = 0;
-            }
-            setViewport(prev => ({
-                ...prev,
-                x: prev.x - deltaX,
-                y: prev.y - deltaY
-            }));
-        }
-    };
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
         if (canvas) {
             canvas.addEventListener('wheel', handleWheel, { passive: false });
         }
         return () => {
             if (canvas) canvas.removeEventListener('wheel', handleWheel);
         };
-    }, [viewport, handleWheel]); // dependency on viewport state for closure? Yes or use refs.
-    // Since we use setViewport with callback for Pan, it's fine.
-    // But for Zoom we read viewport.x/y/zoom.
-    // So handleWheel must change or use Refs.
-    // Previous code used [viewport] dependency for handleWheel useCallback.
+    }, [handleWheel]);
 
     // Return Public API
     return {
