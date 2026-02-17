@@ -16,24 +16,24 @@ export function BoardExplorer({
     const sortedBoards = Object.values(boards).sort((a, b) => b.updatedAt - a.updatedAt);
 
     return (
-        <div className="w-64 h-full bg-neutral-900 border-r border-neutral-800 flex flex-col text-neutral-300">
+        <div className="w-64 h-full bg-transparent flex flex-col text-neutral-600">
             {/* Header */}
             <div className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 font-semibold text-neutral-100">
+                <div className="flex items-center gap-2 font-semibold text-neutral-800">
                     <LayoutGrid className="w-5 h-5 text-blue-500" />
                     <span>Explorer</span>
                 </div>
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 hover:bg-neutral-800 text-neutral-400 hover:text-white"
+                    className="h-8 w-8 hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800"
                     onClick={onCreateBoard}
                 >
                     <Plus className="w-4 h-4" />
                 </Button>
             </div>
 
-            <Separator className="bg-neutral-800" />
+            <Separator className="bg-neutral-200" />
 
             {/* List */}
             <ScrollArea className="flex-1">
@@ -47,13 +47,13 @@ export function BoardExplorer({
                             className={cn(
                                 "group flex items-center justify-between px-2 py-2 rounded-md cursor-pointer transition-colors text-sm",
                                 activeBoardId === board.id
-                                    ? "bg-neutral-800 text-white"
-                                    : "hover:bg-neutral-800/50 text-neutral-400 hover:text-neutral-200"
+                                    ? "bg-blue-50 text-blue-600 font-medium"
+                                    : "hover:bg-neutral-100 text-neutral-600 hover:text-neutral-900"
                             )}
                             onClick={() => onSelectBoard(board.id)}
                         >
                             <div className="flex items-center gap-2 overflow-hidden">
-                                <File className={cn("w-4 h-4 shrink-0", activeBoardId === board.id ? "text-blue-400" : "text-neutral-600")} />
+                                <File className={cn("w-4 h-4 shrink-0", activeBoardId === board.id ? "text-blue-500" : "text-neutral-400")} />
                                 <span className="truncate">{board.name}</span>
                             </div>
 
@@ -63,7 +63,7 @@ export function BoardExplorer({
                                     variant="ghost"
                                     size="icon"
                                     className={cn(
-                                        "h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/20 hover:text-red-400",
+                                        "h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 text-neutral-400 hover:text-red-500",
                                         activeBoardId === board.id && "bg-transparent"
                                     )}
                                     onClick={(e) => {
