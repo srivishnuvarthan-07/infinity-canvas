@@ -90,7 +90,7 @@ export function ShapeStylePanel({ element, updateElement }) {
       {/* Fill Color & Style (Compact) */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <span className="text-xs text-muted-foreground">Fill</span>
+          <span className="text-xs text-neutral-500">Fill</span>
           {/* Fill Style Icons */}
           <ToggleGroup
             type="single"
@@ -135,8 +135,8 @@ export function ShapeStylePanel({ element, updateElement }) {
       {/* Stroke Color & Width */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <span className="text-xs text-muted-foreground">Stroke</span>
-          <span className="text-xs font-mono text-muted-foreground">{strokeWidth}px</span>
+          <span className="text-xs text-neutral-500">Stroke</span>
+          <span className="text-xs font-mono text-neutral-500">{strokeWidth}px</span>
         </div>
 
         {/* Stroke Width Slider */}
