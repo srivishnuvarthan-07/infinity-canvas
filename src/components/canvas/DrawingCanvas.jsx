@@ -11,7 +11,23 @@ import React, { useState, useEffect, useRef } from "react";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddToLibrary }) {
+import { FloatingMenu } from "@/components/layout/FloatingMenu";
+
+export function DrawingCanvas({
+    initialShapes = [],
+    onSave,
+    libraryItems,
+    onSelectionChange,
+    onZoomChange,
+    onMouseMove,
+    onInteraction,
+    disablePropertyPanel = false,
+    // Navigation & Meta
+    boardName,
+    onRename,
+    onBack,
+    onAddToLibrary
+}) {
 
     const {
         containerRef,
@@ -52,13 +68,40 @@ export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddT
         updateCustomShape,
         viewport,
         canvasHandlers,
-        insertShapes
+        insertShapes,
+        deleteSelected
     } = useCanvas({ initialShapes });
+
+    // Propagate state changes
+    useEffect(() => {
+        onSelectionChange?.(selectedElement);
+    }, [selectedElement, onSelectionChange]);
+
+    useEffect(() => {
+        onZoomChange?.(zoom);
+    }, [zoom, onZoomChange]);
+
+    // Mouse Move Handler
+    const handleCanvasMouseMove = (e) => {
+        if (!onMouseMove || !containerRef.current) return;
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
+        const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+
+        onMouseMove({ x, y });
+    };
+
+    const handleCanvasMouseDown = (e) => {
+        onInteraction?.();
+    };
+
 
     // Drop Handler for Library Items
     const handleDragOver = (e) => {
         e.preventDefault(); // allow drop
         e.dataTransfer.dropEffect = 'copy';
+        handleCanvasMouseMove(e); // Track mouse during drag
     };
 
     const handleDrop = (e) => {
@@ -105,21 +148,11 @@ export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddT
 
 
     // Auto-Save Logic
-    const debouncedSave = useRef(
-        // We can't use the hook directly inside the ref initialization usually, 
-        // so we'll use a useEffect approach below using a timeout.
-        null
-    );
+    const debouncedSave = useRef(null);
 
     // Effect to trigger save when shapes change
     useEffect(() => {
         if (!onSave) return;
-
-        // Don't save on mount (if initialShapes matched customShapes approximately)
-        // But customShapes initializes from initialShapes.
-        // We should skip the very first render? 
-        // Actually, debounce handles rapid updates.
-
         const handler = setTimeout(() => {
             onSave(customShapes);
         }, 1000); // 1s Debounce
@@ -127,6 +160,21 @@ export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddT
         return () => clearTimeout(handler);
     }, [customShapes, onSave]);
 
+    // ...
+
+    const handleDuplicate = () => {
+        if (!selectedElement) return;
+        const shapesToDuplicate = selectedElement.type === 'activeSelection' ? selectedElement.objects : [selectedElement];
+
+        const newShapes = shapesToDuplicate.map(s => ({
+            ...s,
+            id: crypto.randomUUID(),
+            x: s.x + 20,
+            y: s.y + 20
+        }));
+
+        insertShapes(newShapes);
+    };
 
     return (
         <div
@@ -134,7 +182,11 @@ export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddT
             className="relative w-full h-full overflow-hidden bg-white"
             onDragOver={handleDragOver}
             onDrop={handleDrop}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseDown={handleCanvasMouseDown}
         >
+
+
             <CommandMenu
                 onUndo={handleUndo}
                 onRedo={handleRedo}
@@ -146,21 +198,18 @@ export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddT
                 onResetZoom={handleZoomReset}
             />
 
-            {/* TOP LEFT: BRANDING */}
-            <div className="absolute top-4 left-4 z-30 pointer-events-none select-none opacity-50 hover:opacity-100 transition-opacity">
-                <Logo />
-            </div>
-
-            {/* TOP RIGHT: MENU & ACTIONS */}
-            <div className="absolute top-4 right-4 z-30 flex gap-2 pointer-events-auto">
-                <div className="bg-white/80 backdrop-blur-md border border-neutral-200/60 shadow-sm rounded-lg flex items-center p-1">
-                    <MenuToolbar
-                        onOpen={handleLoad}
-                        onSaveAs={handleSaveAs}
-                        onExport={handleExport}
-                        onReset={handleClear}
-                    />
-                </div>
+            {/* TOP LEFT: FLOATING MENU */}
+            <div className="absolute top-4 left-16 z-30 pointer-events-auto">
+                <FloatingMenu
+                    boardName={boardName || "Untitled"}
+                    isSaved={true} // Hook up real state later if possible
+                    onRename={onRename}
+                    onBack={onBack}
+                    onOpen={handleLoad}
+                    onSaveAs={handleSaveAs}
+                    onExport={handleExport}
+                    onReset={handleClear}
+                />
             </div>
 
             {/* BOTTOM CENTER: FLOATING TOOLBAR */}
@@ -172,9 +221,9 @@ export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddT
                 />
             </div>
 
-            {/* FLOATING PROPERTIES PANEL (Contextual) */}
-            {selectedElement && (
-                <div className="absolute top-16 right-4 z-20 w-72 pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200">
+            {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
+            {!disablePropertyPanel && selectedElement && (
+                <div className="absolute top-4 right-4 z-20 w-72 pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-100px)] overflow-y-auto scrollbar-hide">
                     <Sidebar
                         selectedElement={selectedElement}
                         updateElement={updateSelectedElement}
@@ -182,7 +231,7 @@ export function DrawingCanvas({ initialShapes = [], onSave, libraryItems, onAddT
                         groupActions={groupActions}
                         onAddToLibrary={() => {
                             // Extract shapes from selection
-                            if (!selectedElement) return;
+                            if (!onAddToLibrary || !selectedElement) return;
 
                             let shapesToSave = [];
                             if (selectedElement.type === 'activeSelection' && selectedElement.objects) {
