@@ -11,7 +11,7 @@ export function DashboardSidebar({ activeTab, onTabChange }) {
     ];
 
     return (
-        <aside className="w-64 border-r border-neutral-200 bg-white/50 backdrop-blur-xl h-screen flex flex-col sticky top-0 z-20">
+        <aside className="w-64 border-r border-white/5 bg-black/40 backdrop-blur-xl h-screen flex flex-col sticky top-0 z-20 text-neutral-400">
             <div className="p-6 flex items-center gap-2">
                 <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-bold">
                     <Box className="h-5 w-5" />
@@ -23,10 +23,12 @@ export function DashboardSidebar({ activeTab, onTabChange }) {
                 {navItems.map((item) => (
                     <Button
                         key={item.id}
-                        variant={activeTab === item.id ? "secondary" : "ghost"}
+                        variant="ghost" // The variant prop is no longer directly controlling the style, the className does.
                         className={cn(
-                            "w-full justify-start gap-3 px-3 font-normal",
-                            activeTab === item.id && "bg-secondary/50 font-medium"
+                            `w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === item.id
+                                ? 'bg-indigo-500/10 text-indigo-400'
+                                : 'hover:bg-white/5 text-neutral-400 hover:text-neutral-200'
+                            }`
                         )}
                         onClick={() => onTabChange(item.id)}
                     >
