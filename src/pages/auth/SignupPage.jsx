@@ -2,17 +2,20 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SignupPage() {
-    const { register } = useAuth();
+    const { register, user, loading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    // Redirect already-authenticated users
+    if (!authLoading && user) return <Navigate to="/dashboard" replace />;
 
     const handleSignup = async (e) => {
         e.preventDefault();
