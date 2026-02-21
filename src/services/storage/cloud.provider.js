@@ -91,9 +91,11 @@ class CloudProvider extends StorageProvider {
             const data = response.data.data;
             return {
                 id: id,
-                shapes: data.data?.shapes || [], // structure is data: { shapes: [] } in DB
-                version: data.version
+                // API returns: { success, data: { _id, board, data: { shapes } } }
+                shapes: data.data?.shapes ?? data.shapes ?? [],
+                version: data.version ?? 1
             };
+
         } catch (err) {
             console.error("CloudProvider: getBoardData failed", err);
             throw err;

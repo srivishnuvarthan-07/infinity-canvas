@@ -24,8 +24,11 @@ class LocalProvider extends StorageProvider {
 
     async getBoards() {
         const map = this._getBoardsMap();
-        return Object.values(map).sort((a, b) => b.updatedAt - a.updatedAt);
+        return Object.values(map)
+            .map(b => ({ ...b, isLocal: true }))
+            .sort((a, b) => b.updatedAt - a.updatedAt);
     }
+
 
     async createBoard(name) {
         const map = this._getBoardsMap();
@@ -59,8 +62,9 @@ class LocalProvider extends StorageProvider {
         const map = this._getBoardsMap();
         const board = map[id];
         if (!board) throw new Error(`Board ${id} not found locally`);
-        return board;
+        return { ...board, isLocal: true };
     }
+
 
     async updateBoard(id, updates) {
         const map = this._getBoardsMap();
