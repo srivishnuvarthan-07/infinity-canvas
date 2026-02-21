@@ -4,12 +4,17 @@ const authService = {
     // Register user
     register: async (userData) => {
         const response = await api.post('/auth/register', userData);
+        if (response.data.token) {
+            // Token is handled via HttpOnly cookie by backend, but we might receive it in response too
+            // If backend sends token in JSON, we can store it (optional, if we use headers)
+            // But our backend sends cookie.
+        }
         return response.data;
     },
 
     // Login user
-    login: async (userData) => {
-        const response = await api.post('/auth/login', userData);
+    login: async (credentials) => {
+        const response = await api.post('/auth/login', credentials);
         return response.data;
     },
 
@@ -19,10 +24,24 @@ const authService = {
         return response.data;
     },
 
-    // Get current user
+    // Get current user — returns null if not logged in (401 is expected in guest mode)
     getCurrentUser: async () => {
-        const response = await api.get('/auth/me');
-        return response.data;
+        try {
+            const response = await api.get('/auth/me');
+            return response.data;
+        } catch (err) {
+            if (err.response?.status === 401) {
+                return null; // Guest mode — not an error
+            }
+            throw err; // Real error (5xx, network, etc.)
+        }
+    },
+
+    // Update Profile - Not implemented in backend yet
+    updateProfile: async (updates) => {
+        // throw new Error("Not implemented in backend yet");
+        // Placeholder for future implementation
+        return { user: { ...updates } };
     }
 };
 

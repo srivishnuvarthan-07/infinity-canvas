@@ -13,7 +13,7 @@ export function BoardExplorer({
     onDeleteBoard
 }) {
     // Sort by updated desc
-    const sortedBoards = Object.values(boards).sort((a, b) => b.updatedAt - a.updatedAt);
+    const sortedBoards = [...boards].sort((a, b) => b.updatedAt - a.updatedAt);
 
     return (
         <div className="w-64 h-full bg-transparent flex flex-col text-neutral-600">
@@ -58,7 +58,7 @@ export function BoardExplorer({
                             </div>
 
                             {/* Actions (Visible on Hover or Active) */}
-                            {Object.keys(boards).length > 1 && (
+                            {boards.length > 1 && (
                                 <Button
                                     variant="ghost"
                                     size="icon"

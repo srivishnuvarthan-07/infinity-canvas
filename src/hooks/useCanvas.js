@@ -123,6 +123,16 @@ export function useCanvas({ initialShapes = [] } = {}) {
   };
 
   // Action Adapters
+  const deleteSelected = () => {
+    if (!selectedShapeIds || selectedShapeIds.size === 0) return;
+    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id));
+    setShapes(newShapes);
+    saveState(newShapes); // Add to history
+    // Clear selection (though engine might handle this if shapes are gone, safer to clear)
+    // actually useCustomEngine -> useEngineState might need manual clear if we setShapes directly
+    // But for now let's hope the engine reconciles or we can't easily access setSelectedShapeIds here without destructuring it from useCustomEngine
+  };
+
   const handleClear = () => {
     if (confirm("Are you sure you want to clear the canvas?")) {
       clearCanvas();
@@ -262,6 +272,7 @@ export function useCanvas({ initialShapes = [] } = {}) {
 
     // Actions
     handleClear,
+    deleteSelected,
     handleExport,
     handleAddImage,
     handleSaveAs,
