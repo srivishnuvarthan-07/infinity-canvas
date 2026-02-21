@@ -5,52 +5,37 @@ const BoardSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please add a board name'],
         trim: true,
-        maxlength: [50, 'Name can not be more than 50 characters']
+        maxlength: [100, 'Name can not be more than 100 characters']
     },
     description: {
         type: String,
         maxlength: [500, 'Description can not be more than 500 characters']
     },
-    // We store shapes as a mixed type array for flexibility (JSON structure)
-    shapes: {
-        type: [mongoose.Schema.Types.Mixed],
-        default: []
+    owner: {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+        required: true
     },
-    // Versioning for optimistic concurrency control
-    version: {
-        type: Number,
-        default: 1
+    thumbnailUrl: {
+        type: String
     },
     isPublic: {
         type: Boolean,
         default: false
     },
-    user: {
-        type: mongoose.Schema.ObjectId,
-        ref: 'User',
-        required: true
+    lastModified: {
+        type: Date,
+        default: Date.now
     },
     createdAt: {
         type: Date,
         default: Date.now
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
-    },
-    deletedAt: {
-        type: Date,
-        default: null,
-        select: false // Hide naturally
     }
 });
 
-// Index for fetching user's boards sorted by recent activity
-BoardSchema.index({ user: 1, updatedAt: -1 });
-
-// Update the updatedAt timestamp before saving
+// Update lastModified timestamp before saving
 BoardSchema.pre('save', function (next) {
-    this.updatedAt = Date.now();
+    this.lastModified = Date.now();
     next();
 });
 
