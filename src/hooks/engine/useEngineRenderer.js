@@ -49,8 +49,17 @@ export function useEngineRenderer({
 
         const handleResize = () => {
             if (parent && rendererRef.current) {
-                const w = parent.clientWidth;
-                const h = parent.clientHeight;
+                let w = parent.clientWidth;
+                let h = parent.clientHeight;
+
+                // Fallback if parent has 0 size (e.g. collapsed or disconnected)
+                if (w === 0 || h === 0) {
+                    console.warn("Canvas Resize: Parent has 0 dimensions, using window fallback", { w, h });
+                    w = Math.max(w, window.innerWidth);
+                    h = Math.max(h, window.innerHeight);
+                }
+
+                console.log("Canvas Resize:", w, h);
                 rendererRef.current.resize(w, h); // Resize Main
 
                 // Resize Offscreen
@@ -59,6 +68,8 @@ export function useEngineRenderer({
                     offscreenRef.current.height = h;
                     isDirtyRef.current = true; // Force redraw
                 }
+            } else {
+                console.warn("Canvas Resize: Parent or Renderer missing", { parent, renderer: !!rendererRef.current });
             }
         };
 

@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/storage/db';
+import libraryService from '@/services/library.service';
+import { useAuth } from '@/hooks/useAuth';
 
 const STORAGE_KEY = 'infinity_library';
 
 export function useLibraryStore() {
     const [items, setItems] = useState({});
     const [isLoaded, setIsLoaded] = useState(false);
+
+    const { user } = useAuth();
 
     // 1. Load from IndexedDB
     useEffect(() => {
@@ -23,6 +27,37 @@ export function useLibraryStore() {
         load();
     }, []);
 
+    // 2. Cloud Sync
+    useEffect(() => {
+        if (!user || !isLoaded) return;
+
+        const sync = async () => {
+            try {
+                const data = await libraryService.getLibraryItems();
+                const cloudItems = data.data;
+
+                setItems(prev => {
+                    const next = { ...prev };
+                    cloudItems.forEach(item => {
+                        // Use _id from cloud
+                        next[item._id] = {
+                            id: item._id,
+                            name: item.name,
+                            elements: item.elements, // Map to shapes structure if needed
+                            shapes: item.elements, // Assuming API returns elements as shapes
+                            createdAt: new Date(item.createdAt).getTime(),
+                            isCloud: true
+                        };
+                    });
+                    return next;
+                });
+            } catch (err) {
+                console.error("Library sync failed", err);
+            }
+        };
+        sync();
+    }, [user, isLoaded]);
+
     const generateId = () => {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) {
             return crypto.randomUUID();
@@ -30,7 +65,7 @@ export function useLibraryStore() {
         return Date.now().toString(36) + Math.random().toString(36).substring(2);
     };
 
-    // 2. Persist to IndexedDB
+    // 3. Persist to IndexedDB
     useEffect(() => {
         if (!isLoaded) return;
         const save = async () => {
@@ -43,14 +78,17 @@ export function useLibraryStore() {
         save();
     }, [items, isLoaded]);
 
-    const addItem = useCallback((shapes, name = 'Untitled Group') => {
+    const addItem = useCallback(async (shapes, name = 'Untitled Group') => {
         if (!shapes || shapes.length === 0) {
             return;
         }
 
-        // 1. Calculate Bounds
+        // ... (Normalization logic same as before, condensed for brevity or kept)
+        // Re-implementing normalization logic to be safe since I'm replacing the block
+
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         shapes.forEach(s => {
+            // simplified bounds check
             const hw = (s.width * (s.scaleX || 1)) / 2;
             const hh = (s.height * (s.scaleY || 1)) / 2;
             minX = Math.min(minX, s.x - hw);
@@ -64,16 +102,15 @@ export function useLibraryStore() {
         const centerX = minX + width / 2;
         const centerY = minY + height / 2;
 
-        // 2. Normalize Shapes
         const normalizedShapes = shapes.map(s => ({
             ...s,
             x: s.x - centerX,
             y: s.y - centerY,
         }));
 
-        // 3. Create Item
+        const tempId = generateId();
         const newItem = {
-            id: generateId(),
+            id: tempId,
             name,
             createdAt: Date.now(),
             shapes: normalizedShapes,
@@ -85,15 +122,49 @@ export function useLibraryStore() {
             ...prev,
             [newItem.id]: newItem
         }));
-    }, []);
 
-    const removeItem = useCallback((id) => {
+        // Cloud Save
+        if (user) {
+            try {
+                const res = await libraryService.createLibraryItem({
+                    name,
+                    elements: normalizedShapes
+                });
+
+                // Replace temp ID with cloud ID
+                setItems(prev => {
+                    const next = { ...prev };
+                    delete next[tempId];
+                    next[res.data._id] = {
+                        ...newItem,
+                        id: res.data._id,
+                        isCloud: true
+                    };
+                    return next;
+                });
+            } catch (err) {
+                console.error("Failed to save library item to cloud", err);
+            }
+        }
+    }, [user]);
+
+    const removeItem = useCallback(async (id) => {
+        const item = items[id];
+
         setItems(prev => {
             const next = { ...prev };
             delete next[id];
             return next;
         });
-    }, []);
+
+        if (user && item?.isCloud) {
+            try {
+                await libraryService.deleteLibraryItem(id);
+            } catch (err) {
+                console.error("Failed to delete library item from cloud", err);
+            }
+        }
+    }, [user, items]);
 
     const clearLibrary = useCallback(() => {
         setItems({});
