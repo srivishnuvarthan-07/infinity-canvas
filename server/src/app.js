@@ -5,10 +5,6 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 
-// Route files
-const authRoutes = require('./routes/auth.routes');
-const boardRoutes = require('./routes/board.routes');
-
 const app = express();
 
 // Body parser
@@ -16,6 +12,9 @@ app.use(express.json({ limit: '50mb' })); // Increased limit for large board dat
 
 // Cookie parser
 app.use(cookieParser());
+
+
+
 
 // Dev logging middleware
 if (process.env.NODE_ENV === 'development') {
@@ -43,11 +42,10 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // Mount routers
-app.use('/api/auth', authRoutes);
-app.use('/api/boards', boardRoutes);
-app.use('/api/library', require('./routes/library.routes'));
+app.use('/api/auth', require('./modules/auth/auth.routes'));
+app.use('/api/boards', require('./modules/board/board.routes'));
+app.use('/api/library', require('./modules/library/library.routes'));
 
-// Error Handler
 // Error Handler
 app.use(require('./middleware/error'));
 
