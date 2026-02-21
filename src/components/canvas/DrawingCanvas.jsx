@@ -28,6 +28,7 @@ export function DrawingCanvas({
     onBack,
     onAddToLibrary
 }) {
+    console.log("DrawingCanvas Render. Shapes:", initialShapes?.length);
 
     const {
         containerRef,
@@ -210,6 +211,26 @@ export function DrawingCanvas({
                     onExport={handleExport}
                     onReset={handleClear}
                 />
+            </div>
+
+            {/* TOP RIGHT: COLLABORATION & SHARE */}
+            <div className="absolute top-4 right-4 z-30 pointer-events-auto flex items-center gap-3">
+                {/* Collaborators Avatar Pile */}
+                <div className="flex items-center -space-x-2">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-neutral-100 flex items-center justify-center text-xs font-medium text-neutral-600 shadow-sm" style={{ backgroundColor: `hsl(${i * 60}, 70%, 90%)`, color: `hsl(${i * 60}, 80%, 30%)` }}>
+                            {String.fromCharCode(64 + i)}
+                        </div>
+                    ))}
+                    <div className="w-8 h-8 rounded-full border-2 border-white bg-neutral-50 flex items-center justify-center text-[10px] font-bold text-neutral-500 shadow-sm">
+                        +2
+                    </div>
+                </div>
+
+                {/* Share Button */}
+                <Button className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm rounded-full font-medium transition-all">
+                    Share
+                </Button>
             </div>
 
             {/* BOTTOM CENTER: FLOATING TOOLBAR */}
