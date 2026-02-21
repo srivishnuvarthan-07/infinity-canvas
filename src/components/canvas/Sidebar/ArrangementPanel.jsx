@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ArrowUp, ArrowDown, Group, Ungroup } from "lucide-react"; // Wait, Lucide might not have Group/Ungroup icons clearly. Text is better. 
-// Just keeping imports clean.
-export function ArrangementPanel({ layerActions, selectedElement, groupActions }) {
+import { ArrowUp, ArrowDown, BookMarked } from "lucide-react";
+
+export function ArrangementPanel({ layerActions, selectedElement, groupActions, onAddToLibrary }) {
     if (!selectedElement) return null;
 
     return (
@@ -10,10 +10,27 @@ export function ArrangementPanel({ layerActions, selectedElement, groupActions }
             <h4 className="text-sm font-semibold">Arrangement</h4>
             <Separator />
 
+            {/* Library Action */}
+            {onAddToLibrary && (
+                <div className="space-y-2">
+                    <span className="text-xs text-neutral-500">Library</span>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={onAddToLibrary}
+                    >
+                        <BookMarked className="w-3 h-3" />
+                        Add to Library
+                    </Button>
+                </div>
+            )}
+            <Separator />
+
             {/* Grouping */}
             {groupActions && (
                 <div className="space-y-2">
-                    <span className="text-xs text-muted-foreground">Grouping</span>
+                    <span className="text-xs text-neutral-500">Grouping</span>
                     <div className="flex gap-1">
                         <Button
                             variant="outline"
@@ -42,7 +59,7 @@ export function ArrangementPanel({ layerActions, selectedElement, groupActions }
 
             {/* Layers */}
             <div className="space-y-2">
-                <span className="text-xs text-muted-foreground">Order</span>
+                <span className="text-xs text-neutral-500">Order</span>
                 <div className="grid grid-cols-4 gap-2">
                     <Button variant="outline" size="icon" className="h-8 w-full" onClick={layerActions.bringToFront} title="Bring into Front">
                         <ArrowUp className="h-4 w-4" />

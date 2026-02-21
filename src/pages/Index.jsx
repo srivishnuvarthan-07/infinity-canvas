@@ -1,21 +1,17 @@
-import { DrawingCanvas } from "@/components/canvas/DrawingCanvas";
-import { Helmet } from "react-helmet-async";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
+export default function Index() {
+  const navigate = useNavigate();
 
-const Index = () => {
+  useEffect(() => {
+    navigate('/dashboard');
+  }, [navigate]);
+
   return (
-    <>
-      <Helmet>
-        <title>SketchFlow - Collaborative Drawing Canvas</title>
-        <meta
-          name="description"
-          content="Create beautiful diagrams and sketches with SketchFlow, a collaborative whiteboard for teams and individuals."
-        />
-      </Helmet>
-
-      <DrawingCanvas />
-    </>
+    <div className="h-screen w-screen flex items-center justify-center bg-background">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
-};
-
-export default Index;
+}

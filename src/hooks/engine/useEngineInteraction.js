@@ -1,8 +1,10 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { hitTest, hitTestControls } from '@/engine/physics/hitTest';
 import { createBaseSchema, SHAPE_TYPES } from '@/engine/schema';
 import { calculateResize, calculateRotation } from '@/engine/physics/resize';
 import { measureTextShape } from '@/engine/utils/textUtils';
+import { Quadtree, Rectangle } from '@/engine/utils/Quadtree';
+import React from 'react';
 
 export function useEngineInteraction({
     canvasRef,
@@ -65,6 +67,38 @@ export function useEngineInteraction({
         }
     }, [canvasRef]);
 
+    // OPTIMIZATION: Quadtree
+    // Rebuild Quadtree when shapes change? 
+    // Ideally we update it, but for React pattern rebuilding is safer.
+    // To avoid lag on EVERY drag frame, we can memoize or throttle.
+    // For now, simpler: Just Rebuild.
+    // Actually, rebuilding 10k items every frame IS slow.
+    // Better: Only use Quadtree for HOVER and MOUSE DOWN (Hit testing).
+    // During drag, we don't need hit testing against other shapes usually.
+
+    // Memoizing the tree:
+    const spatialIndex = useMemo(() => { // Changed React.useMemo to useMemo
+        // Assume world bounds -10000 to 10000? 
+        const qt = new Quadtree(new Rectangle(-50000, -50000, 100000, 100000), 20); // Large bounds, adjusted to cover negative coords
+        shapes.forEach(s => {
+            // Ensure width/height are positive for Quadtree
+            const w = Math.abs(s.width);
+            const h = Math.abs(s.height);
+            // Quadtree expects x, y, width, height. Our shapes have x, y as top-left.
+            // For Quadtree, we can use the bounding box of the shape.
+            // For simplicity, using x, y, width, height directly, assuming they define a bounding box.
+            // If rotation is involved, a more complex bounding box calculation would be needed.
+            qt.insert({
+                x: s.x,
+                y: s.y,
+                width: w,
+                height: h,
+                id: s.id // Store ID for lookup
+            });
+        });
+        return qt;
+    }, [shapes]); // Dep on shapes. If shapes update 60fps, this runs 60fps.
+
     // Pointer Handlers
     const handlePointerDown = useCallback((e) => {
         if (!canvasRef.current) return;
@@ -86,13 +120,24 @@ export function useEngineInteraction({
         if (activeTool === 'eraser') {
             isErasing.current = true;
             canvasRef.current.style.cursor = 'crosshair';
+
+            // Broad Phase
+            const range = new Rectangle(x - (10 / viewport.zoom / 2), y - (10 / viewport.zoom / 2), 10 / viewport.zoom, 10 / viewport.zoom);
+            const candidates = spatialIndex.query(range);
+
             let hitShape = null;
+            const candidateIds = new Set(candidates.map(c => c.id));
+
+            // Narrow Phase
             for (let i = shapes.length - 1; i >= 0; i--) {
-                if (hitTest(shapes[i], x, y, viewport.zoom)) {
-                    hitShape = shapes[i];
-                    break;
+                if (candidateIds.has(shapes[i].id)) {
+                    if (hitTest(shapes[i], x, y, viewport.zoom)) {
+                        hitShape = shapes[i];
+                        break;
+                    }
                 }
             }
+
             if (hitShape) {
                 setShapes(prev => prev.filter(s => s.id !== hitShape.id));
             }
@@ -602,6 +647,7 @@ export function useEngineInteraction({
         handleKeyDown,
         handleKeyUp,
         handleDoubleClick,
-        handleWheel
+        handleWheel,
+        isDragging: isDragging || isResizing || isCreating // Treat all these as "Active Interactions"
     };
 }

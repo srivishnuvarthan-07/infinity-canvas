@@ -10,7 +10,8 @@ export function Sidebar({
   selectedElement,
   updateElement,
   layerActions,
-  groupActions
+  groupActions,
+  onAddToLibrary
 }) {
   if (!selectedElement) return null;
 
@@ -27,13 +28,25 @@ export function Sidebar({
   if (!isFreehand && !isShape && !isText) return null;
 
   return (
-    <div className="space-y-4 bg-white/80 backdrop-blur-md border border-neutral-200/60 shadow-xl rounded-xl p-4">
+    <div className="space-y-4 bg-white/80 backdrop-blur-xl border border-neutral-200 shadow-xl rounded-xl p-4 text-neutral-950">
       {/* STYLE PANEL */}
       {isFreehand && (
         <FreeHandStylePanel
           element={selectedElement}
           updateElement={updateElement}
         />
+      )}
+
+      {isFreehand && (
+        <>
+          <Separator className="my-2" />
+          <ArrangementPanel
+            selectedElement={selectedElement}
+            layerActions={layerActions}
+            groupActions={groupActions}
+            onAddToLibrary={onAddToLibrary}
+          />
+        </>
       )}
 
       {isText && (
@@ -47,6 +60,7 @@ export function Sidebar({
             selectedElement={selectedElement}
             layerActions={layerActions}
             groupActions={groupActions}
+            onAddToLibrary={onAddToLibrary}
           />
         </>
       )}
@@ -67,6 +81,7 @@ export function Sidebar({
             selectedElement={selectedElement}
             layerActions={layerActions}
             groupActions={groupActions}
+            onAddToLibrary={onAddToLibrary}
           />
         </>
       )}

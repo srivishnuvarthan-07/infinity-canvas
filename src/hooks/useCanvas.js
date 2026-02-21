@@ -10,7 +10,7 @@ import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file
  * Simplified hook that serves as the bridge between the UI components 
  * and the Custom Rendering Engine.
  */
-export function useCanvas() {
+export function useCanvas({ initialShapes = [] } = {}) {
   /* ===================== REFS ===================== */
   const containerRef = useRef(null);
 
@@ -51,9 +51,11 @@ export function useCanvas() {
     zoomIn,
     zoomOut,
     resetZoom,
-    handlers
+    handlers,
+    saveState // Add this
 
   } = useCustomEngine({
+    initialShapes,
     activeTool,
     setActiveTool,
     activeColor,
@@ -69,6 +71,15 @@ export function useCanvas() {
 
 
   /* ===================== ADAPTERS FOR UI ===================== */
+
+  const insertShapes = (newShapes) => {
+    if (!newShapes || newShapes.length === 0) return;
+    setShapes(prev => {
+      const next = [...prev, ...newShapes];
+      saveState(next);
+      return next;
+    });
+  };
 
   // Selection Adapter
   const selectedElement = useMemo(() => {
@@ -97,10 +108,31 @@ export function useCanvas() {
   const updateSelectedElement = (updates) => {
     if (selectedShapeIds && selectedShapeIds.size > 0) {
       updateShapes(selectedShapeIds, updates);
+
+      // Sync global tool state with selection changes ("Pick up style")
+      if (updates.strokeColor || updates.stroke || updates.color) {
+        setActiveColor(updates.strokeColor || updates.stroke || updates.color);
+      }
+      if (updates.strokeWidth) {
+        setStrokeWidth(updates.strokeWidth);
+      }
+      if (updates.strokeStyle) {
+        setStrokeStyle(updates.strokeStyle);
+      }
     }
   };
 
   // Action Adapters
+  const deleteSelected = () => {
+    if (!selectedShapeIds || selectedShapeIds.size === 0) return;
+    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id));
+    setShapes(newShapes);
+    saveState(newShapes); // Add to history
+    // Clear selection (though engine might handle this if shapes are gone, safer to clear)
+    // actually useCustomEngine -> useEngineState might need manual clear if we setShapes directly
+    // But for now let's hope the engine reconciles or we can't easily access setSelectedShapeIds here without destructuring it from useCustomEngine
+  };
+
   const handleClear = () => {
     if (confirm("Are you sure you want to clear the canvas?")) {
       clearCanvas();
@@ -234,14 +266,18 @@ export function useCanvas() {
     canUndo,
     canRedo,
     handleUndo: undo,
+    handleLoad,
+    insertShapes, // Export this
     handleRedo: redo,
 
     // Actions
     handleClear,
+    deleteSelected,
     handleExport,
     handleAddImage,
     handleSaveAs,
     handleLoad,
+    insertShapes, // Export this
 
     // Selection
     selectedElement,

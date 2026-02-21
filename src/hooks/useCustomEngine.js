@@ -7,6 +7,7 @@ import { useEngineRenderer } from './engine/useEngineRenderer';
 import { useEngineInteraction } from './engine/useEngineInteraction';
 
 export function useCustomEngine({
+    initialShapes = [],
     activeTool,
     setActiveTool,
     activeColor,
@@ -41,7 +42,7 @@ export function useCustomEngine({
         sendToBack,
         bringForward,
         sendBackward
-    } = useEngineState();
+    } = useEngineState(initialShapes);
 
     // 2. Viewport Management (Zoom, Pan, Coordinates)
     const {
@@ -54,21 +55,6 @@ export function useCustomEngine({
         resetZoom
     } = useEngineViewport();
 
-    // 3. Renderer (Canvas Lifecycle)
-    const {
-        rendererRef,
-        start,
-        stop
-    } = useEngineRenderer({
-        canvasRef, // Pass explicit ref
-        shapes,
-        viewport,
-        hoveredShapeId,
-        selectedShapeIds,
-        selectionBox, // Pass down to render overlay
-        editingShapeId
-    });
-
     const {
         handlePointerDown,
         handlePointerMove,
@@ -76,7 +62,8 @@ export function useCustomEngine({
         handleKeyDown,
         handleKeyUp,
         handleDoubleClick,
-        handleWheel // Destructure handleWheel
+        handleWheel,
+        isDragging // Get this
     } = useEngineInteraction({
         canvasRef,
         shapes,
@@ -84,8 +71,8 @@ export function useCustomEngine({
         selectedShapeIds,
         setSelectedShapeIds,
         setHoveredShapeId,
-        editingShapeId, // Pass down
-        setEditingShapeId, // Pass down
+        editingShapeId,
+        setEditingShapeId,
         viewport,
         setViewport,
         toWorld,
@@ -101,6 +88,22 @@ export function useCustomEngine({
         activeColor,
         strokeWidth,
         strokeStyle
+    });
+
+    // 3. Renderer (Canvas Lifecycle)
+    const {
+        rendererRef,
+        start,
+        stop
+    } = useEngineRenderer({
+        canvasRef,
+        shapes,
+        viewport,
+        hoveredShapeId,
+        selectedShapeIds,
+        selectionBox,
+        editingShapeId,
+        isDragging // Pass to renderer
     });
 
     // 5. Global Event Listeners (Keyboard)
@@ -132,7 +135,9 @@ export function useCustomEngine({
         undo,
         redo,
         canUndo,
+        canUndo,
         canRedo,
+        saveState, // Add this export
 
         viewport,
         setViewport,
