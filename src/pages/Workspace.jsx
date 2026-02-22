@@ -11,6 +11,7 @@ import { ActivityBar } from "@/components/layout/ActivityBar";
 import { DrawingCanvas } from "@/components/canvas/DrawingCanvas";
 import { useBoardStore } from "@/hooks/useBoardStore";
 import { useLibraryStore } from "@/hooks/useLibraryStore";
+import { useSocket } from "@/hooks/useSocket";
 import { StatusBar } from "@/components/layout/StatusBar";
 import ErrorBoundary from "@/components/ui/error-boundary";
 
@@ -47,6 +48,9 @@ const Workspace = () => {
         addItem: addLibraryItem,
         removeItem: removeLibraryItem
     } = useLibraryStore();
+
+    // Socket Connection
+    const socket = useSocket(activeBoardId);
 
     // UI State
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -194,6 +198,7 @@ const Workspace = () => {
                         key={activeBoardId}
                         initialShapes={activeBoard.shapes}
                         onSave={(shapes) => updateBoardShapes(activeBoardId, shapes)}
+                        socket={socket}
 
                         boardName={activeBoard.name}
                         onRename={(name) => renameBoard(activeBoardId, name)}
