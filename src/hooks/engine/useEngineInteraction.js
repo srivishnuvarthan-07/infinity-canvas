@@ -29,7 +29,8 @@ export function useEngineInteraction({
     setActiveTool,
     activeColor,
     strokeWidth,
-    strokeStyle
+    strokeStyle,
+    emitUpdate
 }) {
     // Interaction State
     const [isDragging, setIsDragging] = useState(false);
@@ -51,6 +52,10 @@ export function useEngineInteraction({
 
     // Eraser State
     const isErasing = useRef(false);
+
+    // Throttle for live Socket Sync
+    const lastSyncTime = useRef(0);
+    const syncThrottleMs = 50; // Sync every 50ms during active drag
 
     // Keyboard (Spacebar)
     const handleKeyDown = useCallback((e) => {
@@ -336,7 +341,9 @@ export function useEngineInteraction({
                 if (shape.id !== creationId) return shape;
 
                 if (shape.type === SHAPE_TYPES.PENCIL) {
-                    return { ...shape, points: [...(shape.points || []), { x: x - startX, y: y - startY }] };
+                    const newShape = { ...shape, points: [...(shape.points || []), { x: x - startX, y: y - startY }] };
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    return newShape;
                 }
                 if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
                     const startX = dragOffset.startX;
@@ -363,13 +370,15 @@ export function useEngineInteraction({
 
                 const left = Math.min(startX, x);
                 const top = Math.min(startY, y);
-                return {
+                const newShape = {
                     ...shape,
                     x: left + Math.abs(x - startX) / 2,
                     y: top + Math.abs(y - startY) / 2,
                     width: Math.abs(x - startX),
                     height: Math.abs(y - startY)
                 };
+                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                return newShape;
             }));
             return;
         }
@@ -382,7 +391,9 @@ export function useEngineInteraction({
 
                 // Rotation
                 if (activeHandle === 'rot') {
-                    return { ...shape, rotation: calculateRotation(shape, x, y) };
+                    const newShape = { ...shape, rotation: calculateRotation(shape, x, y) };
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    return newShape;
                 }
 
                 // Line/Arrow Endpoint
@@ -418,15 +429,10 @@ export function useEngineInteraction({
                         const scaleY = updates.height / startDimensions.height;
 
                         const newChildren = startDimensions.children.map(child => {
-                            // Scale Position
                             const nx = child.x * scaleX;
                             const ny = child.y * scaleY;
-
-                            // Scale Dimensions
                             const nw = child.width * scaleX;
                             const nh = child.height * scaleY;
-
-                            // Scale Points (if line/arrow/pencil)
                             let nPoints = child.points;
                             if (child.points) {
                                 nPoints = child.points.map(p => ({
@@ -434,9 +440,6 @@ export function useEngineInteraction({
                                     y: p.y * scaleY
                                 }));
                             }
-
-                            // TODO: Scale Stroke Width? FontSize?
-                            // For MVP, position and size is critical.
 
                             return {
                                 ...child,
@@ -448,10 +451,14 @@ export function useEngineInteraction({
                             };
                         });
 
-                        return { ...shape, ...updates, children: newChildren };
+                        const newShape = { ...shape, ...updates, children: newChildren };
+                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                        return newShape;
                     }
 
-                    return { ...shape, ...updates };
+                    const newShape = { ...shape, ...updates };
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    return newShape;
                 }
                 return shape;
             }));
@@ -465,7 +472,9 @@ export function useEngineInteraction({
             setShapes(prev => prev.map(s => {
                 if (initialShapePositions.has(s.id)) {
                     const start = initialShapePositions.get(s.id);
-                    return { ...s, x: start.x + dx, y: start.y + dy };
+                    const newShape = { ...s, x: start.x + dx, y: start.y + dy };
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    return newShape;
                 }
                 return s;
             }));
