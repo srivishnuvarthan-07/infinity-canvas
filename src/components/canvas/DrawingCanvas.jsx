@@ -7,6 +7,8 @@ import { Logo } from "./Logo";
 import { Sidebar } from "@/components/canvas/Sidebar/Sidebar";
 import { TextEditorOverlay } from "./TextEditorOverlay";
 import { CommandMenu } from "./CommandMenu";
+import { CursorOverlay } from "./CursorOverlay";
+import { SelectionOverlay } from "./SelectionOverlay";
 import React, { useState, useEffect, useRef } from "react";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,7 +28,8 @@ export function DrawingCanvas({
     boardName,
     onRename,
     onBack,
-    onAddToLibrary
+    onAddToLibrary,
+    socket
 }) {
     console.log("DrawingCanvas Render. Shapes:", initialShapes?.length);
 
@@ -71,12 +74,24 @@ export function DrawingCanvas({
         canvasHandlers,
         insertShapes,
         deleteSelected
-    } = useCanvas({ initialShapes });
+    } = useCanvas({ initialShapes, socket });
 
     // Propagate state changes
     useEffect(() => {
         onSelectionChange?.(selectedElement);
-    }, [selectedElement, onSelectionChange]);
+
+        if (socket?.emit) {
+            let selectedIds = [];
+            if (selectedElement) {
+                if (selectedElement.type === 'activeSelection' && selectedElement.objects) {
+                    selectedIds = selectedElement.objects.map(o => o.id);
+                } else if (selectedElement.id) {
+                    selectedIds = [selectedElement.id];
+                }
+            }
+            socket.emit('selection-change', { selectedIds });
+        }
+    }, [selectedElement, onSelectionChange, socket]);
 
     useEffect(() => {
         onZoomChange?.(zoom);
@@ -89,6 +104,10 @@ export function DrawingCanvas({
         const rect = containerRef.current.getBoundingClientRect();
         const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
         const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+
+        if (socket?.emit) {
+            socket.emit('cursor-move', { cursor: { x, y } });
+        }
 
         onMouseMove({ x, y });
     };
@@ -149,16 +168,27 @@ export function DrawingCanvas({
 
 
     // Auto-Save Logic
-    const debouncedSave = useRef(null);
+    const saveTimeoutRef = useRef(null);
 
     // Effect to trigger save when shapes change
     useEffect(() => {
         if (!onSave) return;
-        const handler = setTimeout(() => {
-            onSave(customShapes);
-        }, 1000); // 1s Debounce
 
-        return () => clearTimeout(handler);
+        // Clear existing timeout
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        // Set new timeout (debounce)
+        saveTimeoutRef.current = setTimeout(() => {
+            onSave(customShapes);
+        }, 1500); // 1.5s Debounce - wait for drawing to stop
+
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
     }, [customShapes, onSave]);
 
     // ...
@@ -215,15 +245,49 @@ export function DrawingCanvas({
 
             {/* TOP RIGHT: COLLABORATION & SHARE */}
             <div className="absolute top-4 right-4 z-30 pointer-events-auto flex items-center gap-3">
-                {/* Collaborators Avatar Pile */}
-                <div className="flex items-center -space-x-2">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-neutral-100 flex items-center justify-center text-xs font-medium text-neutral-600 shadow-sm" style={{ backgroundColor: `hsl(${i * 60}, 70%, 90%)`, color: `hsl(${i * 60}, 80%, 30%)` }}>
-                            {String.fromCharCode(64 + i)}
+                {/* Collaborators Avatar Pile / Presence Panel */}
+                <div className="relative group flex items-center">
+                    <div className="flex items-center -space-x-2 cursor-pointer transition-transform group-hover:scale-105">
+                        {/* Render My Identity Avatar */}
+                        {socket?.myIdentity && (
+                            <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-medium shadow-sm z-10"
+                                style={{ backgroundColor: socket.myIdentity.color, color: 'white' }}>
+                                {socket.myIdentity.displayName.charAt(0).toUpperCase()}
+                            </div>
+                        )}
+                        {/* Render Remote Users */}
+                        {Object.values(socket?.remoteUsers || {}).slice(0, 3).map((u, i) => (
+                            <div key={u.userId || i} className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-medium shadow-sm"
+                                style={{ backgroundColor: u.color || `hsl(${i * 60}, 70%, 90%)`, color: 'white' }}>
+                                {(u.displayName || 'G').charAt(0).toUpperCase()}
+                            </div>
+                        ))}
+                        {Object.keys(socket?.remoteUsers || {}).length > 3 && (
+                            <div className="w-8 h-8 rounded-full border-2 border-white bg-neutral-50 flex items-center justify-center text-[10px] font-bold text-neutral-500 shadow-sm z-0 relative">
+                                +{Object.keys(socket?.remoteUsers || {}).length - 3}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Hover Dropdown Presence Panel */}
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-neutral-200/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right group-hover:translate-y-0 translate-y-2 z-50 p-2 pointer-events-none">
+                        <div className="text-[10px] font-bold tracking-wider text-neutral-400 mb-2 px-2 pt-1 uppercase">Currently in Board</div>
+                        <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+                            {/* Me */}
+                            {socket?.myIdentity && (
+                                <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-neutral-100/50 transition-colors">
+                                    <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: socket.myIdentity.color }} />
+                                    <span className="text-sm font-medium text-neutral-800">{socket.myIdentity.displayName} <span className="text-neutral-400 font-normal">(You)</span></span>
+                                </div>
+                            )}
+                            {/* Others */}
+                            {Object.values(socket?.remoteUsers || {}).map(u => (
+                                <div key={u.userId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-neutral-100/50 transition-colors">
+                                    <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: u.color || '#cbd5e1' }} />
+                                    <span className="text-sm font-medium text-neutral-600">{u.displayName || 'Guest'}</span>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                    <div className="w-8 h-8 rounded-full border-2 border-white bg-neutral-50 flex items-center justify-center text-[10px] font-bold text-neutral-500 shadow-sm">
-                        +2
                     </div>
                 </div>
 
@@ -281,6 +345,16 @@ export function DrawingCanvas({
             </div>
 
             {/* OVERLAYS */}
+            <CursorOverlay
+                cursors={Object.values(socket?.remoteCursors || {})}
+                viewport={viewport}
+            />
+            <SelectionOverlay
+                selections={Object.values(socket?.remoteSelections || {})}
+                shapes={customShapes}
+                viewport={viewport}
+            />
+
             {editingShapeId && customShapes && (
                 <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
                     {(() => {
