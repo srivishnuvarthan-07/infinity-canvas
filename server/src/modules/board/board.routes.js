@@ -13,19 +13,19 @@ const router = express.Router({ mergeParams: true }); // Enable params from pare
 
 const { protect } = require('../../middleware/auth');
 
-router.use(protect);
+// router.use(protect); // Removed global protect to allow guest access
 
 // Routes for /api/boards (and /api/workspaces/:workspaceId/boards)
 router
     .route('/')
-    .get(getBoards)
-    .post(createBoard);
+    .get(protect, getBoards)
+    .post(protect, createBoard);
 
 router
     .route('/:id')
     .get(getBoard)
     .put(updateBoard)
-    .delete(deleteBoard);
+    .delete(protect, deleteBoard);
 
 // Board Data Routes
 router

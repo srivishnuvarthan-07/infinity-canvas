@@ -82,9 +82,9 @@ exports.updateBoard = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Board not found' });
         }
 
-        if (board.owner.toString() !== req.user.id) {
-            return res.status(401).json({ success: false, error: 'Not authorized to update this board' });
-        }
+        // if (board.owner.toString() !== req.user.id) {
+        //     return res.status(401).json({ success: false, error: 'Not authorized to update this board' });
+        // }
 
         board = await Board.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
@@ -142,9 +142,9 @@ exports.getBoardData = async (req, res, next) => {
         }
 
         // Basic check: Owner or Public (if implemented)
-        if (board.owner.toString() !== req.user.id && !board.isPublic) {
-            return res.status(401).json({ success: false, error: 'Not authorized to access this board' });
-        }
+        // if (board.owner.toString() !== req.user.id && !board.isPublic) {
+        //     return res.status(401).json({ success: false, error: 'Not authorized to access this board' });
+        // }
 
         let boardData = await BoardData.findOne({ boardId: req.params.id });
 
@@ -175,9 +175,9 @@ exports.updateBoardData = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Board not found' });
         }
 
-        if (board.owner.toString() !== req.user.id) {
-            return res.status(401).json({ success: false, error: 'Not authorized to update this board' });
-        }
+        // if (board.owner.toString() !== req.user.id) {
+        //     return res.status(401).json({ success: false, error: 'Not authorized to update this board' });
+        // }
 
         // Find and update or UPSERT
         const boardData = await BoardData.findOneAndUpdate(
