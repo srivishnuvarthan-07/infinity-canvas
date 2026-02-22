@@ -16,6 +16,15 @@ const BoardSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    participants: [{
+        type: mongoose.Schema.ObjectId,
+        ref: 'User'
+    }],
+    shareToken: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
     thumbnailUrl: {
         type: String
     },
