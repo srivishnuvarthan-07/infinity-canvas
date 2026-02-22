@@ -8,6 +8,7 @@ import { useEngineInteraction } from './engine/useEngineInteraction';
 
 export function useCustomEngine({
     initialShapes = [],
+    socket,
     activeTool,
     setActiveTool,
     activeColor,
@@ -41,8 +42,9 @@ export function useCustomEngine({
         bringToFront,
         sendToBack,
         bringForward,
-        sendBackward
-    } = useEngineState(initialShapes);
+        sendBackward,
+        emitUpdate
+    } = useEngineState(initialShapes, socket);
 
     // 2. Viewport Management (Zoom, Pan, Coordinates)
     const {
@@ -87,7 +89,8 @@ export function useCustomEngine({
         setActiveTool,
         activeColor,
         strokeWidth,
-        strokeStyle
+        strokeStyle,
+        emitUpdate
     });
 
     // 3. Renderer (Canvas Lifecycle)

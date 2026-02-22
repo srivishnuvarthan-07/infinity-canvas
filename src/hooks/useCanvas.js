@@ -10,7 +10,7 @@ import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file
  * Simplified hook that serves as the bridge between the UI components 
  * and the Custom Rendering Engine.
  */
-export function useCanvas({ initialShapes = [] } = {}) {
+export function useCanvas({ initialShapes = [], socket } = {}) {
   /* ===================== REFS ===================== */
   const containerRef = useRef(null);
 
@@ -56,6 +56,7 @@ export function useCanvas({ initialShapes = [] } = {}) {
 
   } = useCustomEngine({
     initialShapes,
+    socket,
     activeTool,
     setActiveTool,
     activeColor,

@@ -95,12 +95,20 @@ export const useBoardStore = create((set, get) => ({
             try {
                 board = await provider.getBoard(boardId);
             } catch (err) {
-                // Cloud user fallback: check local
                 if (mode === 'cloud') {
-                    const localProvider = storageFactory.getProvider('local');
-                    board = await localProvider.getBoard(boardId);
+                    try {
+                        const localProvider = storageFactory.getProvider('local');
+                        board = await localProvider.getBoard(boardId);
+                    } catch (e) {
+                        throw err;
+                    }
                 } else {
-                    throw err;
+                    try {
+                        const cloudProvider = storageFactory.getProvider('cloud');
+                        board = await cloudProvider.getBoard(boardId);
+                    } catch (e) {
+                        throw err;
+                    }
                 }
             }
 
@@ -136,10 +144,19 @@ export const useBoardStore = create((set, get) => ({
                 data = await provider.getBoardData(boardId);
             } catch (err) {
                 if (mode === 'cloud') {
-                    const localProvider = storageFactory.getProvider('local');
-                    data = await localProvider.getBoardData(boardId);
+                    try {
+                        const localProvider = storageFactory.getProvider('local');
+                        data = await localProvider.getBoardData(boardId);
+                    } catch (e) {
+                        throw err;
+                    }
                 } else {
-                    throw err;
+                    try {
+                        const cloudProvider = storageFactory.getProvider('cloud');
+                        data = await cloudProvider.getBoardData(boardId);
+                    } catch (e) {
+                        throw err;
+                    }
                 }
             }
 
