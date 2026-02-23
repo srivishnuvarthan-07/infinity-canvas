@@ -5,19 +5,37 @@ import { toast } from 'sonner';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
-export function useSocket(boardId) {
+export function useSocket() {
     const { user } = useAuth();
     const socketRef = useRef(null);
     const [isConnected, setIsConnected] = useState(false);
+    const activeBoardIdRef = useRef(null);
     const [remoteUsers, setRemoteUsers] = useState({});
     const [remoteCursors, setRemoteCursors] = useState({});
     const [remoteSelections, setRemoteSelections] = useState({});
     const [myIdentity, setMyIdentity] = useState(null);
 
+    // Clean up purely on unmount
     useEffect(() => {
-        if (!boardId) return;
+        return () => {
+            if (socketRef.current?.connected) {
+                const bId = activeBoardIdRef.current;
+                if (bId) socketRef.current.emit('leave-board', { boardId: bId, user });
+                socketRef.current.disconnect();
+            }
+        };
+    }, []);
 
-        // Initialize socket
+    const connect = useCallback((boardId) => {
+        if (!boardId) return;
+        if (socketRef.current?.connected) {
+            // Already connected? If diff board, disconnect first.
+            if (activeBoardIdRef.current === boardId) return;
+            socketRef.current.disconnect();
+        }
+
+        activeBoardIdRef.current = boardId;
+
         socketRef.current = io(SOCKET_URL, {
             withCredentials: true,
             transports: ['websocket', 'polling']
@@ -34,6 +52,10 @@ export function useSocket(boardId) {
         socket.on('disconnect', () => {
             console.log("Socket Disconnected");
             setIsConnected(false);
+            setRemoteUsers({});
+            setRemoteCursors({});
+            setRemoteSelections({});
+            setMyIdentity(null);
         });
 
         socket.on('user-joined', (identity) => {
@@ -92,21 +114,25 @@ export function useSocket(boardId) {
             });
         });
 
-        return () => {
-            if (socket.connected) {
-                socket.emit('leave-board', { boardId, user });
-                socket.disconnect();
-            }
-        };
-    }, [boardId, user]);
+    }, [user]);
+
+    const disconnect = useCallback(() => {
+        if (socketRef.current?.connected) {
+            const bId = activeBoardIdRef.current;
+            if (bId) socketRef.current.emit('leave-board', { boardId: bId, user });
+            socketRef.current.disconnect();
+            activeBoardIdRef.current = null;
+        }
+    }, [user]);
 
     // Expose emit helper
     const emit = useCallback((event, data) => {
         if (socketRef.current?.connected) {
+            const bId = activeBoardIdRef.current;
             // Auto inject boardId
             if (event === 'board-action' || event === 'cursor-move' || event === 'lock-shape' || event === 'unlock-shape' || event === 'selection-change') {
                 if (data && typeof data === 'object') {
-                    data.boardId = boardId;
+                    data.boardId = bId;
                     if (event === 'board-action' && data.action) {
                         data.action.userId = user?._id || socketRef.current.id;
                     }
@@ -114,7 +140,7 @@ export function useSocket(boardId) {
             }
             socketRef.current.emit(event, data);
         }
-    }, [boardId, user]);
+    }, [user]);
 
     // Expose listener helper
     const on = useCallback((event, callback) => {
@@ -129,6 +155,8 @@ export function useSocket(boardId) {
     }, []);
 
     return useMemo(() => ({
+        connect,
+        disconnect,
         isConnected,
         emit,
         on,
@@ -137,5 +165,5 @@ export function useSocket(boardId) {
         remoteSelections,
         myIdentity,
         socketId: socketRef.current?.id
-    }), [isConnected, emit, on, remoteUsers, remoteCursors, remoteSelections, myIdentity]);
+    }), [connect, disconnect, isConnected, emit, on, remoteUsers, remoteCursors, remoteSelections, myIdentity]);
 }

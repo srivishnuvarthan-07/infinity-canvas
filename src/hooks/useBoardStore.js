@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import storageFactory from '@/services/storage/storage.factory';
+import { useWorkspaceStore } from '@/hooks/useWorkspaceStore';
 
 export const useBoardStore = create((set, get) => ({
     // --- Board Lists ---
@@ -73,7 +74,20 @@ export const useBoardStore = create((set, get) => ({
         set({ cloudStatus: 'loading' });
         try {
             const provider = storageFactory.getProvider('cloud');
-            const list = await provider.getBoards();
+
+            // Pass the workspace ID if available so we filter boards
+            const { activeWorkspaceId } = useWorkspaceStore.getState();
+            let list = await provider.getBoards();
+
+            // Client-side fallback filtering if the backend doesn't filter perfectly yet
+            // Or we just rely on backend. For now, since boards don't strictly have workspaceId yet in all old data, we just fetch all and filter client side if needed, or pass it to provider.
+            // Let's rely on the provider returning what's ours.
+
+            if (activeWorkspaceId) {
+                // Temporary client-side filter until DB is fully migrated
+                list = list.filter(b => b.workspaceId === activeWorkspaceId || (!b.workspaceId && activeWorkspaceId === useWorkspaceStore.getState().workspaces[0]?._id));
+            }
+
             set({ cloudBoards: list, cloudStatus: 'ok' });
         } catch (err) {
             console.error('fetchCloudBoards failed:', err);
@@ -93,6 +107,9 @@ export const useBoardStore = create((set, get) => ({
             let board;
 
             try {
+                if (mode === 'cloud' && !isValidObjectId(boardId)) {
+                    throw new Error('Local ID requested from cloud');
+                }
                 board = await provider.getBoard(boardId);
             } catch (err) {
                 if (mode === 'cloud') {
@@ -141,6 +158,9 @@ export const useBoardStore = create((set, get) => ({
             let data;
 
             try {
+                if (mode === 'cloud' && !isValidObjectId(boardId)) {
+                    throw new Error('Local ID requested from cloud');
+                }
                 data = await provider.getBoardData(boardId);
             } catch (err) {
                 if (mode === 'cloud') {
@@ -194,15 +214,23 @@ export const useBoardStore = create((set, get) => ({
     // Board CRUD
     // ─────────────────────────────────────────
 
-    createBoard: async (name) => {
+    createBoard: async (name, forceLocal = false) => {
         try {
             // Auto-generate a unique name if none provided
             const resolvedName = name ?? generateUntitledName(
                 [...get().localBoards, ...get().cloudBoards]
             );
 
-            const provider = storageFactory.getProvider(get().mode);
-            const newBoard = await provider.createBoard(resolvedName);
+            const targetMode = forceLocal ? 'local' : get().mode;
+            const provider = storageFactory.getProvider(targetMode);
+
+            let newBoard;
+            if (targetMode === 'cloud') {
+                const { activeWorkspaceId } = useWorkspaceStore.getState();
+                newBoard = await provider.createBoard(resolvedName, { workspaceId: activeWorkspaceId });
+            } else {
+                newBoard = await provider.createBoard(resolvedName);
+            }
 
             if (newBoard.isLocal || get().mode === 'local') {
                 set(state => ({ localBoards: [newBoard, ...state.localBoards] }));
@@ -234,6 +262,47 @@ export const useBoardStore = create((set, get) => ({
         }
     },
 
+    toggleCollaboration: async (boardId, isLive) => {
+        // Optimistic update
+        set(state => ({
+            cloudBoards: state.cloudBoards.map(b =>
+                b.id === boardId ? { ...b, isLive } : b
+            ),
+        }));
+
+        try {
+            const provider = storageFactory.getProvider('cloud');
+            await provider.updateBoard(boardId, { isLive });
+        } catch (err) {
+            console.error('toggleCollaboration failed:', err);
+            // Revert on failure
+            set(state => ({
+                cloudBoards: state.cloudBoards.map(b =>
+                    b.id === boardId ? { ...b, isLive: !isLive } : b
+                ),
+            }));
+        }
+    },
+
+    updateBoardAccess: async (boardId, access) => {
+        // Optimistic update
+        set(state => ({
+            cloudBoards: state.cloudBoards.map(b =>
+                b.id === boardId ? { ...b, ...access } : b
+            ),
+        }));
+
+        try {
+            const provider = storageFactory.getProvider('cloud');
+            // Can use the existing updateBoard for metadata
+            await provider.updateBoard(boardId, access);
+        } catch (err) {
+            console.error('updateBoardAccess failed:', err);
+            // We could revert on failure here if we kept previous state 
+            throw err;
+        }
+    },
+
     renameBoard: async (boardId, newName) => {
         // Optimistic update
         set(state => ({
@@ -254,7 +323,41 @@ export const useBoardStore = create((set, get) => ({
         }
     },
 
-    updateBoardShapes: async (boardId, shapes) => {
+    addBoardMember: async (boardId, email, role) => {
+        try {
+            const provider = storageFactory.getProvider('cloud');
+            const members = await provider.addMember(boardId, email, role);
+
+            set(state => ({
+                cloudBoards: state.cloudBoards.map(b =>
+                    b.id === boardId ? { ...b, members } : b
+                )
+            }));
+            return members;
+        } catch (err) {
+            console.error('addBoardMember failed:', err);
+            throw err;
+        }
+    },
+
+    removeBoardMember: async (boardId, userId) => {
+        try {
+            const provider = storageFactory.getProvider('cloud');
+            const members = await provider.removeMember(boardId, userId);
+
+            set(state => ({
+                cloudBoards: state.cloudBoards.map(b =>
+                    b.id === boardId ? { ...b, members } : b
+                )
+            }));
+            return members;
+        } catch (err) {
+            console.error('removeBoardMember failed:', err);
+            throw err;
+        }
+    },
+
+    updateBoardShapes: async (boardId, shapes, thumbnail) => {
         // Optimistic cache update
         set(state => ({
             boardDataCache: {
@@ -263,10 +366,23 @@ export const useBoardStore = create((set, get) => ({
             },
         }));
 
+        if (thumbnail !== undefined) {
+            set(state => ({
+                localBoards: state.localBoards.map(b => b.id === boardId ? { ...b, thumbnail } : b),
+                cloudBoards: state.cloudBoards.map(b => b.id === boardId ? { ...b, thumbnail } : b),
+            }));
+        }
+
         try {
             const isLocal = get().localBoards.some(b => b.id === boardId);
+            if (!isLocal && !isValidObjectId(boardId)) return; // Don't try to save local ID to cloud
+
             const provider = storageFactory.getProvider(isLocal ? 'local' : 'cloud');
             await provider.saveBoardData(boardId, { shapes });
+
+            if (thumbnail !== undefined) {
+                await provider.updateBoard(boardId, { thumbnail });
+            }
         } catch (err) {
             console.error('updateBoardShapes failed:', err);
         }
@@ -317,6 +433,8 @@ export const useBoardStore = create((set, get) => ({
 // ─────────────────────────────────────────
 // Pure helpers (outside store)
 // ─────────────────────────────────────────
+
+const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 
 function upsertBoard(list, board) {
     const exists = list.some(b => b.id === board.id);

@@ -14,7 +14,8 @@ export function useCustomEngine({
     activeColor,
     strokeWidth,
     strokeStyle,
-    sloppiness
+    sloppiness,
+    boardId
 } = {}) {
     // 0. Refs & Lifted State
     const canvasRef = useRef(null);
@@ -90,7 +91,8 @@ export function useCustomEngine({
         activeColor,
         strokeWidth,
         strokeStyle,
-        emitUpdate
+        emitUpdate,
+        boardId
     });
 
     // 3. Renderer (Canvas Lifecycle)

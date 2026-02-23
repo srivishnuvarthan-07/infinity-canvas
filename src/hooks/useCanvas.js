@@ -10,7 +10,7 @@ import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file
  * Simplified hook that serves as the bridge between the UI components 
  * and the Custom Rendering Engine.
  */
-export function useCanvas({ initialShapes = [], socket } = {}) {
+export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
   /* ===================== REFS ===================== */
   const containerRef = useRef(null);
 
@@ -62,6 +62,7 @@ export function useCanvas({ initialShapes = [], socket } = {}) {
     activeColor,
     strokeWidth,
     strokeStyle,
+    boardId
   });
 
   // Auto-Start Engine
