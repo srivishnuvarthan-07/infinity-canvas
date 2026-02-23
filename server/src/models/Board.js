@@ -16,9 +16,22 @@ const BoardSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    participants: [{
+    workspaceId: {
         type: mongoose.Schema.ObjectId,
-        ref: 'User'
+        ref: 'Workspace',
+        required: false // Optional for now until Workspaces are fully integrated
+    },
+    members: [{
+        userId: {
+            type: mongoose.Schema.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        role: {
+            type: String,
+            enum: ['editor', 'viewer'],
+            default: 'viewer'
+        }
     }],
     shareToken: {
         type: String,
@@ -28,7 +41,17 @@ const BoardSchema = new mongoose.Schema({
     thumbnailUrl: {
         type: String
     },
-    isPublic: {
+    visibility: {
+        type: String,
+        enum: ['workspace', 'private'],
+        default: 'private'
+    },
+    linkAccess: {
+        type: String,
+        enum: ['none', 'view', 'edit'],
+        default: 'none'
+    },
+    isLive: {
         type: Boolean,
         default: false
     },
@@ -47,5 +70,67 @@ BoardSchema.pre('save', function (next) {
     this.lastModified = Date.now();
     next();
 });
+
+// Authorization Helper Method
+BoardSchema.methods.hasAccess = async function (user, action = 'view') {
+    // 1. Unauthenticated Guest Check
+    if (!user) {
+        console.log(`[Board.hasAccess] No user present for board ${this._id}, action ${action}. linkAccess: ${this.linkAccess}`);
+        if (action === 'view') return this.linkAccess === 'view' || this.linkAccess === 'edit';
+        if (action === 'edit') return this.linkAccess === 'edit';
+        return false;
+    }
+
+    const userId = user._id ? user._id.toString() : user.id;
+    const ownerId = this.owner._id ? this.owner._id.toString() : this.owner.toString();
+    console.log(`[Board.hasAccess] User: ${userId}, Owner: ${ownerId}, Action: ${action}`);
+
+    // 2. Owner has full access
+    if (ownerId === userId) return true;
+
+    // 3. Check Workspace Membership (if board belongs to workspace)
+    let isWorkspaceMember = false;
+    let workspaceRole = null;
+    if (this.workspaceId) {
+        try {
+            const Workspace = mongoose.model('Workspace');
+            const workspace = await Workspace.findById(this.workspaceId);
+            if (workspace) {
+                const member = workspace.members.find(m => m.userId.toString() === userId);
+                if (member) {
+                    isWorkspaceMember = true;
+                    workspaceRole = member.role;
+                }
+            }
+        } catch (err) {
+            console.error('Error checking workspace membership in hasAccess:', err);
+        }
+    }
+
+    // 4. Board-Level Role Check
+    const boardMember = this.members.find(m => m.userId.toString() === userId);
+    const boardRole = boardMember ? boardMember.role : null;
+
+    if (action === 'view') {
+        // Can view if linkAccess allows
+        if (this.linkAccess === 'view' || this.linkAccess === 'edit') return true;
+        // Can view if board is workspace-visible and user is in workspace
+        if (this.visibility === 'workspace' && isWorkspaceMember) return true;
+        // Can view if explicitly added to board
+        if (boardRole) return true;
+    }
+
+    if (action === 'edit') {
+        // Can edit if linkAccess allows
+        if (this.linkAccess === 'edit') return true;
+        // Can edit if workspace admin/editor AND board is workspace-visible
+        if (this.visibility === 'workspace' && isWorkspaceMember && (workspaceRole === 'admin' || workspaceRole === 'editor')) return true;
+        // Can edit if explicitly added to board as editor
+        if (boardRole === 'editor') return true;
+    }
+
+    console.warn(`Access denied for user ${userId} on board ${this._id} for action ${action}. Visibility: ${this.visibility}, linkAccess: ${this.linkAccess}`);
+    return false;
+};
 
 module.exports = mongoose.model('Board', BoardSchema);

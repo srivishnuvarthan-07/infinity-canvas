@@ -1,42 +1,77 @@
 const Action = require('./models/Action');
+const Board = require('./models/Board');
 
 const sessionData = new Map();
+const userSockets = new Map(); // Global tracking: userId => Set of socket.ids
+
+let ioInstance;
 
 function setupSocket(io) {
+    ioInstance = io;
     io.on('connection', (socket) => {
         console.log(`User connected to socket: ${socket.id}`);
 
-        socket.on('join-board', ({ boardId, user }) => {
+        // Global Tracking for Notifications
+        socket.on('global-connect', ({ user }) => {
+            if (user && user._id) {
+                const userId = user._id.toString();
+                if (!userSockets.has(userId)) {
+                    userSockets.set(userId, new Set());
+                }
+                userSockets.get(userId).add(socket.id);
+            }
+        });
+
+        socket.on('join-board', async ({ boardId, user }) => {
             if (!boardId) return;
 
-            let identity;
-            if (user && user._id) {
-                identity = {
-                    userId: user._id,
-                    displayName: user.name,
-                    color: '#4F46E5', // Indigo from UI
-                    isGuest: false
-                };
-            } else {
-                const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-                const randomHue = Math.floor(Math.random() * 360);
-                identity = {
-                    userId: socket.id,
-                    displayName: `Guest-${randomSuffix}`,
-                    color: `hsl(${randomHue}, 70%, 50%)`,
-                    isGuest: true
-                };
+            // 1. Verify Access
+            try {
+                const board = await Board.findById(boardId);
+                if (!board) {
+                    return socket.emit('error', { message: 'Board not found' });
+                }
+
+                // If no user is passed in socket handshake, they are a guest
+                const canView = await board.hasAccess(user, 'view');
+                if (!canView) {
+                    return socket.emit('error', { message: 'Not authorized to join this board' });
+                }
+
+                const canEdit = await board.hasAccess(user, 'edit');
+
+                let identity;
+                if (user && user._id) {
+                    identity = {
+                        userId: user._id,
+                        displayName: user.name,
+                        color: '#4F46E5', // Indigo from UI
+                        isGuest: false
+                    };
+                } else {
+                    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+                    const randomHue = Math.floor(Math.random() * 360);
+                    identity = {
+                        userId: socket.id,
+                        displayName: `Guest-${randomSuffix}`,
+                        color: `hsl(${randomHue}, 70%, 50%)`,
+                        isGuest: true
+                    };
+                }
+
+                sessionData.set(socket.id, { boardId, identity, canEdit });
+                socket.join(boardId);
+
+                console.log(`User ${identity.displayName} joined board ${boardId} (canEdit: ${canEdit})`);
+
+                // Broadcast to others
+                socket.to(boardId).emit('user-joined', identity);
+                // Tell the connecting client their assigned identity
+                socket.emit('your-identity', identity);
+            } catch (err) {
+                console.error("Error joining board room:", err);
+                socket.emit('error', { message: 'Server error verifying access' });
             }
-
-            sessionData.set(socket.id, { boardId, identity });
-            socket.join(boardId);
-
-            console.log(`User ${identity.displayName} joined board ${boardId}`);
-
-            // Broadcast to others
-            socket.to(boardId).emit('user-joined', identity);
-            // Tell the connecting client their assigned identity
-            socket.emit('your-identity', identity);
         });
 
         socket.on('leave-board', ({ boardId }) => {
@@ -55,11 +90,14 @@ function setupSocket(io) {
 
             if (!boardId || !action) return;
 
+            // Verify the sender is allowed to edit
+            const session = sessionData.get(socket.id);
+            if (!session || !session.canEdit || session.boardId !== boardId) {
+                return; // Silently drop unauthorized emit
+            }
+
             // Broadcast to all other participants in the board
             socket.to(boardId).emit('remote-action', action);
-
-            // Remove Database Writes from Realtime Socket Layer to prevent flooding and keep it lightweight.
-            // Action tracking is disabled in Minimal Collaboration Mode.
         });
 
         // Ephemeral events (not stored in DB)
@@ -101,8 +139,35 @@ function setupSocket(io) {
                 socket.to(session.boardId).emit('user-left', { userId: session.identity.userId });
                 sessionData.delete(socket.id);
             }
+
+            // Global removal
+            for (const [userId, sockets] of userSockets.entries()) {
+                if (sockets.has(socket.id)) {
+                    sockets.delete(socket.id);
+                    if (sockets.size === 0) {
+                        userSockets.delete(userId);
+                    }
+                    break;
+                }
+            }
         });
     });
 }
 
-module.exports = setupSocket;
+function emitNotification(userId, notification) {
+    if (!ioInstance) return;
+    const uidStr = userId.toString();
+    const sockets = userSockets.get(uidStr);
+    if (sockets && sockets.size > 0) {
+        for (const socketId of sockets) {
+            ioInstance.to(socketId).emit('new-notification', notification);
+        }
+    }
+}
+
+function emitToBoard(boardId, event, data) {
+    if (!ioInstance) return;
+    ioInstance.to(boardId.toString()).emit(event, data);
+}
+
+module.exports = { setupSocket, emitNotification, emitToBoard };

@@ -43,7 +43,10 @@ app.use('/api', limiter);
 
 // Mount routers
 app.use('/api/auth', require('./modules/auth/auth.routes'));
+app.use('/api/users', require('./modules/user/user.routes'));
+app.use('/api/notifications', require('./modules/notification/notification.routes'));
 app.use('/api/boards', require('./modules/board/board.routes'));
+app.use('/api/workspaces', require('./modules/workspace/workspace.routes'));
 app.use('/api/library', require('./modules/library/library.routes'));
 
 // Error Handler
