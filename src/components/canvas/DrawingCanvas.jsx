@@ -12,8 +12,12 @@ import { SelectionOverlay } from "./SelectionOverlay";
 import React, { useState, useEffect, useRef } from "react";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ShareModal } from "./ShareModal";
 
 import { FloatingMenu } from "@/components/layout/FloatingMenu";
+import { useAuth } from "@/hooks/useAuth";
+import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
+import { toast } from "sonner";
 
 export function DrawingCanvas({
     initialShapes = [],
@@ -25,13 +29,35 @@ export function DrawingCanvas({
     onInteraction,
     disablePropertyPanel = false,
     // Navigation & Meta
+    boardId,
     boardName,
+    isLocal = false,
+    isLive = false,
+    ownerId, // Added ownerId
+    onToggleLive,
     onRename,
     onBack,
     onAddToLibrary,
-    socket
+    socket,
+    // Access Props
+    linkAccess,
+    visibility,
+    onUpdateAccess,
+    members = [],
+    onInviteMember,
+    onRemoveMember
 }) {
     console.log("DrawingCanvas Render. Shapes:", initialShapes?.length);
+
+    const { user } = useAuth();
+    const isOwner = user && user._id === ownerId;
+
+    const workspaces = useWorkspaceStore(state => state.workspaces);
+    // Determine the workspace name (assume active workspace for now if board doesn't have strict relations loaded)
+    const activeWorkspace = workspaces.find(w => w._id === useWorkspaceStore.getState().activeWorkspaceId);
+    const workspaceName = activeWorkspace ? activeWorkspace.name : null;
+
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     const {
         containerRef,
@@ -74,7 +100,7 @@ export function DrawingCanvas({
         canvasHandlers,
         insertShapes,
         deleteSelected
-    } = useCanvas({ initialShapes, socket });
+    } = useCanvas({ initialShapes, socket, boardId });
 
     // Propagate state changes
     useEffect(() => {
@@ -169,10 +195,57 @@ export function DrawingCanvas({
 
     // Auto-Save Logic
     const saveTimeoutRef = useRef(null);
+    const latestShapesRef = useRef(customShapes);
+    const onSaveRef = useRef(onSave);
+
+    // Keep shapes ref up to date for unmount flush
+    useEffect(() => {
+        latestShapesRef.current = customShapes;
+    }, [customShapes]);
+
+    useEffect(() => {
+        onSaveRef.current = onSave;
+    }, [onSave]);
+
+    // Unmount flush
+    useEffect(() => {
+        return () => {
+            if (saveTimeoutRef.current) {
+                // There's a pending save that hasn't fired yet
+                clearTimeout(saveTimeoutRef.current);
+                let thumbnail = null;
+                if (customCanvasRef.current && latestShapesRef.current.length > 0) {
+                    try {
+                        const canvasEl = customCanvasRef.current;
+                        const tempCanvas = document.createElement('canvas');
+                        const ctx = tempCanvas.getContext('2d');
+
+                        const targetWidth = 400;
+                        const targetHeight = (canvasEl.height / canvasEl.width) * targetWidth;
+
+                        tempCanvas.width = targetWidth;
+                        tempCanvas.height = targetHeight;
+
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, targetWidth, targetHeight);
+                        if (canvasEl.width > 0 && canvasEl.height > 0) {
+                            ctx.drawImage(canvasEl, 0, 0, targetWidth, targetHeight);
+                            thumbnail = tempCanvas.toDataURL('image/jpeg', 0.5);
+                        }
+                    } catch (e) {
+                        console.error("Flush thumbnail generation failed", e);
+                    }
+                }
+                if (onSaveRef.current) {
+                    onSaveRef.current(latestShapesRef.current, thumbnail);
+                }
+            }
+        };
+    }, []); // Run ONLY on unmount
 
     // Effect to trigger save when shapes change
     useEffect(() => {
-        if (!onSave) return;
+        if (!onSaveRef.current) return;
 
         // Clear existing timeout
         if (saveTimeoutRef.current) {
@@ -181,7 +254,33 @@ export function DrawingCanvas({
 
         // Set new timeout (debounce)
         saveTimeoutRef.current = setTimeout(() => {
-            onSave(customShapes);
+            let thumbnail = null;
+            if (customCanvasRef.current && customShapes.length > 0) {
+                try {
+                    const canvasEl = customCanvasRef.current;
+                    const tempCanvas = document.createElement('canvas');
+                    const ctx = tempCanvas.getContext('2d');
+
+                    const targetWidth = 400;
+                    const targetHeight = (canvasEl.height / canvasEl.width) * targetWidth;
+
+                    tempCanvas.width = targetWidth;
+                    tempCanvas.height = targetHeight;
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, targetWidth, targetHeight);
+                    if (canvasEl.width > 0 && canvasEl.height > 0) {
+                        ctx.drawImage(canvasEl, 0, 0, targetWidth, targetHeight);
+                        thumbnail = tempCanvas.toDataURL('image/jpeg', 0.5);
+                    }
+                } catch (e) {
+                    console.error("Thumbnail generation failed", e);
+                }
+            }
+            if (onSaveRef.current) {
+                onSaveRef.current(customShapes, thumbnail);
+            }
+            saveTimeoutRef.current = null; // Mark as flushed so unmount doesn't duplicate it
         }, 1500); // 1.5s Debounce - wait for drawing to stop
 
         return () => {
@@ -189,7 +288,7 @@ export function DrawingCanvas({
                 clearTimeout(saveTimeoutRef.current);
             }
         };
-    }, [customShapes, onSave]);
+    }, [customShapes]);
 
     // ...
 
@@ -230,10 +329,11 @@ export function DrawingCanvas({
             />
 
             {/* TOP LEFT: FLOATING MENU */}
-            <div className="absolute top-4 left-16 z-30 pointer-events-auto">
+            <div className="absolute top-4 left-16 z-30 pointer-events-auto flex items-center gap-2">
                 <FloatingMenu
                     boardName={boardName || "Untitled"}
                     isSaved={true} // Hook up real state later if possible
+                    isLocal={isLocal}
                     onRename={onRename}
                     onBack={onBack}
                     onOpen={handleLoad}
@@ -241,6 +341,12 @@ export function DrawingCanvas({
                     onExport={handleExport}
                     onReset={handleClear}
                 />
+
+                {/* Board Type Indicator */}
+                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/90 backdrop-blur-md border border-black/5 shadow-sm text-[11px] font-semibold tracking-wide ${isLocal ? 'text-amber-600' : 'text-indigo-600'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isLocal ? 'bg-amber-500' : 'bg-indigo-500'}`}></span>
+                    {isLocal ? 'Local Board' : 'Cloud Board'}
+                </div>
             </div>
 
             {/* TOP RIGHT: COLLABORATION & SHARE */}
@@ -291,11 +397,38 @@ export function DrawingCanvas({
                     </div>
                 </div>
 
-                {/* Share Button */}
-                <Button className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm rounded-full font-medium transition-all">
-                    Share
-                </Button>
+                {/* Share Button (Hidden for Local) */}
+                {!isLocal && (
+                    <div title={isOwner ? "Share & Collaborate" : "View Access Info"}>
+                        <Button
+                            className={`h-9 px-4 shadow-sm rounded-full font-medium transition-all ${isOwner ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'} flex items-center gap-2`}
+                            onClick={() => setIsShareModalOpen(true)}
+                        >
+                            {isLive && <div className={`w-2 h-2 rounded-full animate-pulse ${isOwner ? 'bg-white/40' : 'bg-green-500'}`}></div>}
+                            {isOwner ? "Share" : (isLive ? "Live Session" : "Share")}
+                        </Button>
+                    </div>
+                )}
             </div>
+
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                boardId={boardId}
+                boardName={boardName || "Untitled"}
+                linkAccess={linkAccess}
+                visibility={visibility}
+                isLive={isLive}
+                onToggleLive={onToggleLive}
+                onUpdateAccess={onUpdateAccess}
+                members={members}
+                onInviteMember={onInviteMember}
+                onRemoveMember={onRemoveMember}
+                ownerId={ownerId}
+                activeUsersCount={socket?.myIdentity ? Object.keys(socket?.remoteUsers || {}).length + 1 : 0}
+                workspaceName={workspaceName}
+                isOwner={isOwner}
+            />
 
             {/* BOTTOM CENTER: FLOATING TOOLBAR */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
@@ -308,7 +441,7 @@ export function DrawingCanvas({
 
             {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
             {!disablePropertyPanel && selectedElement && (
-                <div className="absolute top-4 right-4 z-20 w-72 pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-100px)] overflow-y-auto scrollbar-hide">
+                <div className="absolute top-20 right-4 z-20 w-72 pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide">
                     <Sidebar
                         selectedElement={selectedElement}
                         updateElement={updateSelectedElement}
