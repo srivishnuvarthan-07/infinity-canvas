@@ -64,8 +64,10 @@ export function useEngineRenderer({
 
                 // Resize Offscreen
                 if (offscreenRef.current) {
-                    offscreenRef.current.width = w;
-                    offscreenRef.current.height = h;
+                    const dpr = window.devicePixelRatio || 1;
+                    offscreenRef.current.width = w * dpr;
+                    offscreenRef.current.height = h * dpr;
+                    offscreenRef.current.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
                     isDirtyRef.current = true; // Force redraw
                 }
             } else {
@@ -138,7 +140,11 @@ export function useEngineRenderer({
 
         // 1. Update Static Layer (Offscreen) if Dirty
         if (isDirtyRef.current) {
+            const dpr = window.devicePixelRatio || 1;
+            offCtx.save();
+            offCtx.setTransform(1, 0, 0, 1, 0, 0);
             offCtx.clearRect(0, 0, width, height);
+            offCtx.restore();
 
             // Determine what is "Static"
             let staticShapes = shapesRef.current;
@@ -146,6 +152,9 @@ export function useEngineRenderer({
             // If dragging/resizing, exclude the active shapes from background
             if (isDraggingRef.current && selectedIdsRef.current.size > 0) {
                 staticShapes = staticShapes.filter(s => !selectedIdsRef.current.has(s.id));
+            }
+            if (editingShapeIdRef.current) {
+                staticShapes = staticShapes.filter(s => s.id !== editingShapeIdRef.current);
             }
 
             // Draw Static to Offscreen
@@ -166,6 +175,8 @@ export function useEngineRenderer({
             // If I can't pass targetCtx, I have to swap `this.ctx` or use a new instance.
             // Let's assume I need to create a `staticRenderer`.
             const staticRenderer = new CanvasRenderer(offscreenRef.current);
+            staticRenderer.width = width / dpr;
+            staticRenderer.height = height / dpr;
             staticRenderer.render(staticShapes, {
                 selectedIds: new Set(), // No selection highlights on static
                 hoveredId: null
@@ -175,10 +186,13 @@ export function useEngineRenderer({
         }
 
         // 2. Compose Main Canvas
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, width, height);
 
         // A. Draw Background (Static)
         ctx.drawImage(offscreenRef.current, 0, 0);
+        ctx.restore();
 
         // B. Draw Active/Dynamic Elements
         if (isDraggingRef.current && selectedIdsRef.current.size > 0) {
@@ -192,7 +206,8 @@ export function useEngineRenderer({
             rendererRef.current.render(dynamicShapes, {
                 hoveredId: null,
                 selectedIds: selectedIdsRef.current, // Draw selection box around them
-                selectionBox: null
+                selectionBox: null,
+                editingShapeId: editingShapeIdRef.current
             }, viewportRef.current, { clear: false }); // Add clear:false logic to Renderer? via 4th arg? or just relies on us not clearing?
             // Existing 'render' method likely does 'ctx.clearRect'.
             // I need to check CanvasRenderer.js.
@@ -213,7 +228,8 @@ export function useEngineRenderer({
             rendererRef.current.render([], {
                 hoveredId: hoveredIdRef.current,
                 selectedIds: selectedIdsRef.current,
-                selectionBox: selectionBoxRef.current
+                selectionBox: selectionBoxRef.current,
+                editingShapeId: editingShapeIdRef.current
             }, viewportRef.current, { clear: false });
         }
 

@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { SHAPE_TYPES } from '@/engine/schema';
+import { getTextLayout } from '@/engine/utils/textUtils';
 
 export function useEngineState(initialShapes = [], socket = null) {
     // Canvas State
@@ -243,7 +245,23 @@ export function useEngineState(initialShapes = [], socket = null) {
         setShapes(prev => {
             const newShapes = prev.map(shape => {
                 if (idsSet.has(shape.id)) {
-                    return { ...shape, ...updates };
+                    const newShape = { ...shape, ...updates };
+
+                    // 1️⃣ Recalculate Text Bounds Immediately
+                    if (newShape.type === SHAPE_TYPES.TEXT) {
+                        const styleChanged = 'text' in updates || 'fontSize' in updates || 'fontFamily' in updates || 'textAlign' in updates;
+                        if (styleChanged) {
+                            try {
+                                const layout = getTextLayout(null, newShape);
+                                newShape.width = layout.width;
+                                newShape.height = layout.height;
+                            } catch (e) {
+                                console.warn('Failed to measure text during update', e);
+                            }
+                        }
+                    }
+
+                    return newShape;
                 }
                 return shape;
             });

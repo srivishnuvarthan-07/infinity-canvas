@@ -30,7 +30,8 @@ export function useEngineInteraction({
     activeColor,
     strokeWidth,
     strokeStyle,
-    emitUpdate
+    emitUpdate,
+    boardId
 }) {
     // Interaction State
     const [isDragging, setIsDragging] = useState(false);
@@ -342,7 +343,7 @@ export function useEngineInteraction({
 
                 if (shape.type === SHAPE_TYPES.PENCIL) {
                     const newShape = { ...shape, points: [...(shape.points || []), { x: x - startX, y: y - startY }] };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
                 if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
@@ -377,7 +378,7 @@ export function useEngineInteraction({
                     width: Math.abs(x - startX),
                     height: Math.abs(y - startY)
                 };
-                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                 return newShape;
             }));
             return;
@@ -392,7 +393,7 @@ export function useEngineInteraction({
                 // Rotation
                 if (activeHandle === 'rot') {
                     const newShape = { ...shape, rotation: calculateRotation(shape, x, y) };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
 
@@ -452,12 +453,12 @@ export function useEngineInteraction({
                         });
 
                         const newShape = { ...shape, ...updates, children: newChildren };
-                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                         return newShape;
                     }
 
                     const newShape = { ...shape, ...updates };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
                 return shape;
@@ -473,7 +474,7 @@ export function useEngineInteraction({
                 if (initialShapePositions.has(s.id)) {
                     const start = initialShapePositions.get(s.id);
                     const newShape = { ...s, x: start.x + dx, y: start.y + dy };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
                 return s;
@@ -519,7 +520,7 @@ export function useEngineInteraction({
         }
         if (activeTool === 'eraser') {
             isErasing.current = false;
-            saveState(shapes);
+            saveState(shapes, boardId);
             return;
         }
 
@@ -552,12 +553,12 @@ export function useEngineInteraction({
                     }
                     return true;
                 });
-                saveState(newShapes);
+                saveState(newShapes, boardId);
                 return newShapes;
             });
             if (setActiveTool) setActiveTool('select');
         } else if (isDragging || isResizing) {
-            saveState(shapes);
+            saveState(shapes, boardId);
         } else if (isDragSelecting && selectionBox) {
             // Box Select Finalize using AABB
             const box = selectionBox;
