@@ -1,14 +1,25 @@
+// Singleton offscreen canvas for measuring text when no ctx is available
+let internalCtx = null;
+function getInternalCtx() {
+    if (!internalCtx) {
+        const tempCanvas = document.createElement('canvas');
+        internalCtx = tempCanvas.getContext('2d');
+    }
+    return internalCtx;
+}
+
 /**
  * Calculates the canonical layout for a text shape.
  * Single source of truth for Rendering, Hit-Testing, and Overlay.
  * 
- * @param {CanvasRenderingContext2D} ctx 
+ * @param {CanvasRenderingContext2D|null} ctx 
  * @param {import('../schema').BaseShapeSchema} shape 
  * @returns {{ width: number, height: number, offsetX: number, offsetY: number, lines: string[], lineHeight: number }}
  */
 export function getTextLayout(ctx, shape) {
-    ctx.save();
-    ctx.font = `${shape.fontSize || 20}px ${shape.fontFamily || 'sans-serif'}`;
+    const context = ctx || getInternalCtx();
+    context.save();
+    context.font = `${shape.fontSize || 20}px ${shape.fontFamily || 'sans-serif'}`;
 
     const lines = (shape.text || '').split('\n');
     const fontSize = shape.fontSize || 20;
@@ -18,7 +29,7 @@ export function getTextLayout(ctx, shape) {
     const lineWidths = [];
 
     for (const line of lines) {
-        const metrics = ctx.measureText(line);
+        const metrics = context.measureText(line);
         const w = metrics.width;
         lineWidths.push(w);
         maxWidth = Math.max(maxWidth, w);
@@ -44,7 +55,7 @@ export function getTextLayout(ctx, shape) {
     // If shape.y is center, then top-left is at y - height/2
     const offsetY = -height / 2;
 
-    ctx.restore();
+    context.restore();
 
     return {
         width: Math.max(width, 10), // Min width

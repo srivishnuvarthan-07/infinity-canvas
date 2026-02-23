@@ -6,6 +6,7 @@ import { drawDiamond } from './shapes/diamond';
 import { drawText } from './shapes/text';
 import { drawPencil } from './shapes/pencil';
 import rough from 'roughjs';
+import { getTextLayout } from '../utils/textUtils';
 
 export class CanvasRenderer {
     /**
@@ -68,6 +69,9 @@ export class CanvasRenderer {
 
         // Render each shape
         for (const shape of shapes) {
+            if (overlayState.editingShapeId === shape.id) {
+                continue;
+            }
             this.drawShape(shape);
 
             // Draw Overlay (Hover)
@@ -86,7 +90,9 @@ export class CanvasRenderer {
                 // Single Selection: Draw Normal Controls
                 const id = [...selectedIds][0];
                 const shape = shapes.find(s => s.id === id);
-                if (shape) this.drawControls(shape);
+                if (shape && shape.id !== overlayState.editingShapeId) {
+                    this.drawControls(shape);
+                }
             } else {
                 // Multi Selection: Draw Group Bounds
                 this.drawGroupSelection(shapes, selectedIds);
@@ -183,8 +189,9 @@ export class CanvasRenderer {
 
         // Simple bounding box for now
         // Ideally we use the specific shape path, but rect is fine for v1
-        const w = (shape.width || 0) + 10;
-        const h = (shape.height || 0) + 10;
+        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.strokeWidth || 0);
+        const w = (shape.width || 0) + 10 + strokeWidth;
+        const h = (shape.height || 0) + 10 + strokeWidth;
 
         this.ctx.strokeRect(-w / 2, -h / 2, w, h);
 
@@ -200,8 +207,9 @@ export class CanvasRenderer {
         this.ctx.translate(shape.x, shape.y);
         this.ctx.rotate((shape.rotation * Math.PI) / 180);
 
-        const w = (shape.width || 0);
-        const h = (shape.height || 0);
+        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.strokeWidth || 0);
+        const w = (shape.width || 0) + strokeWidth;
+        const h = (shape.height || 0) + strokeWidth;
         const color = '#3b82f6'; // Blue-500
         const handleSize = 10;
 
@@ -239,35 +247,12 @@ export class CanvasRenderer {
 
         // 2. Text (Selection Box Only, No Handles)
         if (shape.type === SHAPE_TYPES.TEXT) {
-            const x = 0;
-            const y = 0;
-            // Width/Height should be roughly correct from shape
-            // Alignment? 
-            // Currently drawText centers it if align is center?
-            // No, drawText draws relative to 0,0 based on align.
-            // But hitTest assumes 0,0 is anchor. 
-            // CanvasRenderer controls are translated to shape.x, shape.y.
-            // If shape.x/y is center, then -w/2 to w/2 is correct.
-            // BUT user wants anchor based. 
-            // IF we changed hitTest to respect align, we must match visuals here.
-
-            let minX, maxX, minY, maxY;
-            const align = shape.textAlign || 'center';
-            // const vAlign = shape.verticalAlign || 'middle';
-
-            if (align === 'left') {
-                minX = 0; maxX = w;
-            } else if (align === 'right') {
-                minX = -w; maxX = 0;
-            } else {
-                minX = -w / 2; maxX = w / 2;
-            }
-            minY = -h / 2; maxY = h / 2; // Assuming middle baseline for now
+            const layout = getTextLayout(this.ctx, shape);
 
             this.ctx.strokeStyle = '#3b82f6';
             this.ctx.lineWidth = 1;
             this.ctx.setLineDash([5, 5]); // Dashed for text selection?
-            this.ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+            this.ctx.strokeRect(layout.offsetX, layout.offsetY, layout.width, layout.height);
             this.ctx.setLineDash([]);
 
             this.ctx.restore();
