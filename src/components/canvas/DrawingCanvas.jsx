@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef } from "react";
 import { useCanvas } from "@/hooks/useCanvas";
 import { Toolbar } from "./Toolbar";
 import { MenuToolbar } from "./MenuToolbar";
@@ -9,7 +10,6 @@ import { TextEditorOverlay } from "./TextEditorOverlay";
 import { CommandMenu } from "./CommandMenu";
 import { CursorOverlay } from "./CursorOverlay";
 import { SelectionOverlay } from "./SelectionOverlay";
-import React, { useState, useEffect, useRef } from "react";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShareModal } from "./ShareModal";
@@ -18,6 +18,7 @@ import { FloatingMenu } from "@/components/layout/FloatingMenu";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
 import { toast } from "sonner";
+
 
 export function DrawingCanvas({
     initialShapes = [],

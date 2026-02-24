@@ -16,8 +16,14 @@ class CloudProvider extends StorageProvider {
                 name: b.name,
                 updatedAt: new Date(b.lastModified || b.updatedAt).getTime(),
                 createdAt: new Date(b.createdAt).getTime(),
-                thumbnail: b.thumbnail,
-                isCloud: true
+                thumbnail: b.thumbnailUrl,
+                isCloud: true,
+                isLive: b.isLive || false,
+                linkAccess: b.linkAccess,
+                visibility: b.visibility,
+                owner: b.owner?._id || b.owner,
+                ownerDetails: b.owner && typeof b.owner === 'object' ? b.owner : null,
+                members: b.members || []
             }));
         } catch (err) {
             console.error("CloudProvider: getBoards failed", err);
@@ -25,17 +31,27 @@ class CloudProvider extends StorageProvider {
         }
     }
 
-    async createBoard(name) {
+    async createBoard(name, options = {}) {
         try {
             // POST to /boards (controller will handle default workspace)
-            const response = await api.post('/boards', { name });
+            const payload = { name };
+            if (options.workspaceId) payload.workspaceId = options.workspaceId;
+
+            const response = await api.post('/boards', payload);
             const b = response.data.data;
             return {
                 id: b._id,
                 name: b.name,
                 updatedAt: new Date(b.lastModified || b.createdAt).getTime(),
                 createdAt: new Date(b.createdAt).getTime(),
-                isCloud: true
+                isCloud: true,
+                thumbnail: b.thumbnailUrl,
+                isLive: b.isLive || false,
+                linkAccess: b.linkAccess,
+                visibility: b.visibility,
+                owner: b.owner?._id || b.owner,
+                ownerDetails: b.owner && typeof b.owner === 'object' ? b.owner : null,
+                members: b.members || []
             };
         } catch (err) {
             console.error("CloudProvider: createBoard failed", err);
@@ -52,7 +68,14 @@ class CloudProvider extends StorageProvider {
                 name: b.name,
                 updatedAt: new Date(b.lastModified || b.updatedAt).getTime(),
                 createdAt: new Date(b.createdAt).getTime(),
-                isCloud: true
+                isCloud: true,
+                thumbnail: b.thumbnailUrl,
+                isLive: b.isLive || false,
+                linkAccess: b.linkAccess,
+                visibility: b.visibility,
+                owner: b.owner?._id || b.owner,
+                ownerDetails: b.owner && typeof b.owner === 'object' ? b.owner : null,
+                members: b.members || []
             };
         } catch (err) {
             console.error("CloudProvider: getBoard failed", err);
@@ -62,13 +85,26 @@ class CloudProvider extends StorageProvider {
 
     async updateBoard(id, updates) {
         try {
-            const response = await api.put(`/boards/${id}`, updates);
+            const payload = { ...updates };
+            if (payload.thumbnail !== undefined) {
+                payload.thumbnailUrl = payload.thumbnail;
+                delete payload.thumbnail;
+            }
+
+            const response = await api.put(`/boards/${id}`, payload);
             const b = response.data.data;
             return {
                 id: b._id,
                 name: b.name,
                 updatedAt: new Date(b.lastModified || b.updatedAt).getTime(),
-                isCloud: true
+                thumbnail: b.thumbnailUrl,
+                isCloud: true,
+                isLive: b.isLive || false,
+                linkAccess: b.linkAccess,
+                visibility: b.visibility,
+                owner: b.owner?._id || b.owner,
+                ownerDetails: b.owner && typeof b.owner === 'object' ? b.owner : null,
+                members: b.members || []
             };
         } catch (err) {
             console.error("CloudProvider: updateBoard failed", err);
@@ -111,6 +147,26 @@ class CloudProvider extends StorageProvider {
             });
         } catch (err) {
             console.error("CloudProvider: saveBoardData failed", err);
+            throw err;
+        }
+    }
+
+    async addMember(boardId, email, role) {
+        try {
+            const response = await api.post(`/boards/${boardId}/members`, { email, role });
+            return response.data.data; // Array of members
+        } catch (err) {
+            console.error("CloudProvider: addMember failed", err);
+            throw err;
+        }
+    }
+
+    async removeMember(boardId, userId) {
+        try {
+            const response = await api.delete(`/boards/${boardId}/members/${userId}`);
+            return response.data.data; // Array of members
+        } catch (err) {
+            console.error("CloudProvider: removeMember failed", err);
             throw err;
         }
     }
