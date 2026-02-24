@@ -31,9 +31,14 @@ const Workspace = () => {
         renameBoard,
         setActiveBoardId,
         updateBoardShapes,
+        updateBoardAccess,
+        addBoardMember,
+        removeBoardMember,
         fetchBoard,
         fetchBoardData,
         getBoardById,
+        boardDataCache,
+        toggleCollaboration,
     } = useBoardStore();
 
     // Active board — pulled from both lists + data cache
@@ -50,7 +55,17 @@ const Workspace = () => {
     } = useLibraryStore();
 
     // Socket Connection
-    const socket = useSocket(activeBoardId);
+    const socket = useSocket();
+
+    useEffect(() => {
+        if (!activeBoard || activeBoard.isLocal) return;
+
+        if (activeBoard.isLive) {
+            socket.connect(activeBoardId);
+        } else {
+            socket.disconnect();
+        }
+    }, [activeBoard?.isLive, activeBoard?.isLocal, activeBoardId, socket]);
 
     // UI State
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -125,7 +140,7 @@ const Workspace = () => {
         );
     }
 
-    if (!activeBoard) {
+    if (!activeBoard || !boardDataCache[activeBoardId]) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-neutral-950 text-neutral-500">
                 <Loader2 className="w-6 h-6 animate-spin" />
@@ -197,10 +212,21 @@ const Workspace = () => {
                     <DrawingCanvas
                         key={activeBoardId}
                         initialShapes={activeBoard.shapes}
-                        onSave={(shapes) => updateBoardShapes(activeBoardId, shapes)}
+                        onSave={(shapes, thumbnail) => updateBoardShapes(activeBoardId, shapes, thumbnail)}
                         socket={socket}
 
+                        boardId={activeBoardId}
                         boardName={activeBoard.name}
+                        ownerId={activeBoard.owner}
+                        isLocal={activeBoard.isLocal}
+                        isLive={activeBoard.isLive}
+                        linkAccess={activeBoard.linkAccess}
+                        visibility={activeBoard.visibility}
+                        members={activeBoard.members}
+                        onToggleLive={(live) => toggleCollaboration(activeBoardId, live)}
+                        onUpdateAccess={(access) => updateBoardAccess(activeBoardId, access)}
+                        onInviteMember={(email, role) => addBoardMember(activeBoardId, email, role)}
+                        onRemoveMember={(userId) => removeBoardMember(activeBoardId, userId)}
                         onRename={(name) => renameBoard(activeBoardId, name)}
                         onBack={() => navigate('/dashboard')}
 
