@@ -1,6 +1,6 @@
 # Infinity Canvas
 
-**Infinity Canvas** is a powerful, infinite whiteboard application built for architects, artists, and cartoonists. Evolving from a client-only canvas into a full-fledged SaaS, it features a robust **Hybrid Architecture** — delivering a blazing-fast, offline-first local experience with seamless cloud synchronization.
+**Infinity Canvas** is a powerful, infinite whiteboard application built for architects, artists, and cartoonists. Evolving from a client-only canvas into a full-fledged SaaS, it features a robust **Hybrid Architecture** — delivering a blazing-fast, offline-first local experience with seamless, real-time cloud collaboration.
 
 ![Infinity Canvas](./public/og-image.png)
 
@@ -8,22 +8,30 @@
 
 ### Core Canvas Engine
 - **Infinite Canvas**: Pan and zoom freely without boundaries.
-- **Shapes**: Rectangle, Diamond, Ellipse, Arrow, Line.
-- **Freehand**: Smooth pencil tool powered by `perfect-freehand`.
-- **Text**: Interactive text boxes with in-place editing.
-- **Eraser**: Intuitive shape removal.
+- **Tools & Shapes**: Select, Rectangle, Diamond, Ellipse, Line, Arrow, Freehand Pencil, Text, Eraser.
+- **Excalidraw-style Aesthetics**: High-quality, hand-drawn "sloppy" rendering for shapes and arrows, complete with padding and smart arrowhead sizing.
+- **Layer Management**: Bring to front, send to back, bring forward, and send backward.
+- **Grouping/Ungrouping**: Select multiple shapes to group them together for scaled resizing and movement.
+- **Text**: Interactive text boxes with precise bounding box calculations and in-place editing.
+
+### Real-Time Collaboration (Live Rooms) 🌐
+- **Multiplayer Synchronized Drawing**: Draw and see others draw in real-time with ultra-low latency via Socket.IO.
+- **Live Cursors & Presence**: See what others are doing with live pointers, user-specific colors, and names.
+- **Live Selection Highlights**: Instantly see which shapes are currently selected or being edited by collaborators.
+- **Throttled Sync Optimization**: High-performance socket events that don't overwhelm the browser during fast drag or resize operations.
+- **Granular Access Control**: Share boards via email invites with Viewer or Editor roles, managed seamlessly through the dashboard setup.
 
 ### Hybrid Architecture (Local & Cloud)
 - **Offline-First**: Guest users can create, edit, and save unlimited boards directly to their device (IndexedDB/localStorage) without signing up.
 - **Authentication**: Secure JWT-based authentication via HTTP-only cookies.
 - **Cloud Sync**: Signed-in users can seamlessly move local boards to the cloud, access them from anywhere, and manage their cloud and local boards independently from the unified Dashboard.
-- **Visual Distinction**: Distinct `💾 Local` and `☁ Cloud` badges ensure you always know where your data lives.
+- **Visual Distinction**: Distinct `💾 Local` and `☁ Cloud` badges ensure you always know where your data lives (along with `🟢 Live` indicators).
 
 ### Smart Styling
 - **Sloppiness Modes**:
   - 🏛️ **Architect**: Clean, precise lines.
   - 🎨 **Artist**: Sketchy, multi-stroke rough style.
-  - 🦸 **Cartoonist**: Bold, stylized appearance.
+  - 🦸 **Cartoonist**: Bold, stylized appearance with hachure fills.
 - **Stroke Styles**: Solid, Dashed, Dotted.
 - **Fill Patterns**: Solid, Hachure, Cross-Hatch.
 - **Colors**: Curated palette of vibrant colors.
@@ -34,6 +42,7 @@
 | **Pan** | `Space` + Drag / Mouse Wheel / `Shift` + Wheel |
 | **Zoom** | `Ctrl` + Wheel / `Meta` + Wheel |
 | **Multi-Select** | `Shift` + Click / Drag Selection |
+| **Group / Ungroup**| Menu Buttons located in Context Toolbar |
 | **Delete** | `Backspace` / `Delete` |
 | **Edit Text** | Double Click on Text |
 | **Undo/Redo** | `Ctrl+Z` / `Ctrl+Y` |
@@ -45,11 +54,13 @@
 - **State Management**: [Zustand](https://zustand-demo.pmnd.rs/) (with sophisticated caching and sync)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/) + [Shadcn UI](https://ui.shadcn.com/)
 - **Icons**: [Lucide React](https://lucide.dev/)
-- **Rendering**: Custom 2D Engine (Canvas API)
+- **Rendering**: Custom 2D Engine (Canvas API) + [Rough.js](https://roughjs.com/)
+- **Sockets**: Socket.IO Client
 
 **Backend (MERN)**
 - **Runtime**: Node.js & Express
 - **Database**: MongoDB & Mongoose
+- **Real-Time Engine**: Socket.IO
 - **Authentication**: JWT, bcryptjs, cookie-parser, and secure HTTP-only configurations.
 - **Security**: Helmet, MongoDB Sanitize, rate limiting, and CORS.
 
@@ -86,19 +97,20 @@
 
 ```
 .
-├── server/             # Backend (Express API)
+├── server/             # Backend (Express API + Socket.IO)
 │   ├── src/
 │   │   ├── config/     # DB & Security configurations
 │   │   ├── middleware/ # Auth & error handling
-│   │   ├── models/     # Mongoose Schemas (User, Board, BoardData, Library)
-│   │   └── modules/    # Controller & Route logic (Auth, Board, Library)
+│   │   ├── models/     # Mongoose Schemas (User, Board, Workspace, Notification)
+│   │   ├── modules/    # Controller & Route logic
+│   │   └── sockets/    # Web-Socket Handlers (Live Collaboration)
 │   └── server.js       # Entry point
 └── src/                # Frontend (React App)
-    ├── components/     # UI Components (Dashboard, Canvas, Layouts)
-    ├── engine/         # Core Visualization Engine
-    ├── hooks/          # React hooks (useCanvas, useBoardStore, useAuth)
+    ├── components/     # UI Components (Dashboard, Canvas, Toolbar, Alerts)
+    ├── engine/         # Core Visualization Engine & Physics (Hit Testing, Resolvers)
+    ├── hooks/          # React hooks (useCanvas, useEngineInteraction, useSockets)
     ├── pages/          # Full page views (Dashboard, Workspace, Auth)
-    └── services/       # Storage abstraction (LocalProvider, CloudProvider, Factory)
+    └── services/       # API Services & Storage abstractors
 ```
 
 ## 🤝 Contributing
