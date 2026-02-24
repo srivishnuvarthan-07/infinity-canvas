@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { SHAPE_TYPES } from '@/engine/schema';
+import { getTextLayout } from '@/engine/utils/textUtils';
+import { resolveConnectorPoint } from '@/engine/physics/hitTest';
 
-export function useEngineState(initialShapes = []) {
+export function useEngineState(initialShapes = [], socket = null) {
     // Canvas State
     const [shapes, setShapes] = useState(initialShapes);
     const [selectedShapeIds, setSelectedShapeIds] = useState(new Set());
@@ -14,6 +17,19 @@ export function useEngineState(initialShapes = []) {
     // Mutable access to current shapes for diffing
     const shapesRef = useRef(shapes);
     useEffect(() => { shapesRef.current = shapes; }, [shapes]);
+
+    // Live Emit for Dragging/Drawing (Throttled)
+    const emitUpdate = useCallback((shapeToUpdate) => {
+        if (!socket || !shapeToUpdate) return;
+        socket.emit('board-action', {
+            action: {
+                id: crypto.randomUUID(),
+                type: 'UPDATE', // Overwrite shape
+                payload: shapeToUpdate,
+                timestamp: new Date()
+            }
+        });
+    }, [socket]);
 
     // History Actions
     // Command Structure: { type: 'ADD'|'REMOVE'|'UPDATE', id: string, prev: Shape, next: Shape }
@@ -55,11 +71,70 @@ export function useEngineState(initialShapes = []) {
         });
 
         setHistoryIndex(prev => {
-            const nextIndex = historyIndex + 1;
+            const nextIndex = prev + 1;
             return prev >= 49 ? 49 : nextIndex;
         });
 
-    }, [historyIndex]);
+        // EMIT ACTIONS TO SOCKET
+        if (socket) {
+            console.log("EMITTING ACTIONS TO SOCKET", commands);
+            commands.forEach(cmd => {
+                socket.emit('board-action', {
+                    action: {
+                        id: crypto.randomUUID(),
+                        type: cmd.type, // 'ADD', 'UPDATE', 'REMOVE'
+                        payload: cmd.type === 'REMOVE' ? { id: cmd.id } : cmd.next,
+                        timestamp: new Date()
+                    }
+                });
+            });
+        }
+
+    }, [historyIndex, socket]);
+
+    // Handle incoming Remote Actions
+    useEffect(() => {
+        if (!socket) return;
+
+        const unsubscribe = socket.on('remote-action', (action) => {
+            console.log("RECEIVED REMOTE ACTION", action);
+            setShapes(current => {
+                const nextMap = new Map(current.map(s => [s.id, s]));
+
+                if (action.type === 'ADD' || action.type === 'UPDATE') {
+                    nextMap.set(action.payload.id, action.payload);
+                } else if (action.type === 'REMOVE' || action.type === 'DELETE') {
+                    const deletedId = action.payload.id;
+                    nextMap.delete(deletedId);
+
+                    const shapeMap = {};
+                    current.forEach(s => shapeMap[s.id] = s);
+
+                    nextMap.forEach((s, key) => {
+                        if (s.type === SHAPE_TYPES.CONNECTOR) {
+                            let updated = { ...s };
+                            let changed = false;
+                            if (s.start && s.start.shapeId === deletedId) {
+                                const pos = resolveConnectorPoint(s.start, shapeMap);
+                                updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+                                changed = true;
+                            }
+                            if (s.end && s.end.shapeId === deletedId) {
+                                const pos = resolveConnectorPoint(s.end, shapeMap);
+                                updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+                                changed = true;
+                            }
+                            if (changed) nextMap.set(key, updated);
+                        }
+                    });
+                }
+
+                return Array.from(nextMap.values());
+            });
+        });
+
+        return unsubscribe;
+    }, [socket]);
 
     const undo = useCallback(() => {
         if (historyIndex < 0) return;
@@ -193,7 +268,23 @@ export function useEngineState(initialShapes = []) {
         setShapes(prev => {
             const newShapes = prev.map(shape => {
                 if (idsSet.has(shape.id)) {
-                    return { ...shape, ...updates };
+                    const newShape = { ...shape, ...updates };
+
+                    // 1️⃣ Recalculate Text Bounds Immediately
+                    if (newShape.type === SHAPE_TYPES.TEXT) {
+                        const styleChanged = 'text' in updates || 'fontSize' in updates || 'fontFamily' in updates || 'textAlign' in updates;
+                        if (styleChanged) {
+                            try {
+                                const layout = getTextLayout(null, newShape);
+                                newShape.width = layout.width;
+                                newShape.height = layout.height;
+                            } catch (e) {
+                                console.warn('Failed to measure text during update', e);
+                            }
+                        }
+                    }
+
+                    return newShape;
                 }
                 return shape;
             });
@@ -324,6 +415,7 @@ export function useEngineState(initialShapes = []) {
         bringToFront,
         sendToBack,
         bringForward,
-        sendBackward
+        sendBackward,
+        emitUpdate
     };
 }

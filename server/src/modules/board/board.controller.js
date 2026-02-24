@@ -25,10 +25,17 @@ exports.getBoards = async (req, res, next) => {
 // @access  Private
 exports.getBoard = async (req, res, next) => {
     try {
-        const board = await Board.findById(req.params.id);
+        const board = await Board.findById(req.params.id)
+            .populate('owner', 'name email')
+            .populate('members.userId', 'name email');
 
         if (!board) {
             return res.status(404).json({ success: false, error: 'Board not found' });
+        }
+
+        const canView = await board.hasAccess(req.user, 'view');
+        if (!canView) {
+            return res.status(401).json({ success: false, error: 'Not authorized to access this board' });
         }
 
         res.status(200).json({
@@ -82,14 +89,50 @@ exports.updateBoard = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Board not found' });
         }
 
-        if (board.owner.toString() !== req.user.id) {
+        const canEdit = await board.hasAccess(req.user, 'edit');
+        if (!canEdit) {
             return res.status(401).json({ success: false, error: 'Not authorized to update this board' });
         }
+
+        // Check if isLive is being toggled ON
+        const wasLive = board.isLive;
+        const isNowLive = req.body.isLive === true;
+
+        // Protect owner field
+        delete req.body.owner;
+        delete req.body.members; // Use separate member endpoints
 
         board = await Board.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true
         });
+
+        // Trigger Live Session Notification
+        if (!wasLive && isNowLive) {
+            const Notification = require('../../models/Notification');
+            const { emitNotification } = require('../../socket.handler');
+
+            board.members.forEach(async (member) => {
+                const memberId = member.userId._id ? member.userId._id.toString() : member.userId.toString();
+                if (memberId !== req.user.id) {
+                    try {
+                        const notif = await Notification.create({
+                            recipient: memberId,
+                            sender: req.user.id,
+                            type: 'session_join',
+                            message: `${req.user.name} started a live session on "${board.name}"`,
+                            boardId: board._id
+                        });
+                        const popNotif = await Notification.findById(notif._id)
+                            .populate('sender', 'name email')
+                            .populate('boardId', 'name');
+                        emitNotification(memberId, popNotif);
+                    } catch (err) {
+                        console.error("Failed to send session_join notification", err);
+                    }
+                }
+            });
+        }
 
         res.status(200).json({
             success: true,
@@ -111,7 +154,8 @@ exports.deleteBoard = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Board not found' });
         }
 
-        if (board.owner.toString() !== req.user.id) {
+        // Only explicitly owners can delete a board
+        if (!req.user || board.owner.toString() !== req.user.id) {
             return res.status(401).json({ success: false, error: 'Not authorized to delete this board' });
         }
 
@@ -142,7 +186,8 @@ exports.getBoardData = async (req, res, next) => {
         }
 
         // Basic check: Owner or Public (if implemented)
-        if (board.owner.toString() !== req.user.id && !board.isPublic) {
+        const canView = await board.hasAccess(req.user, 'view');
+        if (!canView) {
             return res.status(401).json({ success: false, error: 'Not authorized to access this board' });
         }
 
@@ -175,8 +220,9 @@ exports.updateBoardData = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Board not found' });
         }
 
-        if (board.owner.toString() !== req.user.id) {
-            return res.status(401).json({ success: false, error: 'Not authorized to update this board' });
+        const canEdit = await board.hasAccess(req.user, 'edit');
+        if (!canEdit) {
+            return res.status(401).json({ success: false, error: 'Not authorized to update this board data' });
         }
 
         // Find and update or UPSERT
@@ -200,6 +246,106 @@ exports.updateBoardData = async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: boardData
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Add member to board
+// @route   POST /api/boards/:id/members
+// @access  Private (Owner only)
+exports.addBoardMember = async (req, res, next) => {
+    try {
+        const { email, role } = req.body;
+        const board = await Board.findById(req.params.id);
+
+        if (!board) {
+            return res.status(404).json({ success: false, error: 'Board not found' });
+        }
+
+        // Only owner can add members
+        if (board.owner.toString() !== req.user.id) {
+            return res.status(401).json({ success: false, error: 'Not authorized to add members to this board' });
+        }
+
+        const User = require('../../models/User');
+        const userToAdd = await User.findOne({ email });
+
+        if (!userToAdd) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        const userIdToAdd = userToAdd._id.toString();
+
+        // Check if already owner
+        if (board.owner.toString() === userIdToAdd) {
+            return res.status(400).json({ success: false, error: 'User is the owner of this board' });
+        }
+
+        // Check if already a member
+        const isMember = board.members.some(m => m.userId.toString() === userIdToAdd);
+        if (isMember) {
+            return res.status(400).json({ success: false, error: 'User is already a member' });
+        }
+
+        board.members.push({ userId: userToAdd._id, role: role || 'viewer' });
+        await board.save();
+
+        const updatedBoard = await Board.findById(board._id)
+            .populate('owner', 'name email')
+            .populate('members.userId', 'name email');
+
+        // Create and emit notification to the invited user
+        try {
+            const Notification = require('../../models/Notification');
+            const { emitNotification } = require('../../socket.handler');
+            const notif = await Notification.create({
+                recipient: userToAdd._id,
+                sender: req.user.id,
+                type: 'invite',
+                message: `${req.user.name} invited you to the board "${board.name}"`,
+                boardId: board._id
+            });
+            const popNotif = await Notification.findById(notif._id)
+                .populate('sender', 'name email')
+                .populate('boardId', 'name');
+            emitNotification(userToAdd._id, popNotif);
+        } catch (err) {
+            console.error("Failed to send invite notification", err);
+        }
+
+        res.status(200).json({
+            success: true,
+            data: updatedBoard.members
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Remove member from board
+// @route   DELETE /api/boards/:id/members/:userId
+// @access  Private (Owner only)
+exports.removeBoardMember = async (req, res, next) => {
+    try {
+        const board = await Board.findById(req.params.id);
+
+        if (!board) {
+            return res.status(404).json({ success: false, error: 'Board not found' });
+        }
+
+        // Only owner can remove members
+        if (board.owner.toString() !== req.user.id) {
+            return res.status(401).json({ success: false, error: 'Not authorized to remove members from this board' });
+        }
+
+        board.members = board.members.filter(m => m.userId.toString() !== req.params.userId);
+        await board.save();
+
+        res.status(200).json({
+            success: true,
+            data: board.members
         });
     } catch (err) {
         next(err);

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     Menu, FolderOpen, Save, Download, RotateCcw,
-    Check, Cloud, ChevronRight, LogIn, LogOut, User
+    Check, Cloud, ChevronRight, LogIn, LogOut, User, HardDrive
 } from "lucide-react";
 import {
     DropdownMenu,
@@ -20,6 +20,7 @@ export function FloatingMenu({
     boardName,
     onRename,
     isSaved,
+    isLocal,
     onOpen,
     onSaveAs,
     onExport,
@@ -115,7 +116,7 @@ export function FloatingMenu({
             {/* Save Status & Sync */}
             <div className="flex items-center pr-2 text-neutral-400">
                 {isSaved ? (
-                    <Cloud className="w-4 h-4 text-green-500/80" />
+                    isLocal ? <HardDrive className="w-4 h-4 text-amber-500/80" /> : <Cloud className="w-4 h-4 text-green-500/80" />
                 ) : (
                     <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
                 )}

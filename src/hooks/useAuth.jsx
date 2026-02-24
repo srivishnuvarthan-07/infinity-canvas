@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
     }, [checkAuth]);
 
     // Sync with Board Store
-    const { setUser: setStoreUser } = useBoardStore();
+    const setStoreUser = useBoardStore(state => state.setUser);
     useEffect(() => {
         setStoreUser(user);
     }, [user, setStoreUser]);

@@ -1,44 +1,54 @@
 import { MousePointer2 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 
-// Mock cursors data
-const MOCK_CURSORS = [
-    { id: 1, x: 200, y: 150, name: "Alice", color: "#ef4444" }, // Red
-    { id: 2, x: 800, y: 400, name: "Bob", color: "#3b82f6" },   // Blue
-    { id: 3, x: 500, y: 300, name: "Charlie", color: "#22c55e" } // Green
-];
+function LiveCursor({ cursor, viewport }) {
+    const [opacity, setOpacity] = useState(1);
 
-export function CursorOverlay({ scale = 1, offset = { x: 0, y: 0 } }) {
-    // In a real app, we'd subscribe to a websocket or store for cursor/presence data
-    // and transform coordinates based on the current canvas viewport (pan/zoom).
+    // Fade out after 3 seconds of inactivity
+    useEffect(() => {
+        setOpacity(1); // Wake up on movement
+        const t = setTimeout(() => setOpacity(0), 3000); // 3 seconds idle
+        return () => clearTimeout(t);
+    }, [cursor.x, cursor.y]);
 
-    // For now, we'll just display them at absolute positions to simulate the UI.
-    // In a real implementation, we would subtract the screen offset and multiply by scale
-    // to keep them "pinned" to the canvas world coordinates.
+    // Transform world coordinates to screen coordinates
+    const screenX = cursor.x * viewport.zoom + viewport.x;
+    const screenY = cursor.y * viewport.zoom + viewport.y;
+
+    return (
+        <div
+            className="absolute flex flex-col items-start transition-all ease-out"
+            style={{
+                left: 0,
+                top: 0,
+                transform: `translate(${screenX}px, ${screenY}px)`,
+                opacity: opacity,
+                // Fast transition for movement (75ms), slow transition for fade out (500ms)
+                transitionDuration: opacity === 1 ? '75ms' : '500ms',
+                zIndex: opacity === 1 ? 50 : 40 // Push idle cursors back
+            }}
+        >
+            <MousePointer2
+                className="w-5 h-5 fill-current drop-shadow-md"
+                style={{ color: cursor.color || '#3b82f6' }}
+            />
+            <div
+                className="px-2 py-0.5 rounded-md text-[10px] whitespace-nowrap font-bold text-white shadow-sm ml-4 -mt-2"
+                style={{ backgroundColor: cursor.color || '#3b82f6' }}
+            >
+                {cursor.displayName || 'Guest'}
+            </div>
+        </div>
+    );
+}
+
+export function CursorOverlay({ cursors = [], viewport = { x: 0, y: 0, zoom: 1 } }) {
+    if (!cursors.length) return null;
 
     return (
         <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
-            {MOCK_CURSORS.map((cursor) => (
-                <div
-                    key={cursor.id}
-                    className="absolute transition-all duration-100 ease-linear flex flex-col items-start"
-                    style={{
-                        left: cursor.x, // + offset.x (if we had viewport integration)
-                        top: cursor.y,  // + offset.y
-                        transform: `translate(0, 0)`, // simple mock
-                    }}
-                >
-                    <MousePointer2
-                        className="w-5 h-5 fill-current"
-                        style={{ color: cursor.color }}
-                    />
-                    <div
-                        className="px-2 py-0.5 rounded-md text-[10px] font-bold text-white shadow-sm ml-4 -mt-2"
-                        style={{ backgroundColor: cursor.color }}
-                    >
-                        {cursor.name}
-                    </div>
-                </div>
+            {cursors.map((cursor) => (
+                <LiveCursor key={cursor.userId} cursor={cursor} viewport={viewport} />
             ))}
         </div>
     );

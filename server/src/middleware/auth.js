@@ -46,3 +46,29 @@ exports.authorize = (...roles) => {
         next();
     };
 };
+
+// Extract user if token exists, but don't fail if it doesn't
+exports.getPermissiveUser = async (req, res, next) => {
+    let token;
+
+    if (
+        req.headers.authorization &&
+        req.headers.authorization.startsWith('Bearer')
+    ) {
+        token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    }
+
+    if (!token) {
+        return next();
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = await User.findById(decoded.id);
+        next();
+    } catch (err) {
+        next();
+    }
+};

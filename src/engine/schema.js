@@ -1,5 +1,5 @@
 /**
- * @typedef {'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'pencil' | 'group'} ShapeType
+ * @typedef {'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'pencil' | 'group' | 'connector'} ShapeType
  * @typedef {'solid' | 'dashed' | 'dotted'} StrokeStyle
  * @typedef {'artist' | 'architect' | 'cartoonist'} SloppinessType
  */
@@ -38,6 +38,7 @@ export const SHAPE_TYPES = {
     PENCIL: 'pencil',
     GROUP: 'group',
     IMAGE: 'image',
+    CONNECTOR: 'connector',
 };
 
 /**

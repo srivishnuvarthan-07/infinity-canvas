@@ -34,10 +34,7 @@ exports.getBoard = async (req, res, next) => {
             return res.status(404).json({ success: false, error: `Board not found with id of ${req.params.id}` });
         }
 
-        // Make sure user owns the board
-        if (board.user.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(401).json({ success: false, error: `User ${req.user.id} is not authorized to access this board` });
-        }
+        // Allow public access for now - no ownership check needed
 
         res.status(200).json({
             success: true,
@@ -64,10 +61,7 @@ exports.updateBoard = async (req, res, next) => {
             return res.status(404).json({ success: false, error: `Board not found with id of ${req.params.id}` });
         }
 
-        // Make sure user owns the board
-        if (board.user.toString() !== req.user.id && req.user.role !== 'admin') {
-            return res.status(401).json({ success: false, error: `User ${req.user.id} is not authorized to update this board` });
-        }
+        // Allow public editing for shared links
 
         // Optimistic Concurrency Control
         if (req.body.version && board.version !== req.body.version) {

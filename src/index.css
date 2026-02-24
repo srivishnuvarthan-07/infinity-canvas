@@ -214,4 +214,23 @@
     touch-action: none;
     user-select: none;
   }
+
+  /* Calm Spatial Studio Dashboard Utilities */
+  .dashboard-bg {
+    @apply bg-[#ECEBE8];
+    background-image: 
+      radial-gradient(circle at 50% 50%, #F6F5F3 0%, #ECEBE8 100%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E");
+    background-attachment: fixed;
+  }
+
+  .spatial-card {
+    @apply bg-white rounded-2xl border border-black/[0.04] transition-all duration-300;
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  }
+
+  .spatial-card:hover {
+    @apply -translate-y-[2px];
+    box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.06), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+  }
 }

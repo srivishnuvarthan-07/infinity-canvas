@@ -13,17 +13,17 @@ const { protect } = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const { createBoardSchema, updateBoardSchema } = require('../validations/board.validation');
 
-router.use(protect); // Protect all routes
+// router.use(protect); // Protect all routes
 
 router
     .route('/')
-    .get(getBoards)
-    .post(validate(createBoardSchema), createBoard);
+    .get(protect, getBoards)
+    .post(protect, validate(createBoardSchema), createBoard);
 
 router
     .route('/:id')
     .get(getBoard)
     .put(validate(updateBoardSchema), updateBoard)
-    .delete(deleteBoard);
+    .delete(protect, deleteBoard);
 
 module.exports = router;
