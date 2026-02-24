@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { hitTest, hitTestControls } from '@/engine/physics/hitTest';
+import { hitTest, hitTestControls, getClosestAnchor, resolveConnectorPoint } from '@/engine/physics/hitTest';
 import { createBaseSchema, SHAPE_TYPES } from '@/engine/schema';
 import { calculateResize, calculateRotation } from '@/engine/physics/resize';
 import { measureTextShape } from '@/engine/utils/textUtils';
@@ -134,10 +134,13 @@ export function useEngineInteraction({
             let hitShape = null;
             const candidateIds = new Set(candidates.map(c => c.id));
 
+            const shapeMap = {};
+            shapes.forEach(s => shapeMap[s.id] = s);
+
             // Narrow Phase
             for (let i = shapes.length - 1; i >= 0; i--) {
                 if (candidateIds.has(shapes[i].id)) {
-                    if (hitTest(shapes[i], x, y, viewport.zoom)) {
+                    if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
                         hitShape = shapes[i];
                         break;
                     }
@@ -145,7 +148,26 @@ export function useEngineInteraction({
             }
 
             if (hitShape) {
-                setShapes(prev => prev.filter(s => s.id !== hitShape.id));
+                setShapes(prev => {
+                    return prev.filter(s => s.id !== hitShape.id).map(s => {
+                        if (s.type === SHAPE_TYPES.CONNECTOR) {
+                            let updated = { ...s };
+                            let changed = false;
+                            if (s.start && s.start.shapeId === hitShape.id) {
+                                const pos = resolveConnectorPoint(s.start, shapeMap);
+                                updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+                                changed = true;
+                            }
+                            if (s.end && s.end.shapeId === hitShape.id) {
+                                const pos = resolveConnectorPoint(s.end, shapeMap);
+                                updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+                                changed = true;
+                            }
+                            return changed ? updated : s;
+                        }
+                        return s;
+                    });
+                });
             }
             return;
         }
@@ -158,10 +180,10 @@ export function useEngineInteraction({
             switch (activeTool) {
                 case 'rectangle': type = SHAPE_TYPES.RECTANGLE; break;
                 case 'ellipse': type = SHAPE_TYPES.ELLIPSE; break;
-                case 'line': type = SHAPE_TYPES.LINE; break;
+                case 'line': type = SHAPE_TYPES.CONNECTOR; break;
                 case 'diamond': type = SHAPE_TYPES.DIAMOND; break;
                 case 'text': type = SHAPE_TYPES.TEXT; break;
-                case 'arrow': type = SHAPE_TYPES.ARROW; break;
+                case 'arrow': type = SHAPE_TYPES.CONNECTOR; break;
                 case 'pencil': type = SHAPE_TYPES.PENCIL; break;
                 case 'draw': type = SHAPE_TYPES.PENCIL; break;
             }
@@ -169,9 +191,13 @@ export function useEngineInteraction({
             if (type) {
                 const newShape = createBaseSchema(id, type, x, y);
 
-                // Init Points
-                if (type === SHAPE_TYPES.LINE || type === SHAPE_TYPES.ARROW) {
-                    newShape.points = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+                if (type === SHAPE_TYPES.CONNECTOR) {
+                    newShape.variant = activeTool === 'arrow' ? 'arrow' : 'line';
+                    newShape.arrowType = 'straight';
+
+                    newShape.start = { x, y, shapeId: null, anchor: null };
+                    newShape.end = { x, y, shapeId: null, anchor: null };
+                    newShape.mid = { x, y, isManual: false };
                 } else if (type === SHAPE_TYPES.PENCIL) {
                     newShape.points = [{ x: 0, y: 0 }];
                 }
@@ -221,11 +247,14 @@ export function useEngineInteraction({
         }
 
         // 4. Check Controls (Resizing)
+        const shapeMap = {};
+        shapes.forEach(s => shapeMap[s.id] = s);
+
         if (selectedShapeIds.size === 1) {
             const [id] = selectedShapeIds;
             const selectedShape = shapes.find(s => s.id === id);
             if (selectedShape) {
-                const handle = hitTestControls(selectedShape, x, y, viewport.zoom);
+                const handle = hitTestControls(selectedShape, x, y, viewport.zoom, shapeMap);
                 if (handle) {
                     setIsResizing(true);
                     setActiveHandle(handle);
@@ -246,7 +275,7 @@ export function useEngineInteraction({
         // 5. Hit Test (Selection / Dragging)
         let hitShape = null;
         for (let i = shapes.length - 1; i >= 0; i--) {
-            if (hitTest(shapes[i], x, y, viewport.zoom)) {
+            if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
                 hitShape = shapes[i];
                 break;
             }
@@ -283,7 +312,12 @@ export function useEngineInteraction({
                 setDragStartPos({ x, y });
                 const initPos = new Map();
                 shapes.forEach(s => {
-                    if (ids.has(s.id)) initPos.set(s.id, { x: s.x, y: s.y });
+                    initPos.set(s.id, {
+                        x: s.x, y: s.y,
+                        start: s.start ? { ...s.start } : undefined,
+                        mid: s.mid ? { ...s.mid } : undefined,
+                        end: s.end ? { ...s.end } : undefined
+                    });
                 });
                 setInitialShapePositions(initPos);
                 canvasRef.current.style.cursor = 'grabbing';
@@ -316,20 +350,56 @@ export function useEngineInteraction({
             return;
         }
 
+        const shapeMap = {};
+        shapes.forEach(s => shapeMap[s.id] = s);
+
         // Eraser
         if (activeTool === 'eraser') {
             canvasRef.current.style.cursor = 'crosshair';
             if (isErasing.current) {
                 let hitShape = null;
                 for (let i = shapes.length - 1; i >= 0; i--) {
-                    if (hitTest(shapes[i], x, y, viewport.zoom)) {
+                    if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
                         hitShape = shapes[i]; break;
                     }
                 }
-                if (hitShape) setShapes(prev => prev.filter(s => s.id !== hitShape.id));
+                if (hitShape) {
+                    setShapes(prev => {
+                        return prev.filter(s => s.id !== hitShape.id).map(s => {
+                            if (s.type === SHAPE_TYPES.CONNECTOR) {
+                                let updated = { ...s };
+                                let changed = false;
+                                if (s.start && s.start.shapeId === hitShape.id) {
+                                    const pos = resolveConnectorPoint(s.start, shapeMap);
+                                    updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+                                    changed = true;
+                                }
+                                if (s.end && s.end.shapeId === hitShape.id) {
+                                    const pos = resolveConnectorPoint(s.end, shapeMap);
+                                    updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+                                    changed = true;
+                                }
+                                return changed ? updated : s;
+                            }
+                            return s;
+                        });
+                    });
+                }
             }
             setHoveredShapeId(null);
             return;
+        }
+
+        let dragGlowHitShapeId = null;
+        if (isCreating || (isResizing && (activeHandle === 'start' || activeHandle === 'end'))) {
+            for (let i = shapes.length - 1; i >= 0; i--) {
+                if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
+                    if (!selectedShapeIds.has(shapes[i].id)) {
+                        dragGlowHitShapeId = shapes[i].id;
+                        break;
+                    }
+                }
+            }
         }
 
         // Creation
@@ -339,40 +409,43 @@ export function useEngineInteraction({
             const startY = dragOffset.startY;
 
             setShapes(prev => prev.map(shape => {
-                if (shape.id !== creationId) return shape;
+                let s = shape;
+                if (s.id === dragGlowHitShapeId && !s.isHighlighted) s = { ...s, isHighlighted: true };
+                else if (s.id !== dragGlowHitShapeId && s.isHighlighted) s = { ...s, isHighlighted: false };
 
-                if (shape.type === SHAPE_TYPES.PENCIL) {
-                    const newShape = { ...shape, points: [...(shape.points || []), { x: x - startX, y: y - startY }] };
+                if (s.id !== creationId) return s;
+
+                if (s.type === SHAPE_TYPES.PENCIL) {
+                    const newShape = { ...s, points: [...(s.points || []), { x: x - startX, y: y - startY }] };
                     if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
-                if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
-                    const startX = dragOffset.startX;
-                    const startY = dragOffset.startY;
-                    const w = Math.abs(x - startX);
-                    const h = Math.abs(y - startY);
-                    const centerX = startX + (x - startX) / 2;
-                    const centerY = startY + (y - startY) / 2;
+                if (s.type === SHAPE_TYPES.CONNECTOR) {
+                    let hitShape = null;
+                    for (let i = shapes.length - 1; i >= 0; i--) {
+                        if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
+                            if (shapes[i].id !== s.id && shapes[i].id !== s.start.shapeId) {
+                                hitShape = shapes[i]; break;
+                            }
+                        }
+                    }
 
-                    // Points relative to center
-                    // Start (startX, startY) - Center (centerX, centerY)
-                    const p0 = { x: startX - centerX, y: startY - centerY };
-                    const p1 = { x: x - centerX, y: y - centerY };
-
-                    return {
-                        ...shape,
-                        x: centerX,
-                        y: centerY,
-                        width: w,
-                        height: h,
-                        points: [p0, p1]
+                    const newEnd = { x, y, shapeId: hitShape ? hitShape.id : null, anchor: hitShape ? getClosestAnchor(hitShape, { x, y }) : null };
+                    const newMid = {
+                        x: s.start.x + (newEnd.x - s.start.x) / 2,
+                        y: s.start.y + (newEnd.y - s.start.y) / 2,
+                        isManual: false
                     };
+
+                    const newShape = { ...s, end: newEnd, mid: newMid };
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                    return newShape;
                 }
 
                 const left = Math.min(startX, x);
                 const top = Math.min(startY, y);
                 const newShape = {
-                    ...shape,
+                    ...s,
                     x: left + Math.abs(x - startX) / 2,
                     y: top + Math.abs(y - startY) / 2,
                     width: Math.abs(x - startX),
@@ -388,80 +461,90 @@ export function useEngineInteraction({
         if (isResizing && selectedShapeIds.size === 1 && activeHandle) {
             const resizeId = [...selectedShapeIds][0];
             setShapes(prev => prev.map(shape => {
-                if (shape.id !== resizeId) return shape;
+                let s = shape;
+                if (s.id === dragGlowHitShapeId && !s.isHighlighted) s = { ...s, isHighlighted: true };
+                else if (s.id !== dragGlowHitShapeId && s.isHighlighted) s = { ...s, isHighlighted: false };
 
-                // Rotation
-                if (activeHandle === 'rot') {
-                    const newShape = { ...shape, rotation: calculateRotation(shape, x, y) };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                    return newShape;
-                }
-
-                // Line/Arrow Endpoint
-                if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
-                    if (activeHandle === 'end') {
-                        const dx = x - shape.x; const dy = y - shape.y;
-                        const rad = -(shape.rotation * Math.PI) / 180;
-                        const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
-                        const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
-                        return { ...shape, points: [shape.points[0], { x: rx, y: ry }] };
-                    } else if (activeHandle === 'start') {
-                        // Simplify: Just don't handle start for now or use complex logic
-                        return shape;
-                    }
-                }
-
-                const updates = calculateResize(shape, activeHandle, x, y, {
-                    ...startDimensions, startMouseX: dragOffset.startX, startMouseY: dragOffset.startY
-                });
-
-                if (updates) {
-                    // Pencil Scaling
-                    if (shape.type === SHAPE_TYPES.PENCIL && startDimensions.points) {
-                        const scaleX = updates.width / startDimensions.width;
-                        const scaleY = updates.height / startDimensions.height;
-                        const newPoints = startDimensions.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
-                        return { ...shape, ...updates, points: newPoints };
-                    }
-
-                    // Group Scaling
-                    if (shape.type === SHAPE_TYPES.GROUP && startDimensions.children) {
-                        const scaleX = updates.width / startDimensions.width;
-                        const scaleY = updates.height / startDimensions.height;
-
-                        const newChildren = startDimensions.children.map(child => {
-                            const nx = child.x * scaleX;
-                            const ny = child.y * scaleY;
-                            const nw = child.width * scaleX;
-                            const nh = child.height * scaleY;
-                            let nPoints = child.points;
-                            if (child.points) {
-                                nPoints = child.points.map(p => ({
-                                    x: p.x * scaleX,
-                                    y: p.y * scaleY
-                                }));
-                            }
-
-                            return {
-                                ...child,
-                                x: nx,
-                                y: ny,
-                                width: nw,
-                                height: nh,
-                                points: nPoints
-                            };
-                        });
-
-                        const newShape = { ...shape, ...updates, children: newChildren };
+                if (s.id === resizeId) {
+                    // Rotation
+                    if (activeHandle === 'rot') {
+                        const newShape = { ...s, rotation: calculateRotation(s, x, y) };
                         if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                         return newShape;
                     }
 
-                    const newShape = { ...shape, ...updates };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                    return newShape;
+                    // Connector Endpoints
+                    if (s.type === SHAPE_TYPES.CONNECTOR) {
+                        const handle = activeHandle;
+                        let newShape = { ...s };
+
+                        if (handle === 'start' || handle === 'end') {
+                            if (handle === 'start') {
+                                newShape.start = { x, y, shapeId: null, anchor: null };
+                            } else {
+                                newShape.end = { x, y, shapeId: null, anchor: null };
+                            }
+                        } else if (handle === 'mid') {
+                            newShape.mid = { x, y, isManual: true };
+                        }
+                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                        return newShape;
+                    }
+
+                    const updates = calculateResize(s, activeHandle, x, y, {
+                        ...startDimensions, startMouseX: dragOffset.startX, startMouseY: dragOffset.startY
+                    });
+
+                    if (updates) {
+                        // Pencil Scaling
+                        if (s.type === SHAPE_TYPES.PENCIL && startDimensions.points) {
+                            const scaleX = updates.width / startDimensions.width;
+                            const scaleY = updates.height / startDimensions.height;
+                            const newPoints = startDimensions.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
+                            const newShape = { ...s, ...updates, points: newPoints };
+                            if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                            return newShape;
+                        }
+
+                        // Group Scaling
+                        if (s.type === SHAPE_TYPES.GROUP && startDimensions.children) {
+                            const scaleX = updates.width / startDimensions.width;
+                            const scaleY = updates.height / startDimensions.height;
+
+                            const newChildren = startDimensions.children.map(child => {
+                                const nx = child.x * scaleX;
+                                const ny = child.y * scaleY;
+                                const nw = child.width * scaleX;
+                                const nh = child.height * scaleY;
+                                let nPoints = child.points;
+                                if (child.points) {
+                                    nPoints = child.points.map(p => ({
+                                        x: p.x * scaleX,
+                                        y: p.y * scaleY
+                                    }));
+                                }
+
+                                return {
+                                    ...child,
+                                    x: nx,
+                                    y: ny,
+                                    width: nw,
+                                    height: nh,
+                                    points: nPoints
+                                };
+                            });
+
+                            const newShape = { ...s, ...updates, children: newChildren };
+                            if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                            return newShape;
+                        }
+
+                        const newShape = { ...s, ...updates };
+                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                        return newShape;
+                    }
                 }
-                return shape;
+                return s;
             }));
             return;
         }
@@ -471,36 +554,67 @@ export function useEngineInteraction({
             const dx = x - dragStartPos.x;
             const dy = y - dragStartPos.y;
             setShapes(prev => prev.map(s => {
-                if (initialShapePositions.has(s.id)) {
-                    const start = initialShapePositions.get(s.id);
-                    const newShape = { ...s, x: start.x + dx, y: start.y + dy };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                const init = initialShapePositions.get(s.id);
+                if (!init) return s;
+
+                // 1. Explicitly selected shapes
+                if (selectedShapeIds.has(s.id)) {
+                    if (s.type === SHAPE_TYPES.CONNECTOR) {
+                        const newShape = {
+                            ...s,
+                            x: init.x + dx, y: init.y + dy,
+                            start: init.start ? {
+                                ...init.start,
+                                x: init.start.shapeId ? init.start.x : init.start.x + dx,
+                                y: init.start.shapeId ? init.start.y : init.start.y + dy
+                            } : s.start,
+                            mid: init.mid ? {
+                                ...init.mid,
+                                x: init.mid.x + dx,
+                                y: init.mid.y + dy
+                            } : s.mid,
+                            end: init.end ? {
+                                ...init.end,
+                                x: init.end.shapeId ? init.end.x : init.end.x + dx,
+                                y: init.end.shapeId ? init.end.y : init.end.y + dy
+                            } : s.end,
+                        };
+                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                        return newShape;
+                    }
+                    const newShape = { ...s, x: init.x + dx, y: init.y + dy };
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
+
+
                 return s;
             }));
             canvasRef.current.style.cursor = 'grabbing';
-            return;
-        }
-
-        // Drag Select
-        if (isDragSelecting) {
+            // DO NOT RETURN HERE either! Let glow proceed
+        } else if (isDragSelecting) {
+            // Drag Select
             setSelectionBox(prev => ({ ...prev, currentX: x, currentY: y }));
+            // We DO return here because we don't need glow for selection boxes
             return;
         }
 
-        // Hover
+        // Hover & Glow
         let cursor = 'default';
+        dragGlowHitShapeId = null;
+
         if (selectedShapeIds.size === 1) {
             const [id] = selectedShapeIds;
             const s = shapes.find(sh => sh.id === id);
-            if (s && hitTestControls(s, x, y, viewport.zoom)) cursor = 'pointer'; // Simplification
+            if (s && hitTestControls(s, x, y, viewport.zoom, shapeMap)) {
+                cursor = 'pointer'; // Simplification
+            }
         }
 
         if (cursor === 'default') {
             let hit = null;
             for (let i = shapes.length - 1; i >= 0; i--) {
-                if (hitTest(shapes[i], x, y, viewport.zoom)) { hit = shapes[i]; break; }
+                if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) { hit = shapes[i]; break; }
             }
             if (hit) {
                 cursor = 'move';
@@ -510,6 +624,11 @@ export function useEngineInteraction({
             }
         }
         canvasRef.current.style.cursor = cursor;
+
+        // Ensure we clear out highlights if there isn't a drag event actively driving logic above
+        if (!dragGlowHitShapeId && shapes.some(s => s.isHighlighted)) {
+            setShapes(prev => prev.map(s => s.isHighlighted ? { ...s, isHighlighted: false } : s));
+        }
 
     }, [canvasRef, toWorld, isPanning, activeTool, isErasing, shapes, viewport.zoom, setShapes, isCreating, selectedShapeIds, dragOffset, isResizing, activeHandle, startDimensions, isDragging, dragStartPos, initialShapePositions, isDragSelecting, setHoveredShapeId, setSelectionBox]);
 
@@ -549,11 +668,16 @@ export function useEngineInteraction({
                         if (s.width > 5 || s.height > 5) return true;
                         // Force keep lines if they have length (width/height might be small if horizontal/vertical)
                         if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (s.width > 5 || s.height > 5)) return true;
+                        if (s.type === SHAPE_TYPES.CONNECTOR && s.start && s.end) {
+                            const dx = s.end.x - s.start.x;
+                            const dy = s.end.y - s.start.y;
+                            if (Math.sqrt(dx * dx + dy * dy) > 10) return true;
+                        }
                         return false;
                     }
                     return true;
                 });
-                saveState(newShapes, boardId);
+                saveState(newShapes);
                 return newShapes;
             });
             if (setActiveTool) setActiveTool('select');
@@ -566,9 +690,17 @@ export function useEngineInteraction({
             const y1 = Math.min(box.startY, box.currentY); const y2 = Math.max(box.startY, box.currentY);
             const hitIds = new Set();
             shapes.forEach(s => {
-                const sx1 = s.x - s.width / 2; const sx2 = s.x + s.width / 2;
-                const sy1 = s.y - s.height / 2; const sy2 = s.y + s.height / 2;
-                if (sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1) hitIds.add(s.id);
+                if (s.type === SHAPE_TYPES.CONNECTOR && s.start && s.end) {
+                    const minX = Math.min(s.start.x, s.end.x, s.mid ? s.mid.x : s.start.x);
+                    const maxX = Math.max(s.start.x, s.end.x, s.mid ? s.mid.x : s.start.x);
+                    const minY = Math.min(s.start.y, s.end.y, s.mid ? s.mid.y : s.start.y);
+                    const maxY = Math.max(s.start.y, s.end.y, s.mid ? s.mid.y : s.start.y);
+                    if (minX < x2 && maxX > x1 && minY < y2 && maxY > y1) hitIds.add(s.id);
+                } else {
+                    const sx1 = s.x - s.width / 2; const sx2 = s.x + s.width / 2;
+                    const sy1 = s.y - s.height / 2; const sy2 = s.y + s.height / 2;
+                    if (sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1) hitIds.add(s.id);
+                }
             });
             setSelectedShapeIds(hitIds);
         }

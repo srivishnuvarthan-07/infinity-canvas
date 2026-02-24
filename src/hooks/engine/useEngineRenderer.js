@@ -224,13 +224,12 @@ export function useEngineRenderer({
             // If I draw Shape in Static, I lose the ability to draw Selection on top unless I re-draw stroke?
             // Or I just draw the Selection UI here.
 
-            // Simplest: Call render with EMPTY shapes array but valid selection data?
-            rendererRef.current.render([], {
+            rendererRef.current.render(shapesRef.current, {
                 hoveredId: hoveredIdRef.current,
                 selectedIds: selectedIdsRef.current,
                 selectionBox: selectionBoxRef.current,
                 editingShapeId: editingShapeIdRef.current
-            }, viewportRef.current, { clear: false });
+            }, viewportRef.current, { clear: false, drawShapes: false });
         }
 
         // Wait, does CanvasRenderer.render CLEAR the canvas?
