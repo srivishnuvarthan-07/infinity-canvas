@@ -3,6 +3,8 @@ import { DRAWING_COLORS } from "@/types/canvas";
 import { useCustomEngine } from "./useCustomEngine";
 import { exportToPng } from "@/engine/utils/export";
 import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file";
+import { resolveConnectorPoint } from "@/engine/physics/hitTest";
+import { SHAPE_TYPES } from "@/engine/schema";
 
 /**
  * useCanvas Hook - Custom Engine Version
@@ -39,6 +41,7 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     clearCanvas,
     viewport: customViewport,
     selectedShapeIds,
+    setSelectedShapeIds,
     groupShapes,
     ungroupShapes,
     bringToFront,
@@ -127,12 +130,33 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
   // Action Adapters
   const deleteSelected = () => {
     if (!selectedShapeIds || selectedShapeIds.size === 0) return;
-    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id));
+
+    const shapeMap = {};
+    customShapes.forEach(s => shapeMap[s.id] = s);
+
+    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id)).map(s => {
+      if (s.type === SHAPE_TYPES.CONNECTOR) {
+        let updated = { ...s };
+        let changed = false;
+        if (s.start && s.start.shapeId && selectedShapeIds.has(s.start.shapeId)) {
+          const pos = resolveConnectorPoint(s.start, shapeMap);
+          updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+          changed = true;
+        }
+        if (s.end && s.end.shapeId && selectedShapeIds.has(s.end.shapeId)) {
+          const pos = resolveConnectorPoint(s.end, shapeMap);
+          updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
+          changed = true;
+        }
+        return changed ? updated : s;
+      }
+      return s;
+    });
+
     setShapes(newShapes);
     saveState(newShapes); // Add to history
-    // Clear selection (though engine might handle this if shapes are gone, safer to clear)
-    // actually useCustomEngine -> useEngineState might need manual clear if we setShapes directly
-    // But for now let's hope the engine reconciles or we can't easily access setSelectedShapeIds here without destructuring it from useCustomEngine
+    // Clear selection
+    setSelectedShapeIds(new Set());
   };
 
   const handleClear = () => {

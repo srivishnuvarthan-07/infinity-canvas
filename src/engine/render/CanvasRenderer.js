@@ -5,6 +5,7 @@ import { drawLine } from './shapes/line';
 import { drawDiamond } from './shapes/diamond';
 import { drawText } from './shapes/text';
 import { drawPencil } from './shapes/pencil';
+import { drawConnector } from './shapes/connector';
 import rough from 'roughjs';
 import { getTextLayout } from '../utils/textUtils';
 
@@ -67,19 +68,21 @@ export class CanvasRenderer {
         this.ctx.translate(viewport.x, viewport.y);
         this.ctx.scale(viewport.zoom, viewport.zoom);
 
+        // Build a fresh shape map for this frame
+        const shapeMap = {};
+        for (const shape of shapes) {
+            shapeMap[shape.id] = shape;
+        }
+
         // Render each shape
         for (const shape of shapes) {
-            if (overlayState.editingShapeId === shape.id) {
-                continue;
+            if (options.drawShapes !== false && overlayState.editingShapeId !== shape.id) {
+                this.drawShape(shape, shapeMap);
             }
-            this.drawShape(shape);
 
             // Draw Overlay (Hover)
-            // Note: overlayState.hoveredId is legacy?
-            // overlayState now probably has multiple IDs?
-            // Assuming hoveredId is still single string for valid hover.
             if (shape.id === overlayState.hoveredId && (!overlayState.selectedIds || !overlayState.selectedIds.has(shape.id))) {
-                this.drawSelectionOutline(shape, 'rgba(0, 150, 255, 0.3)');
+                this.drawGlow(shape);
             }
         }
 
@@ -199,10 +202,10 @@ export class CanvasRenderer {
     }
 
     /**
-     * Draws selection controls (box + handles)
+     * Draws a soft glow effect for hovered shapes or connector targets
      * @param {import('../schema').BaseShapeSchema} shape 
      */
-    drawControls(shape) {
+    drawGlow(shape) {
         this.ctx.save();
         this.ctx.translate(shape.x, shape.y);
         this.ctx.rotate((shape.rotation * Math.PI) / 180);
@@ -210,7 +213,40 @@ export class CanvasRenderer {
         const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.strokeWidth || 0);
         const w = (shape.width || 0) + strokeWidth;
         const h = (shape.height || 0) + strokeWidth;
-        const color = '#3b82f6'; // Blue-500
+        const padding = 10;
+
+        this.ctx.shadowColor = 'rgba(59, 130, 246, 0.8)'; // Tailwind blue-500
+        this.ctx.shadowBlur = 15;
+        this.ctx.strokeStyle = 'transparent';
+        this.ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+        this.ctx.beginPath();
+        if (shape.type === SHAPE_TYPES.ELLIPSE) {
+            this.ctx.ellipse(0, 0, w / 2 + padding, h / 2 + padding, 0, 0, Math.PI * 2);
+        } else {
+            this.ctx.roundRect(-w / 2 - padding, -h / 2 - padding, w + padding * 2, h + padding * 2, 8);
+        }
+        this.ctx.fill();
+
+        this.ctx.restore();
+    }
+
+    /**
+     * Draws selection controls (box + handles)
+     * @param {import('../schema').BaseShapeSchema} shape 
+     */
+    drawControls(shape) {
+        this.ctx.save();
+        if (shape.type !== SHAPE_TYPES.CONNECTOR) {
+            this.ctx.translate(shape.x, shape.y);
+            this.ctx.rotate((shape.rotation * Math.PI) / 180);
+        }
+
+        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.strokeWidth || 0);
+        const w = (shape.width || 0) + strokeWidth;
+        const h = (shape.height || 0) + strokeWidth;
+        const padding = 10;
+
+        this.ctx.strokeStyle = '#0066ff'; // Selection color
         const handleSize = 10;
 
         // Common Handle Drawer
@@ -219,7 +255,7 @@ export class CanvasRenderer {
             this.ctx.strokeRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
         };
 
-        this.ctx.strokeStyle = color;
+        this.ctx.strokeStyle = '#0066ff';
         this.ctx.lineWidth = 1;
         this.ctx.fillStyle = '#ffffff';
 
@@ -241,6 +277,15 @@ export class CanvasRenderer {
             drawHandle(pStart.x, pStart.y);
             drawHandle(pEnd.x, pEnd.y);
 
+            this.ctx.restore();
+            return;
+        }
+
+        // Connector (Start, Mid, End handles)
+        if (shape.type === SHAPE_TYPES.CONNECTOR && shape.start && shape.mid && shape.end) {
+            drawHandle(shape.start.x, shape.start.y);
+            drawHandle(shape.mid.x, shape.mid.y);
+            drawHandle(shape.end.x, shape.end.y);
             this.ctx.restore();
             return;
         }
@@ -296,16 +341,44 @@ export class CanvasRenderer {
      */
     /**
      * @param {import('../schema').BaseShapeSchema} shape 
+     * @param {Object} shapeMap
      */
-    drawShape(shape) {
+    drawShape(shape, shapeMap = {}) {
         if (!shape) return;
 
         this.ctx.save();
         this.ctx.globalAlpha = shape.opacity;
 
+        // Draw Soft Glow for actual geometry background if highlighted
+        if (shape.isHighlighted && shape.type !== SHAPE_TYPES.CONNECTOR) {
+            this.ctx.save();
+
+            // Common Transform for background glow specifically
+            this.ctx.translate(shape.x, shape.y);
+            this.ctx.rotate((shape.rotation * Math.PI) / 180);
+
+            const gw = (shape.width || 0) + (shape.strokeWidth || 0);
+            const gh = (shape.height || 0) + (shape.strokeWidth || 0);
+            const padding = 10;
+
+            this.ctx.shadowColor = 'rgba(59, 130, 246, 0.8)';
+            this.ctx.shadowBlur = 15;
+            this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+            this.ctx.beginPath();
+            if (shape.type === SHAPE_TYPES.ELLIPSE) {
+                this.ctx.ellipse(0, 0, gw / 2 + padding, gh / 2 + padding, 0, 0, Math.PI * 2);
+            } else {
+                this.ctx.roundRect(-gw / 2 - padding, -gh / 2 - padding, gw + padding * 2, gh + padding * 2, 8);
+            }
+            this.ctx.fill();
+            this.ctx.restore();
+        }
+
         // Common Transform (Center Origin)
-        this.ctx.translate(shape.x, shape.y);
-        this.ctx.rotate((shape.rotation * Math.PI) / 180);
+        if (shape.type !== SHAPE_TYPES.CONNECTOR) {
+            this.ctx.translate(shape.x, shape.y);
+            this.ctx.rotate((shape.rotation * Math.PI) / 180);
+        }
 
         // Rough.js Context
         const isRough = shape.sloppiness === 'artist' || shape.sloppiness === 'cartoonist';
@@ -339,8 +412,11 @@ export class CanvasRenderer {
                 break;
             case SHAPE_TYPES.GROUP:
                 if (shape.children) {
-                    shape.children.forEach(child => this.drawShape(child));
+                    shape.children.forEach(child => this.drawShape(child, shapeMap));
                 }
+                break;
+            case SHAPE_TYPES.CONNECTOR:
+                drawConnector(this.ctx, shape, roughOps, shapeMap);
                 break;
             case SHAPE_TYPES.IMAGE:
                 this.drawImage(shape);
