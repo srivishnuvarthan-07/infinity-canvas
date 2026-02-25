@@ -169,6 +169,7 @@ const Workspace = () => {
             <LibraryPanel
                 items={libraryItems}
                 onDeleteItem={removeLibraryItem}
+                onAddItem={addLibraryItem}
             />
         );
     }
