@@ -2,7 +2,12 @@ import { UserProfileMenu } from '../UserProfileMenu';
 import { NotificationBell } from '../NotificationBell';
 import { Shapes } from 'lucide-react';
 
+import { LibraryPanel } from '@/components/layout/LibraryPanel';
+import { useLibraryStore } from '@/hooks/useLibraryStore';
+
 export default function LibraryView() {
+    const { items, removeItem, addItem } = useLibraryStore();
+
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Contextual Header */}
@@ -21,15 +26,13 @@ export default function LibraryView() {
             </header>
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto p-8 z-10">
-                <div className="max-w-6xl mx-auto">
-                    <div className="h-64 flex flex-col items-center justify-center text-center p-8 rounded-3xl border border-dashed border-black/10 bg-white/30 text-sm">
-                        <Shapes className="h-10 w-10 text-neutral-300 mb-4" />
-                        <h2 className="text-lg font-medium text-neutral-800 mb-2">Component Library</h2>
-                        <p className="text-neutral-500 max-w-md mx-auto">
-                            Coming soon. This space will house reusable components, templates, saved diagram snippets, and AI-generated modules.
-                        </p>
-                    </div>
+            <main className="flex-1 overflow-y-auto p-4 md:p-8 z-10 bg-neutral-50/50">
+                <div className="max-w-7xl mx-auto h-[calc(100vh-140px)] bg-white rounded-2xl shadow-sm border border-neutral-200 overflow-hidden">
+                    <LibraryPanel
+                        items={items}
+                        onDeleteItem={removeItem}
+                        onAddItem={addItem}
+                    />
                 </div>
             </main>
         </div>

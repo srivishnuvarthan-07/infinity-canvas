@@ -2,7 +2,9 @@ import { Trash2, Grid, Box } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 
-export function LibraryPanel({ items, onDeleteItem }) {
+import { LibraryAIPrompt } from "./LibraryAIPrompt";
+
+export function LibraryPanel({ items, onDeleteItem, onAddItem }) {
     const sortedItems = Object.values(items).sort((a, b) => b.createdAt - a.createdAt);
 
     const handleDragStart = (e, item) => {
@@ -25,6 +27,9 @@ export function LibraryPanel({ items, onDeleteItem }) {
                     Library
                 </h2>
             </div>
+
+            {/* AI Generation Form */}
+            <LibraryAIPrompt onGenerateSuccess={(shapes, name) => onAddItem?.(shapes, name)} />
 
             <ScrollArea className="flex-1">
                 <div className="p-4 grid grid-cols-2 gap-3">
