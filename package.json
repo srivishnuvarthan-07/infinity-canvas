@@ -45,6 +45,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "dagre": "^0.8.5",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "fabric": "^6.9.1",
@@ -75,6 +76,7 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
+    "@types/dagre": "^0.7.53",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.32.0",
