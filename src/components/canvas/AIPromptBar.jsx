@@ -22,7 +22,7 @@ export function AIPromptBar({ onInsertShapes }) {
         setIsGenerating(true);
         try {
             const aiService = getAIService(apiKey);
-            const intent = await aiService.generateDiagramIntent(prompt);
+            const intent = await aiService.generateMermaid(prompt);
 
             if (intent.intent_type === 'non_visual') {
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
@@ -30,11 +30,11 @@ export function AIPromptBar({ onInsertShapes }) {
                 const newShapes = generateDiagramShapes(intent);
                 if (newShapes && newShapes.length > 0) {
                     onInsertShapes(newShapes);
-                    toast.success(`Generated ${intent.diagram_type} diagram!`);
+                    toast.success('Generated Mermaid diagram!');
                     setPrompt('');
                     setIsOpen(false);
                 } else {
-                    toast.error('No shapes could be generated from the AI response.');
+                    toast.error('Could not parse the diagram.');
                 }
             }
         } catch (error) {

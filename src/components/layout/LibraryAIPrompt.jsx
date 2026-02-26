@@ -22,24 +22,20 @@ export function LibraryAIPrompt({ onGenerateSuccess }) {
         setIsGenerating(true);
         try {
             const aiService = getAIService(apiKey);
-            const intent = await aiService.generateDiagramIntent(prompt);
+            const intent = await aiService.generateMermaid(prompt);
 
             if (intent.intent_type === 'non_visual') {
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
             } else if (intent.intent_type === 'visual') {
                 const newShapes = generateDiagramShapes(intent);
                 if (newShapes && newShapes.length > 0) {
-                    // Wait for saving to library to finish
                     if (onGenerateSuccess) {
-                        // Name it based on layout intent but capitalize first letter
-                        const titleSource = intent.layout_intent || intent.style || 'visual_scene';
-                        const name = titleSource.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                        await onGenerateSuccess(newShapes, `AI: ${name}`);
+                        await onGenerateSuccess(newShapes, `AI Diagram`);
                     }
-                    toast.success(`Generated ${intent.layout_intent || 'diagram'} scene and saved to Library!`);
+                    toast.success('Generated Mermaid scene and saved to Library!');
                     setPrompt('');
                 } else {
-                    toast.error('No shapes could be generated from the AI response.');
+                    toast.error('Could not parse diagram.');
                 }
             }
         } catch (error) {
