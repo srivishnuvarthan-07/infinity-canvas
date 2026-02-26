@@ -1,4 +1,5 @@
 
+import dagre from 'dagre';
 
 /**
  * Common shape defaults
@@ -22,17 +23,18 @@ const defaultTextProps = {
 
 const defaultNodeProps = {
     ...defaultShapeProps,
-    width: 120,
-    height: 60,
+    width: 130,
+    height: 70,
     fillColor: '#ffffff',
 };
 
 /**
  * Creates a grouped node containing the shape and text so they drag together
  */
-function createNode(text, x, y, type = 'rectangle', width = 120, height = 60) {
+function createNode(id, text, x, y, type = 'rectangle', width = 130, height = 70) {
     const groupId = crypto.randomUUID();
-    const nodeId = crypto.randomUUID();
+    // Use the parsed ID if available, otherwise generate one
+    const nodeId = id || crypto.randomUUID();
     const textId = crypto.randomUUID();
 
     const nodeShape = {
@@ -72,7 +74,9 @@ function createNode(text, x, y, type = 'rectangle', width = 120, height = 60) {
         strokeWidth: 0,
         strokeStyle: 'solid',
         sloppiness: 'architect',
-        children: [nodeShape, textShape]
+        children: [nodeShape, textShape],
+        // Save the raw id to map edges later
+        rawId: id
     };
 
     return groupShape;
@@ -84,42 +88,29 @@ function createNode(text, x, y, type = 'rectangle', width = 120, height = 60) {
 function createEdge(fromNode, toNode, label = '') {
     const edgeId = crypto.randomUUID();
 
-    // Using connector schema properties instead of SVG line properties
+    const midX = (fromNode.x + toNode.x) / 2;
+    const midY = (fromNode.y + toNode.y) / 2;
+
     const lineShape = {
         ...defaultShapeProps,
         id: edgeId,
-        type: 'connector',
-        x: 0, // Connectors use start/end
-        y: 0,
+        type: 'arrow',
+        x: fromNode.x,
+        y: fromNode.y,
         rotation: 0,
         opacity: 1,
-        variant: 'arrow',
-        arrowType: 'straight',
-        start: {
-            x: fromNode.x,
-            y: fromNode.y + fromNode.height / 2,
-            shapeId: fromNode.id,
-            anchor: 'bottom'
-        },
-        end: {
-            x: toNode.x,
-            y: toNode.y - toNode.height / 2,
-            shapeId: toNode.id,
-            anchor: 'top'
-        },
-        mid: {
-            x: (fromNode.x + toNode.x) / 2,
-            y: (fromNode.y + fromNode.height / 2 + toNode.y - toNode.height / 2) / 2,
-            isManual: false
-        }
+        points: [
+            { x: 0, y: 0 },
+            { x: toNode.x - fromNode.x, y: toNode.y - fromNode.y }
+        ],
+        width: toNode.x - fromNode.x,
+        height: toNode.y - fromNode.y
     };
 
     const shapes = [lineShape];
 
     if (label) {
         const textId = crypto.randomUUID();
-        const midX = lineShape.mid.x;
-        const midY = lineShape.mid.y;
         shapes.push({
             ...defaultTextProps,
             id: textId,
@@ -139,142 +130,178 @@ function createEdge(fromNode, toNode, label = '') {
 }
 
 /**
-/**
-/**
- * Main generator function that transforms AI intent to canvas shapes (Creative Whiteboard)
+ * Main generator function that transforms Mermaid string to canvas shapes
  * Architecture:
- * AI Scene -> Scene Validator -> Layout Resolver -> Layout Normalization -> Arrow Router -> Organic Noise -> Render -> Auto Center
+ * AI Mermaid -> Parser -> Dagre Graph -> Layout -> Render Nodes & Edges -> Auto Center
  */
 export function generateDiagramShapes(intent) {
-    if (intent.intent_type === 'non_visual' || !intent.scene) {
+    if (intent.intent_type === 'non_visual' || !intent.mermaid) {
         return [];
     }
 
-    const { scene, layout_intent } = intent;
-    let shapes = [];
-    const nodeMap = new Map();
+    const { mermaid } = intent;
+    const lines = mermaid.split('\n').map(l => l.trim()).filter(l => l);
 
-    const isHorizontal = layout_intent === 'horizontal_flow';
-    const isVertical = layout_intent === 'vertical_stack';
+    // 1. Initialize Dagre Graph
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({
+        rankdir: lines[0]?.includes('LR') ? 'LR' : 'TB',
+        nodesep: 100,
+        ranksep: 100,
+        marginx: 50,
+        marginy: 50
+    });
+    g.setDefaultEdgeLabel(() => ({}));
 
-    // ====== 1. Render & Organic Noise ======
-    scene.forEach(item => {
-        if (item.type === 'arrow') return;
+    // 2. Parse Nodes and Edges
+    const nodes = new Map();
+    const edges = [];
 
-        // Use AI-provided hybrid hints (-1.0 to 1.0), defaulting to center
-        const xHint = item.x_hint || 0;
-        const yHint = item.y_hint || 0;
+    // Regex defaults
+    // Matches: A[Label] or A((Label)) or A{Label} or just A
+    const nodeRegex = /^([a-zA-Z0-9_-]+)(?:\[(.*?)\]|\(\((.*?)\)\)|\{(.*?)\})?$/;
+    // Matches: A --> B or A -->|Label| B
+    const edgeRegex = /^([a-zA-Z0-9_-]+)\s*-->\s*(?:\|(.*?)\|\s*)?([a-zA-Z0-9_-]+)$/;
 
-        // Scale hints to a virtual viewport size (e.g., 800x600 spread)
-        const SCALE_X = 400;
-        const SCALE_Y = 300;
+    lines.slice(1).forEach(line => {
+        // Skip comments and empty
+        if (line.startsWith('%') || !line) return;
 
-        const rawX = xHint * SCALE_X;
-        const rawY = yHint * SCALE_Y;
+        const edgeMatch = line.match(edgeRegex);
+        if (edgeMatch) {
+            const [_, fromId, label, toId] = edgeMatch;
+            edges.push({ fromId, toId, label: label || '' });
 
-        // Strict Mode vs Organic Mode noise
-        let jitterX = 0, jitterY = 0, rotation = 0;
-
-        if (isHorizontal || isVertical) {
-            // Strictly controlled noise
-            jitterX = Math.random() * 8 - 4;
-            jitterY = Math.random() * 8 - 4;
-            rotation = Math.random() * 1.5 - 0.75;
+            // Ensure nodes exist even if implicitly declared
+            if (!nodes.has(fromId)) nodes.set(fromId, { id: fromId, label: fromId, type: 'rectangle' });
+            if (!nodes.has(toId)) nodes.set(toId, { id: toId, label: toId, type: 'rectangle' });
         } else {
-            // Organic whiteboard noise
-            jitterX = Math.random() * 24 - 12;
-            jitterY = Math.random() * 24 - 12;
-            rotation = Math.random() * 3 - 1.5;
-        }
+            const nodeMatch = line.match(nodeRegex);
+            if (nodeMatch) {
+                const [_, id, rectLabel, circleLabel, diamondLabel] = nodeMatch;
+                let type = 'rectangle';
+                let label = id;
+                if (rectLabel) { label = rectLabel; type = 'rectangle'; }
+                else if (circleLabel) { label = circleLabel; type = 'ellipse'; }
+                else if (diamondLabel) { label = diamondLabel; type = 'diamond'; }
 
-        // Apply jitter directly to AI coordinates
-        const MathX = rawX + jitterX;
-        const MathY = rawY + jitterY;
-
-        // Note: The AI returns hints that we scaled, now these are pixels
-        const worldX = MathX;
-        const worldY = MathY;
-
-        let type = item.type;
-        let width = 120;
-        let height = 60;
-        let fillColor = '#ffffff';
-
-        if (type === 'circle') { type = 'ellipse'; width = 80; height = 80; }
-        if (type === 'diamond') { type = 'diamond'; width = 120; height = 100; fillColor = '#fff3cd'; }
-        if (type === 'text') {
-            type = 'text';
-            width = Math.min(300, Math.max(100, (item.label?.length || 10) * 12));
-            height = 60; // Give text more height clearance out of the box
-            fillColor = 'transparent';
-        }
-        if (type === 'group') { type = 'rectangle'; width = 450; height = 350; fillColor = '#f0f4f8'; }
-
-        const text = item.label || item.id;
-
-        if (type === 'text') {
-            const textId = crypto.randomUUID();
-            const textShape = {
-                ...defaultTextProps,
-                id: textId,
-                text,
-                x: worldX,
-                y: worldY - 20, // Nudge bare text up slightly so it doesn't overlap arrows as much
-                rotation: rotation,
-                opacity: 1,
-                width: width,
-                height: height,
-                fontSize: 24,
-                fontWeight: 'bold',
-                fillColor: '#1a1a1a' // Ensure text is visible
-            };
-            nodeMap.set(item.id, textShape);
-            shapes.push(textShape);
-        } else {
-            const groupShape = createNode(text, worldX, worldY, type, width, height);
-            groupShape.rotation = rotation;
-
-            if (item.type === 'group') {
-                groupShape.children[0].opacity = 0.5;
-                groupShape.children[0].strokeStyle = 'dashed';
-                shapes.unshift(groupShape);
-            } else {
-                groupShape.children[0].fillColor = fillColor;
-                shapes.push(groupShape);
+                nodes.set(id, { id, label, type });
             }
-            nodeMap.set(item.id, groupShape);
         }
     });
 
-    // ====== 2. Arrow Router ======
-    scene.forEach(item => {
-        if (item.type !== 'arrow') return;
-        const sourceNode = nodeMap.get(item.from);
-        const targetNode = nodeMap.get(item.to);
+    // 3. Populate Dagre Graph
+    nodes.forEach(node => {
+        let w = 150, h = 80; // Standard Rectangle
+        if (node.type === 'ellipse') { w = 120; h = 120; } // Circles need equal W/H
+        if (node.type === 'diamond') { w = 160; h = 100; }
 
-        if (sourceNode && targetNode) {
-            const edgeShapes = createEdge(sourceNode, targetNode, item.label);
-            const reqEdge = edgeShapes[0]; // the connector
+        // CRITICAL: Dagre needs these exact values to calculate spacing
+        g.setNode(node.id, {
+            label: node.label,
+            width: w,
+            height: h,
+            type: node.type
+        });
+    });
 
-            // Normalization: Snap arrows based on flow
-            if (isHorizontal && reqEdge.type === 'connector') {
-                reqEdge.start.anchor = 'right';
-                reqEdge.end.anchor = 'left';
-            } else if (isVertical && reqEdge.type === 'connector') {
-                reqEdge.start.anchor = 'bottom';
-                reqEdge.end.anchor = 'top';
+    edges.forEach(edge => {
+        g.setEdge(edge.fromId, edge.toId, { label: edge.label });
+    });
+
+    // 4. Run Layout
+    try {
+        dagre.layout(g);
+    } catch (e) {
+        console.error("Dagre Layout Error:", e);
+        return [];
+    }
+
+    // 5. Convert to Canvas Shapes
+    let shapes = [];
+    const groupMap = new Map();
+
+    // Nodes
+    g.nodes().forEach(v => {
+        const node = g.node(v);
+        // Only valid nodes
+        if (node && node.x !== undefined && node.y !== undefined) {
+            let fillColor = '#ffffff';
+            if (node.type === 'diamond') fillColor = '#fff3cd';
+
+            // Base jitter for organic feel
+            const jitterX = Math.random() * 8 - 4;
+            const jitterY = Math.random() * 8 - 4;
+            const rotation = Math.random() * 2 - 1;
+
+            const groupShape = createNode(v, node.label, node.x + jitterX, node.y + jitterY, node.type, node.width, node.height);
+            groupShape.rotation = rotation;
+            groupShape.children[0].fillColor = fillColor;
+
+            shapes.push(groupShape);
+            groupMap.set(v, groupShape);
+        }
+    });
+
+    const isHorizontal = g.graph().rankdir === 'LR';
+
+    // Edges
+    g.edges().forEach(e => {
+        const edge = g.edge(e);
+        const sourceGroup = groupMap.get(e.v);
+        const targetGroup = groupMap.get(e.w);
+
+        if (sourceGroup && targetGroup) {
+            // Pass the already jittered and rotated group positions
+            const edgeShapes = createEdge(sourceGroup, targetGroup, edge.label);
+            const reqEdge = edgeShapes[0];
+
+            // Adjust the start/end positions based on rankdir so arrows don't start at the very center of nodes
+            const dir = g.graph().rankdir;
+            const w1 = sourceGroup.width / 2;
+            const h1 = sourceGroup.height / 2;
+            const w2 = targetGroup.width / 2;
+            const h2 = targetGroup.height / 2;
+
+            let startX = sourceGroup.x;
+            let startY = sourceGroup.y;
+            let endX = targetGroup.x;
+            let endY = targetGroup.y;
+
+            if (dir === 'LR') {
+                startX += w1;
+                endX -= w2;
+            } else {
+                startY += h1;
+                endY -= h2;
+            }
+
+            const cx = startX + (endX - startX) / 2;
+            const cy = startY + (endY - startY) / 2;
+            reqEdge.x = cx;
+            reqEdge.y = cy;
+            reqEdge.width = Math.abs(endX - startX);
+            reqEdge.height = Math.abs(endY - startY);
+            reqEdge.points = [
+                { x: startX - cx, y: startY - cy },
+                { x: endX - cx, y: endY - cy }
+            ];
+
+            if (edgeShapes[1]) {
+                edgeShapes[1].x = startX + reqEdge.width / 2;
+                edgeShapes[1].y = startY + reqEdge.height / 2;
             }
 
             shapes.push(...edgeShapes);
         }
     });
 
-    // ====== 3. Auto Centering ======
+    // 6. Auto Centering
     if (shapes.length > 0) {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
         shapes.forEach(s => {
-            if (s.type === 'connector') return; // skip for bounding box of nodes
+            if (s.type === 'arrow') return; // skip for bounding box of nodes
             const hw = (s.width || 0) / 2;
             const hh = (s.height || 0) / 2;
             minX = Math.min(minX, s.x - hw);
@@ -289,16 +316,8 @@ export function generateDiagramShapes(intent) {
 
             // Shift everything to 0,0 center
             shapes.forEach(s => {
-                if (s.type === 'connector') {
-                    // Update manual midpoints if any
-                    if (s.mid && s.mid.isManual) {
-                        s.mid.x -= centerX;
-                        s.mid.y -= centerY;
-                    }
-                } else {
-                    s.x -= centerX;
-                    s.y -= centerY;
-                }
+                s.x -= centerX;
+                s.y -= centerY;
             });
         }
     }
