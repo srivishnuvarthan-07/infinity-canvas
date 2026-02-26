@@ -180,10 +180,10 @@ export function useEngineInteraction({
             switch (activeTool) {
                 case 'rectangle': type = SHAPE_TYPES.RECTANGLE; break;
                 case 'ellipse': type = SHAPE_TYPES.ELLIPSE; break;
-                case 'line': type = SHAPE_TYPES.CONNECTOR; break;
+                case 'line': type = SHAPE_TYPES.LINE; break;
                 case 'diamond': type = SHAPE_TYPES.DIAMOND; break;
                 case 'text': type = SHAPE_TYPES.TEXT; break;
-                case 'arrow': type = SHAPE_TYPES.CONNECTOR; break;
+                case 'arrow': type = SHAPE_TYPES.ARROW; break;
                 case 'pencil': type = SHAPE_TYPES.PENCIL; break;
                 case 'draw': type = SHAPE_TYPES.PENCIL; break;
             }
@@ -192,12 +192,14 @@ export function useEngineInteraction({
                 const newShape = createBaseSchema(id, type, x, y);
 
                 if (type === SHAPE_TYPES.CONNECTOR) {
-                    newShape.variant = activeTool === 'arrow' ? 'arrow' : 'line';
+                    newShape.variant = 'line';
                     newShape.arrowType = 'straight';
 
                     newShape.start = { x, y, shapeId: null, anchor: null };
                     newShape.end = { x, y, shapeId: null, anchor: null };
                     newShape.mid = { x, y, isManual: false };
+                } else if (type === SHAPE_TYPES.LINE || type === SHAPE_TYPES.ARROW) {
+                    newShape.points = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
                 } else if (type === SHAPE_TYPES.PENCIL) {
                     newShape.points = [{ x: 0, y: 0 }];
                 }
@@ -420,6 +422,26 @@ export function useEngineInteraction({
                     if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
+                if (s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) {
+                    const left = Math.min(startX, x);
+                    const top = Math.min(startY, y);
+                    const cx = left + Math.abs(x - startX) / 2;
+                    const cy = top + Math.abs(y - startY) / 2;
+
+                    const p0 = { x: startX - cx, y: startY - cy };
+                    const p1 = { x: x - cx, y: y - cy };
+
+                    const newShape = {
+                        ...s,
+                        x: cx,
+                        y: cy,
+                        points: [p0, p1],
+                        width: Math.abs(x - startX),
+                        height: Math.abs(y - startY)
+                    };
+                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                    return newShape;
+                }
                 if (s.type === SHAPE_TYPES.CONNECTOR) {
                     let hitShape = null;
                     for (let i = shapes.length - 1; i >= 0; i--) {
@@ -488,6 +510,51 @@ export function useEngineInteraction({
                             newShape.mid = { x, y, isManual: true };
                         }
                         if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                        return newShape;
+                    }
+
+                    if (s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) {
+                        const handle = activeHandle;
+                        let newShape = { ...s };
+
+                        const rad = (startDimensions.rotation || 0) * Math.PI / 180;
+                        const cos = Math.cos(rad); const sin = Math.sin(rad);
+
+                        const p0x = startDimensions.points[0]?.x || 0;
+                        const p0y = startDimensions.points[0]?.y || 0;
+                        const p1x = startDimensions.points[1]?.x || 0;
+                        const p1y = startDimensions.points[1]?.y || 0;
+
+                        let p0g = {
+                            x: startDimensions.x + (p0x * cos - p0y * sin),
+                            y: startDimensions.y + (p0x * sin + p0y * cos)
+                        };
+                        let p1g = {
+                            x: startDimensions.x + (p1x * cos - p1y * sin),
+                            y: startDimensions.y + (p1x * sin + p1y * cos)
+                        };
+
+                        if (handle === 'start') p0g = { x, y };
+                        else if (handle === 'end') p1g = { x, y };
+                        else return s;
+
+                        const cx = (p0g.x + p1g.x) / 2;
+                        const cy = (p0g.y + p1g.y) / 2;
+
+                        const invCos = Math.cos(-rad); const invSin = Math.sin(-rad);
+                        const dx0 = p0g.x - cx; const dy0 = p0g.y - cy;
+                        const dx1 = p1g.x - cx; const dy1 = p1g.y - cy;
+
+                        newShape.x = cx;
+                        newShape.y = cy;
+                        newShape.points = [
+                            { x: dx0 * invCos - dy0 * invSin, y: dx0 * invSin + dy0 * invCos },
+                            { x: dx1 * invCos - dy1 * invSin, y: dx1 * invSin + dy1 * invCos }
+                        ];
+                        newShape.width = Math.abs(newShape.points[0].x - newShape.points[1].x);
+                        newShape.height = Math.abs(newShape.points[0].y - newShape.points[1].y);
+
+                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                         return newShape;
                     }
 
@@ -667,7 +734,7 @@ export function useEngineInteraction({
                         if (s.type === SHAPE_TYPES.PENCIL && s.points.length > 2) return true;
                         if (s.width > 5 || s.height > 5) return true;
                         // Force keep lines if they have length (width/height might be small if horizontal/vertical)
-                        if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (s.width > 5 || s.height > 5)) return true;
+                        if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (Math.abs(s.width) > 5 || Math.abs(s.height) > 5)) return true;
                         if (s.type === SHAPE_TYPES.CONNECTOR && s.start && s.end) {
                             const dx = s.end.x - s.start.x;
                             const dy = s.end.y - s.start.y;

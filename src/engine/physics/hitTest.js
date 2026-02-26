@@ -284,20 +284,14 @@ export function hitTest(shape, x, y, zoom = 1, shapeMap = {}) {
 
         case SHAPE_TYPES.LINE:
         case SHAPE_TYPES.ARROW:
-            // Check distance to line segment from (-w/2, -h/2) to (w/2, h/2) or similar.
-            // But CUSTOM ENGINE LINES might be simple boxes or diagonals?
-            // "standard drag to create" produces a box.
-            // Let's assume the line goes from Top-Left to Bottom-Right if width/height are positive?
-            // Wait, we don't store direction. That's a flaw in schema.
-            // Assumption: Line is always drawn along the main diagonal.
-            // But we should check BOTH diagonals or just check if point is near the segment.
-            // Best interaction: Check if point is near segment (-w/2, 0) to (w/2, 0) IF 1D?
-            // But we allow 2D resizing of lines.
-            // Let's check distance to Segment P1(-w/2, -h/2) -> P2(w/2, h/2).
-            // AND check P3(-w/2, h/2) -> P4(w/2, -h/2).
+            if (shape.points && shape.points.length >= 2) {
+                const p1 = shape.points[0];
+                const p2 = shape.points[1];
+                const d = distToSegment(rx, ry, p1.x, p1.y, p2.x, p2.y);
+                return d <= padding;
+            }
 
-            // Or better: If it's a "Line", users expect it to be a specific diagonal.
-            // But since we lost direction, let's treat "Hit" as "Inside the thin diagonal bounding areas".
+            // Fallback for older shapes without points
             const w2 = (shape.width || 0) / 2;
             const h2 = (shape.height || 0) / 2;
             const d1 = distToSegment(rx, ry, -w2, -h2, w2, h2);
