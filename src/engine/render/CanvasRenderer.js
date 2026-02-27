@@ -5,7 +5,7 @@ import { drawLine } from './shapes/line';
 import { drawDiamond } from './shapes/diamond';
 import { drawText } from './shapes/text';
 import { drawPencil } from './shapes/pencil';
-import { drawConnector } from './shapes/connector';
+
 import rough from 'roughjs';
 import { getTextLayout } from '../utils/textUtils';
 
@@ -202,7 +202,7 @@ export class CanvasRenderer {
     }
 
     /**
-     * Draws a soft glow effect for hovered shapes or connector targets
+     * Draws a soft glow effect for hovered shapes
      * @param {import('../schema').BaseShapeSchema} shape 
      */
     drawGlow(shape) {
@@ -236,7 +236,7 @@ export class CanvasRenderer {
      */
     drawControls(shape) {
         this.ctx.save();
-        if (shape.type !== SHAPE_TYPES.CONNECTOR) {
+        if (true) {
             this.ctx.translate(shape.x, shape.y);
             this.ctx.rotate((shape.rotation * Math.PI) / 180);
         }
@@ -277,15 +277,6 @@ export class CanvasRenderer {
             drawHandle(pStart.x, pStart.y);
             drawHandle(pEnd.x, pEnd.y);
 
-            this.ctx.restore();
-            return;
-        }
-
-        // Connector (Start, Mid, End handles)
-        if (shape.type === SHAPE_TYPES.CONNECTOR && shape.start && shape.mid && shape.end) {
-            drawHandle(shape.start.x, shape.start.y);
-            drawHandle(shape.mid.x, shape.mid.y);
-            drawHandle(shape.end.x, shape.end.y);
             this.ctx.restore();
             return;
         }
@@ -350,7 +341,7 @@ export class CanvasRenderer {
         this.ctx.globalAlpha = shape.opacity;
 
         // Draw Soft Glow for actual geometry background if highlighted
-        if (shape.isHighlighted && shape.type !== SHAPE_TYPES.CONNECTOR) {
+        if (shape.isHighlighted) {
             this.ctx.save();
 
             // Common Transform for background glow specifically
@@ -375,10 +366,8 @@ export class CanvasRenderer {
         }
 
         // Common Transform (Center Origin)
-        if (shape.type !== SHAPE_TYPES.CONNECTOR) {
-            this.ctx.translate(shape.x, shape.y);
-            this.ctx.rotate((shape.rotation * Math.PI) / 180);
-        }
+        this.ctx.translate(shape.x, shape.y);
+        this.ctx.rotate((shape.rotation * Math.PI) / 180);
 
         // Rough.js Context
         const isRough = shape.sloppiness === 'artist' || shape.sloppiness === 'cartoonist';
@@ -415,9 +404,7 @@ export class CanvasRenderer {
                     shape.children.forEach(child => this.drawShape(child, shapeMap));
                 }
                 break;
-            case SHAPE_TYPES.CONNECTOR:
-                drawConnector(this.ctx, shape, roughOps, shapeMap);
-                break;
+
             case SHAPE_TYPES.IMAGE:
                 this.drawImage(shape);
                 break;

@@ -3,7 +3,7 @@ import { DRAWING_COLORS } from "@/types/canvas";
 import { useCustomEngine } from "./useCustomEngine";
 import { exportToPng } from "@/engine/utils/export";
 import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file";
-import { resolveConnectorPoint } from "@/engine/physics/hitTest";
+
 import { SHAPE_TYPES } from "@/engine/schema";
 
 /**
@@ -134,24 +134,7 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     const shapeMap = {};
     customShapes.forEach(s => shapeMap[s.id] = s);
 
-    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id)).map(s => {
-      if (s.type === SHAPE_TYPES.CONNECTOR) {
-        let updated = { ...s };
-        let changed = false;
-        if (s.start && s.start.shapeId && selectedShapeIds.has(s.start.shapeId)) {
-          const pos = resolveConnectorPoint(s.start, shapeMap);
-          updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-          changed = true;
-        }
-        if (s.end && s.end.shapeId && selectedShapeIds.has(s.end.shapeId)) {
-          const pos = resolveConnectorPoint(s.end, shapeMap);
-          updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-          changed = true;
-        }
-        return changed ? updated : s;
-      }
-      return s;
-    });
+    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id));
 
     setShapes(newShapes);
     saveState(newShapes); // Add to history

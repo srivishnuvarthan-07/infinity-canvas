@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { SHAPE_TYPES } from '@/engine/schema';
 import { getTextLayout } from '@/engine/utils/textUtils';
-import { resolveConnectorPoint } from '@/engine/physics/hitTest';
+
 
 export function useEngineState(initialShapes = [], socket = null) {
     // Canvas State
@@ -107,26 +107,7 @@ export function useEngineState(initialShapes = [], socket = null) {
                     const deletedId = action.payload.id;
                     nextMap.delete(deletedId);
 
-                    const shapeMap = {};
-                    current.forEach(s => shapeMap[s.id] = s);
 
-                    nextMap.forEach((s, key) => {
-                        if (s.type === SHAPE_TYPES.CONNECTOR) {
-                            let updated = { ...s };
-                            let changed = false;
-                            if (s.start && s.start.shapeId === deletedId) {
-                                const pos = resolveConnectorPoint(s.start, shapeMap);
-                                updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                changed = true;
-                            }
-                            if (s.end && s.end.shapeId === deletedId) {
-                                const pos = resolveConnectorPoint(s.end, shapeMap);
-                                updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                changed = true;
-                            }
-                            if (changed) nextMap.set(key, updated);
-                        }
-                    });
                 }
 
                 return Array.from(nextMap.values());

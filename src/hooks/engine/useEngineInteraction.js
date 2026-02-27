@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { hitTest, hitTestControls, getClosestAnchor, resolveConnectorPoint } from '@/engine/physics/hitTest';
+import { hitTest, hitTestControls, getClosestAnchor } from '@/engine/physics/hitTest';
 import { createBaseSchema, SHAPE_TYPES } from '@/engine/schema';
 import { calculateResize, calculateRotation } from '@/engine/physics/resize';
 import { measureTextShape } from '@/engine/utils/textUtils';
@@ -74,36 +74,21 @@ export function useEngineInteraction({
     }, [canvasRef]);
 
     // OPTIMIZATION: Quadtree
-    // Rebuild Quadtree when shapes change? 
-    // Ideally we update it, but for React pattern rebuilding is safer.
-    // To avoid lag on EVERY drag frame, we can memoize or throttle.
-    // For now, simpler: Just Rebuild.
-    // Actually, rebuilding 10k items every frame IS slow.
-    // Better: Only use Quadtree for HOVER and MOUSE DOWN (Hit testing).
-    // During drag, we don't need hit testing against other shapes usually.
-
-    // Memoizing the tree:
-    const spatialIndex = useMemo(() => { // Changed React.useMemo to useMemo
-        // Assume world bounds -10000 to 10000? 
-        const qt = new Quadtree(new Rectangle(-50000, -50000, 100000, 100000), 20); // Large bounds, adjusted to cover negative coords
+    const spatialIndex = useMemo(() => {
+        const qt = new Quadtree(new Rectangle(-50000, -50000, 100000, 100000), 20);
         shapes.forEach(s => {
-            // Ensure width/height are positive for Quadtree
             const w = Math.abs(s.width);
             const h = Math.abs(s.height);
-            // Quadtree expects x, y, width, height. Our shapes have x, y as top-left.
-            // For Quadtree, we can use the bounding box of the shape.
-            // For simplicity, using x, y, width, height directly, assuming they define a bounding box.
-            // If rotation is involved, a more complex bounding box calculation would be needed.
             qt.insert({
                 x: s.x,
                 y: s.y,
                 width: w,
                 height: h,
-                id: s.id // Store ID for lookup
+                id: s.id
             });
         });
         return qt;
-    }, [shapes]); // Dep on shapes. If shapes update 60fps, this runs 60fps.
+    }, [shapes]);
 
     // Pointer Handlers
     const handlePointerDown = useCallback((e) => {
@@ -123,21 +108,18 @@ export function useEngineInteraction({
         }
 
         // 2. Eraser Mode
+        const shapeMap = {};
+        shapes.forEach(s => shapeMap[s.id] = s);
+
         if (activeTool === 'eraser') {
             isErasing.current = true;
             canvasRef.current.style.cursor = 'crosshair';
 
-            // Broad Phase
             const range = new Rectangle(x - (10 / viewport.zoom / 2), y - (10 / viewport.zoom / 2), 10 / viewport.zoom, 10 / viewport.zoom);
             const candidates = spatialIndex.query(range);
-
             let hitShape = null;
             const candidateIds = new Set(candidates.map(c => c.id));
 
-            const shapeMap = {};
-            shapes.forEach(s => shapeMap[s.id] = s);
-
-            // Narrow Phase
             for (let i = shapes.length - 1; i >= 0; i--) {
                 if (candidateIds.has(shapes[i].id)) {
                     if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
@@ -148,33 +130,13 @@ export function useEngineInteraction({
             }
 
             if (hitShape) {
-                setShapes(prev => {
-                    return prev.filter(s => s.id !== hitShape.id).map(s => {
-                        if (s.type === SHAPE_TYPES.CONNECTOR) {
-                            let updated = { ...s };
-                            let changed = false;
-                            if (s.start && s.start.shapeId === hitShape.id) {
-                                const pos = resolveConnectorPoint(s.start, shapeMap);
-                                updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                changed = true;
-                            }
-                            if (s.end && s.end.shapeId === hitShape.id) {
-                                const pos = resolveConnectorPoint(s.end, shapeMap);
-                                updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                changed = true;
-                            }
-                            return changed ? updated : s;
-                        }
-                        return s;
-                    });
-                });
+                setShapes(prev => prev.filter(s => s.id !== hitShape.id));
             }
             return;
         }
 
         // 3. Creation Mode
         if (activeTool && activeTool !== 'select') {
-            // ... Creation Logic
             const id = crypto.randomUUID();
             let type = null;
             switch (activeTool) {
@@ -191,25 +153,16 @@ export function useEngineInteraction({
             if (type) {
                 const newShape = createBaseSchema(id, type, x, y);
 
-                if (type === SHAPE_TYPES.CONNECTOR) {
-                    newShape.variant = 'line';
-                    newShape.arrowType = 'straight';
-
-                    newShape.start = { x, y, shapeId: null, anchor: null };
-                    newShape.end = { x, y, shapeId: null, anchor: null };
-                    newShape.mid = { x, y, isManual: false };
-                } else if (type === SHAPE_TYPES.LINE || type === SHAPE_TYPES.ARROW) {
+                if (type === SHAPE_TYPES.LINE || type === SHAPE_TYPES.ARROW) {
                     newShape.points = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
                 } else if (type === SHAPE_TYPES.PENCIL) {
                     newShape.points = [{ x: 0, y: 0 }];
                 }
 
-                // Text Special Case
                 if (type === SHAPE_TYPES.TEXT) {
                     newShape.text = 'Double click to edit';
                     newShape.fontSize = 20;
                     newShape.textAlign = 'center';
-                    // Measure
                     if (canvasRef.current) {
                         try {
                             const ctx = canvasRef.current.getContext('2d');
@@ -230,7 +183,6 @@ export function useEngineInteraction({
                     return;
                 }
 
-                // Standard Shape
                 newShape.width = 0; newShape.height = 0;
                 newShape.strokeColor = activeColor;
                 newShape.strokeWidth = strokeWidth;
@@ -249,9 +201,6 @@ export function useEngineInteraction({
         }
 
         // 4. Check Controls (Resizing)
-        const shapeMap = {};
-        shapes.forEach(s => shapeMap[s.id] = s);
-
         if (selectedShapeIds.size === 1) {
             const [id] = selectedShapeIds;
             const selectedShape = shapes.find(s => s.id === id);
@@ -265,7 +214,7 @@ export function useEngineInteraction({
                         x: selectedShape.x, y: selectedShape.y,
                         width: selectedShape.width, height: selectedShape.height,
                         rotation: selectedShape.rotation,
-                        points: selectedShape.points,
+                        points: selectedShape.points ? JSON.parse(JSON.stringify(selectedShape.points)) : undefined,
                         children: selectedShape.children ? JSON.parse(JSON.stringify(selectedShape.children)) : undefined
                     });
                     if (canvasRef.current.setPointerCapture) canvasRef.current.setPointerCapture(e.pointerId);
@@ -284,7 +233,6 @@ export function useEngineInteraction({
         }
 
         if (hitShape) {
-            // Multi-Select Logic
             if (e.shiftKey) {
                 setSelectedShapeIds(prev => {
                     const next = new Set(prev);
@@ -298,12 +246,8 @@ export function useEngineInteraction({
                 }
             }
 
-            // Drag Init
-            // Determine actual selection state AFTER update usually requires Ref or Effect, 
-            // but here we can predict:
             let ids = new Set(selectedShapeIds);
             if (e.shiftKey) {
-                // Toggle prediction logic roughly
                 if (ids.has(hitShape.id)) ids.delete(hitShape.id); else ids.add(hitShape.id);
             } else {
                 if (!ids.has(hitShape.id)) ids = new Set([hitShape.id]);
@@ -316,9 +260,6 @@ export function useEngineInteraction({
                 shapes.forEach(s => {
                     initPos.set(s.id, {
                         x: s.x, y: s.y,
-                        start: s.start ? { ...s.start } : undefined,
-                        mid: s.mid ? { ...s.mid } : undefined,
-                        end: s.end ? { ...s.end } : undefined
                     });
                 });
                 setInitialShapePositions(initPos);
@@ -327,7 +268,6 @@ export function useEngineInteraction({
             }
 
         } else {
-            // Empty Space
             if (!e.shiftKey) setSelectedShapeIds(new Set());
             setIsDragSelecting(true);
             setSelectionBox({ startX: x, startY: y, currentX: x, currentY: y });
@@ -343,7 +283,6 @@ export function useEngineInteraction({
         const screenY = e.clientY - rect.top;
         const { x, y } = toWorld(screenX, screenY);
 
-        // Panning
         if (isPanning.current) {
             const dx = screenX - lastPanPos.current.x;
             const dy = screenY - lastPanPos.current.y;
@@ -355,7 +294,6 @@ export function useEngineInteraction({
         const shapeMap = {};
         shapes.forEach(s => shapeMap[s.id] = s);
 
-        // Eraser
         if (activeTool === 'eraser') {
             canvasRef.current.style.cursor = 'crosshair';
             if (isErasing.current) {
@@ -366,26 +304,7 @@ export function useEngineInteraction({
                     }
                 }
                 if (hitShape) {
-                    setShapes(prev => {
-                        return prev.filter(s => s.id !== hitShape.id).map(s => {
-                            if (s.type === SHAPE_TYPES.CONNECTOR) {
-                                let updated = { ...s };
-                                let changed = false;
-                                if (s.start && s.start.shapeId === hitShape.id) {
-                                    const pos = resolveConnectorPoint(s.start, shapeMap);
-                                    updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                    changed = true;
-                                }
-                                if (s.end && s.end.shapeId === hitShape.id) {
-                                    const pos = resolveConnectorPoint(s.end, shapeMap);
-                                    updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                    changed = true;
-                                }
-                                return changed ? updated : s;
-                            }
-                            return s;
-                        });
-                    });
+                    setShapes(prev => prev.filter(s => s.id !== hitShape.id));
                 }
             }
             setHoveredShapeId(null);
@@ -442,27 +361,6 @@ export function useEngineInteraction({
                     if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
-                if (s.type === SHAPE_TYPES.CONNECTOR) {
-                    let hitShape = null;
-                    for (let i = shapes.length - 1; i >= 0; i--) {
-                        if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
-                            if (shapes[i].id !== s.id && shapes[i].id !== s.start.shapeId) {
-                                hitShape = shapes[i]; break;
-                            }
-                        }
-                    }
-
-                    const newEnd = { x, y, shapeId: hitShape ? hitShape.id : null, anchor: hitShape ? getClosestAnchor(hitShape, { x, y }) : null };
-                    const newMid = {
-                        x: s.start.x + (newEnd.x - s.start.x) / 2,
-                        y: s.start.y + (newEnd.y - s.start.y) / 2,
-                        isManual: false
-                    };
-
-                    const newShape = { ...s, end: newEnd, mid: newMid };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
-                    return newShape;
-                }
 
                 const left = Math.min(startX, x);
                 const top = Math.min(startY, y);
@@ -488,28 +386,9 @@ export function useEngineInteraction({
                 else if (s.id !== dragGlowHitShapeId && s.isHighlighted) s = { ...s, isHighlighted: false };
 
                 if (s.id === resizeId) {
-                    // Rotation
                     if (activeHandle === 'rot') {
                         const newShape = { ...s, rotation: calculateRotation(s, x, y) };
                         if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                        return newShape;
-                    }
-
-                    // Connector Endpoints
-                    if (s.type === SHAPE_TYPES.CONNECTOR) {
-                        const handle = activeHandle;
-                        let newShape = { ...s };
-
-                        if (handle === 'start' || handle === 'end') {
-                            if (handle === 'start') {
-                                newShape.start = { x, y, shapeId: null, anchor: null };
-                            } else {
-                                newShape.end = { x, y, shapeId: null, anchor: null };
-                            }
-                        } else if (handle === 'mid') {
-                            newShape.mid = { x, y, isManual: true };
-                        }
-                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
                         return newShape;
                     }
 
@@ -563,7 +442,6 @@ export function useEngineInteraction({
                     });
 
                     if (updates) {
-                        // Pencil Scaling
                         if (s.type === SHAPE_TYPES.PENCIL && startDimensions.points) {
                             const scaleX = updates.width / startDimensions.width;
                             const scaleY = updates.height / startDimensions.height;
@@ -573,7 +451,6 @@ export function useEngineInteraction({
                             return newShape;
                         }
 
-                        // Group Scaling
                         if (s.type === SHAPE_TYPES.GROUP && startDimensions.children) {
                             const scaleX = updates.width / startDimensions.width;
                             const scaleY = updates.height / startDimensions.height;
@@ -590,7 +467,6 @@ export function useEngineInteraction({
                                         y: p.y * scaleY
                                     }));
                                 }
-
                                 return {
                                     ...child,
                                     x: nx,
@@ -624,49 +500,19 @@ export function useEngineInteraction({
                 const init = initialShapePositions.get(s.id);
                 if (!init) return s;
 
-                // 1. Explicitly selected shapes
                 if (selectedShapeIds.has(s.id)) {
-                    if (s.type === SHAPE_TYPES.CONNECTOR) {
-                        const newShape = {
-                            ...s,
-                            x: init.x + dx, y: init.y + dy,
-                            start: init.start ? {
-                                ...init.start,
-                                x: init.start.shapeId ? init.start.x : init.start.x + dx,
-                                y: init.start.shapeId ? init.start.y : init.start.y + dy
-                            } : s.start,
-                            mid: init.mid ? {
-                                ...init.mid,
-                                x: init.mid.x + dx,
-                                y: init.mid.y + dy
-                            } : s.mid,
-                            end: init.end ? {
-                                ...init.end,
-                                x: init.end.shapeId ? init.end.x : init.end.x + dx,
-                                y: init.end.shapeId ? init.end.y : init.end.y + dy
-                            } : s.end,
-                        };
-                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
-                        return newShape;
-                    }
                     const newShape = { ...s, x: init.x + dx, y: init.y + dy };
                     if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
                     return newShape;
                 }
-
-
                 return s;
             }));
             canvasRef.current.style.cursor = 'grabbing';
-            // DO NOT RETURN HERE either! Let glow proceed
         } else if (isDragSelecting) {
-            // Drag Select
             setSelectionBox(prev => ({ ...prev, currentX: x, currentY: y }));
-            // We DO return here because we don't need glow for selection boxes
             return;
         }
 
-        // Hover & Glow
         let cursor = 'default';
         dragGlowHitShapeId = null;
 
@@ -674,7 +520,7 @@ export function useEngineInteraction({
             const [id] = selectedShapeIds;
             const s = shapes.find(sh => sh.id === id);
             if (s && hitTestControls(s, x, y, viewport.zoom, shapeMap)) {
-                cursor = 'pointer'; // Simplification
+                cursor = 'pointer';
             }
         }
 
@@ -692,12 +538,11 @@ export function useEngineInteraction({
         }
         canvasRef.current.style.cursor = cursor;
 
-        // Ensure we clear out highlights if there isn't a drag event actively driving logic above
         if (!dragGlowHitShapeId && shapes.some(s => s.isHighlighted)) {
             setShapes(prev => prev.map(s => s.isHighlighted ? { ...s, isHighlighted: false } : s));
         }
 
-    }, [canvasRef, toWorld, isPanning, activeTool, isErasing, shapes, viewport.zoom, setShapes, isCreating, selectedShapeIds, dragOffset, isResizing, activeHandle, startDimensions, isDragging, dragStartPos, initialShapePositions, isDragSelecting, setHoveredShapeId, setSelectionBox]);
+    }, [canvasRef, toWorld, isPanning, activeTool, shapes, viewport.zoom, setShapes, isCreating, selectedShapeIds, dragOffset, isResizing, activeHandle, startDimensions, isDragging, dragStartPos, initialShapePositions, isDragSelecting, setHoveredShapeId, setSelectionBox, boardId, emitUpdate, syncThrottleMs]);
 
     const handlePointerUp = useCallback((e) => {
         if (isPanning.current) {
@@ -712,11 +557,9 @@ export function useEngineInteraction({
 
         if (isCreating && selectedShapeIds.size > 0) {
             const creationId = [...selectedShapeIds][0];
-            // Normalize Pencil (Center logic)
             setShapes(prev => {
                 const newShapes = prev.map(s => {
                     if (s.id === creationId && s.type === SHAPE_TYPES.PENCIL && s.points) {
-                        // ... Bounding box normalization logic (Simplified for space)
                         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                         s.points.forEach(p => {
                             minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
@@ -730,16 +573,9 @@ export function useEngineInteraction({
                     return s;
                 }).filter(s => {
                     if (s.id === creationId) {
-                        // Keep if large enough OR if it's a line/arrow/pencil with content
                         if (s.type === SHAPE_TYPES.PENCIL && s.points.length > 2) return true;
                         if (s.width > 5 || s.height > 5) return true;
-                        // Force keep lines if they have length (width/height might be small if horizontal/vertical)
                         if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (Math.abs(s.width) > 5 || Math.abs(s.height) > 5)) return true;
-                        if (s.type === SHAPE_TYPES.CONNECTOR && s.start && s.end) {
-                            const dx = s.end.x - s.start.x;
-                            const dy = s.end.y - s.start.y;
-                            if (Math.sqrt(dx * dx + dy * dy) > 10) return true;
-                        }
                         return false;
                     }
                     return true;
@@ -751,23 +587,14 @@ export function useEngineInteraction({
         } else if (isDragging || isResizing) {
             saveState(shapes, boardId);
         } else if (isDragSelecting && selectionBox) {
-            // Box Select Finalize using AABB
             const box = selectionBox;
             const x1 = Math.min(box.startX, box.currentX); const x2 = Math.max(box.startX, box.currentX);
             const y1 = Math.min(box.startY, box.currentY); const y2 = Math.max(box.startY, box.currentY);
             const hitIds = new Set();
             shapes.forEach(s => {
-                if (s.type === SHAPE_TYPES.CONNECTOR && s.start && s.end) {
-                    const minX = Math.min(s.start.x, s.end.x, s.mid ? s.mid.x : s.start.x);
-                    const maxX = Math.max(s.start.x, s.end.x, s.mid ? s.mid.x : s.start.x);
-                    const minY = Math.min(s.start.y, s.end.y, s.mid ? s.mid.y : s.start.y);
-                    const maxY = Math.max(s.start.y, s.end.y, s.mid ? s.mid.y : s.start.y);
-                    if (minX < x2 && maxX > x1 && minY < y2 && maxY > y1) hitIds.add(s.id);
-                } else {
-                    const sx1 = s.x - s.width / 2; const sx2 = s.x + s.width / 2;
-                    const sy1 = s.y - s.height / 2; const sy2 = s.y + s.height / 2;
-                    if (sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1) hitIds.add(s.id);
-                }
+                const sx1 = s.x - s.width / 2; const sx2 = s.x + s.width / 2;
+                const sy1 = s.y - s.height / 2; const sy2 = s.y + s.height / 2;
+                if (sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1) hitIds.add(s.id);
             });
             setSelectedShapeIds(hitIds);
         }
@@ -781,7 +608,7 @@ export function useEngineInteraction({
 
         if (canvasRef.current && canvasRef.current.releasePointerCapture) canvasRef.current.releasePointerCapture(e.pointerId);
 
-    }, [isPanning, activeTool, saveState, shapes, isCreating, selectedShapeIds, isDragging, isResizing, isDragSelecting, selectionBox, setShapes, setActiveTool, setSelectedShapeIds, setSelectionBox]);
+    }, [isPanning, activeTool, saveState, shapes, isCreating, selectedShapeIds, isDragging, isResizing, isDragSelecting, selectionBox, setShapes, setActiveTool, setSelectedShapeIds, setSelectionBox, boardId]);
 
     const handleDoubleClick = useCallback((e) => {
         if (!canvasRef.current) return;
@@ -812,29 +639,20 @@ export function useEngineInteraction({
         e.stopPropagation();
 
         if (e.ctrlKey || e.metaKey) {
-            // ZOOM
             const rect = canvasRef.current.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
-
-            // 1. Calculate World Point before zoom
             const { x: worldX, y: worldY } = toWorld(mouseX, mouseY);
 
-            // 2. Calculate new Zoom
             let newZoom = viewport.zoom;
-            // Use smaller steps for finer control
             newZoom *= e.deltaY > 0 ? 0.95 : 1.05;
             newZoom = Math.min(Math.max(newZoom, 0.1), 10);
 
-            // 3. New Viewport to keep mouse under same world point
-            // mouseX = (worldX * newZoom) + newViewportX
-            // newViewportX = mouseX - (worldX * newZoom)
             const newViewportX = mouseX - worldX * newZoom;
             const newViewportY = mouseY - worldY * newZoom;
 
             setViewport({ x: newViewportX, y: newViewportY, zoom: newZoom });
         } else {
-            // PAN
             let deltaX = e.deltaX;
             let deltaY = e.deltaY;
             if (e.shiftKey && deltaY !== 0 && Math.abs(deltaX) === 0) {
@@ -857,6 +675,6 @@ export function useEngineInteraction({
         handleKeyUp,
         handleDoubleClick,
         handleWheel,
-        isDragging: isDragging || isResizing || isCreating // Treat all these as "Active Interactions"
+        isDragging: isDragging || isResizing || isCreating
     };
 }
