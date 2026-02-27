@@ -168,20 +168,7 @@ export function ShapeStylePanel({ element, updateElement }) {
           </div>
         </div>
 
-        {element.type === 'connector' && (
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-neutral-600">Connection</span>
-            <ToggleGroup
-              type="single"
-              size="sm"
-              value={element.arrowType || "straight"}
-              onValueChange={(v) => v && updateElement({ arrowType: v })}
-            >
-              <ToggleGroupItem value="straight" className="h-8 px-2.5" title="Straight"><Ruler className="h-3.5 w-3.5" /></ToggleGroupItem>
-              <ToggleGroupItem value="curved" className="h-8 px-2.5" title="Curved"><Activity className="h-3.5 w-3.5" /></ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        )}
+
       </div>
     </div>
   );
