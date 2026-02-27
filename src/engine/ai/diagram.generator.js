@@ -83,7 +83,7 @@ function createNode(id, text, x, y, type = 'rectangle', width = 130, height = 70
 }
 
 /**
- * Creates a connector line between two nodes
+ * Creates an arrow/line between two nodes
  */
 function createEdge(fromNode, toNode, label = '') {
     const edgeId = crypto.randomUUID();

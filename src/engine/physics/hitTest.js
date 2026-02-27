@@ -57,59 +57,7 @@ export function getClosestAnchor(shape, point) {
     return 'right';
 }
 
-/**
- * Resolves dynamic connector point using anchor
- */
-export function resolveConnectorPoint(pointData, shapeMap) {
-    if (!pointData) return { x: 0, y: 0 };
 
-    // Padding to keep arrow slightly away from the connected shape (Excalidraw style)
-    const ARROW_PADDING = 12;
-
-    if (pointData.shapeId && shapeMap && shapeMap[pointData.shapeId]) {
-        const target = shapeMap[pointData.shapeId];
-        const halfW = (target.width || 0) / 2;
-        const halfH = (target.height || 0) / 2;
-
-        let lx = 0, ly = 0;
-        let padX = 0, padY = 0;
-
-        switch (pointData.anchor) {
-            case 'top':
-                ly = -halfH;
-                padY = -ARROW_PADDING;
-                break;
-            case 'bottom':
-                ly = halfH;
-                padY = ARROW_PADDING;
-                break;
-            case 'left':
-                lx = -halfW;
-                padX = -ARROW_PADDING;
-                break;
-            case 'right':
-                lx = halfW;
-                padX = ARROW_PADDING;
-                break;
-            default: break; // center
-        }
-
-        lx += padX;
-        ly += padY;
-
-        if (target.rotation) {
-            const angleRad = (target.rotation * Math.PI) / 180;
-            const cosArg = Math.cos(angleRad);
-            const sinArg = Math.sin(angleRad);
-            const gx = target.x + (lx * cosArg - ly * sinArg);
-            const gy = target.y + (lx * sinArg + ly * cosArg);
-            return { x: gx, y: gy };
-        } else {
-            return { x: target.x + lx, y: target.y + ly };
-        }
-    }
-    return { x: pointData.x, y: pointData.y };
-}
 
 /**
  * Checks if a point hits a control handle of the selected shape
@@ -122,26 +70,7 @@ export function resolveConnectorPoint(pointData, shapeMap) {
 export function hitTestControls(shape, x, y, zoom = 1, shapeMap = {}) {
     if (!shape) return null;
 
-    // Connectors use Absolute coordinates
-    if (shape.type === SHAPE_TYPES.CONNECTOR && shape.start && shape.mid && shape.end) {
-        const start = resolveConnectorPoint(shape.start, shapeMap);
-        const end = resolveConnectorPoint(shape.end, shapeMap);
-        let mid = { x: shape.mid.x, y: shape.mid.y };
 
-        if (!shape.mid.isManual) {
-            mid = {
-                x: start.x + (end.x - start.x) / 2,
-                y: start.y + (end.y - start.y) / 2
-            };
-        }
-
-        const padding = (HANDLE_SIZE / 2 + 5) / zoom;
-        const hitHandleGlobal = (hx, hy) => Math.abs(x - hx) <= padding && Math.abs(y - hy) <= padding;
-        if (hitHandleGlobal(start.x, start.y)) return 'start';
-        if (hitHandleGlobal(mid.x, mid.y)) return 'mid';
-        if (hitHandleGlobal(end.x, end.y)) return 'end';
-        return null;
-    }
 
     // We verify controls in the UNROTATED local space of the shape
     // because handles usually rotate WITH the shape.
@@ -223,33 +152,7 @@ export function hitTest(shape, x, y, zoom = 1, shapeMap = {}) {
     const screenPadding = 10; // 10px tolerance
     const padding = ((shape.strokeWidth || 0) / 2) + (screenPadding / zoom);
 
-    // Connector uses Global Scene Points completely independent of shape.x and shape.y
-    if (shape.type === SHAPE_TYPES.CONNECTOR) {
-        if (!shape.start || !shape.end) return false;
 
-        const start = resolveConnectorPoint(shape.start, shapeMap);
-        const end = resolveConnectorPoint(shape.end, shapeMap);
-        let mid = { x: shape.mid.x, y: shape.mid.y };
-
-        if (!shape.mid.isManual) {
-            mid = {
-                x: start.x + (end.x - start.x) / 2,
-                y: start.y + (end.y - start.y) / 2
-            };
-        }
-
-        if (shape.arrowType === 'curved' && mid) {
-            const dStartMid = distToSegment(x, y, start.x, start.y, mid.x, mid.y);
-            const dMidEnd = distToSegment(x, y, mid.x, mid.y, end.x, end.y);
-            return Math.min(dStartMid, dMidEnd) <= padding;
-        } else if (mid) {
-            const dStartMid = distToSegment(x, y, start.x, start.y, mid.x, mid.y);
-            const dMidEnd = distToSegment(x, y, mid.x, mid.y, end.x, end.y);
-            return Math.min(dStartMid, dMidEnd) <= padding;
-        } else {
-            return distToSegment(x, y, start.x, start.y, end.x, end.y) <= padding;
-        }
-    }
 
     // 1. Convert Global Point to Local Point (Scene Graph Transform)
     let lx = x - shape.x;
