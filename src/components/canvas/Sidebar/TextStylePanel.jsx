@@ -11,10 +11,10 @@ const FONTS = ["Inter", "Arial", "Times New Roman", "Courier New"];
 
 export function TextStylePanel({ element, updateElement }) {
     // Derive state from element
-    const color = element.strokeColor || element.fill || "#000000"; // Engine text uses strokeColor
-    const fontSize = element.fontSize || 20;
-    const fontFamily = element.fontFamily || "Inter";
-    const textAlign = element.textAlign || 'left';
+    const color = element.style?.stroke || element.style?.fill || "#000000"; // Engine text uses strokeColor
+    const fontSize = element.font?.size || 20;
+    const fontFamily = element.font?.family || "Inter";
+    const textAlign = element.font?.align || 'left';
 
     return (
         <div className="space-y-8">
@@ -30,7 +30,7 @@ export function TextStylePanel({ element, updateElement }) {
                             type="single"
                             size="sm"
                             value={textAlign}
-                            onValueChange={(v) => v && updateElement({ textAlign: v })}
+                            onValueChange={(v) => v && updateElement({ font: { ...element.font, align: v } })}
                             className="scale-90 origin-right"
                         >
                             <ToggleGroupItem value="left" title="Align Left"><AlignLeft className="h-3.5 w-3.5" /></ToggleGroupItem>
@@ -47,7 +47,7 @@ export function TextStylePanel({ element, updateElement }) {
                                 size="sm"
                                 className="text-[11px] h-8 justify-start px-3 overflow-hidden text-ellipsis whitespace-nowrap shadow-sm"
                                 style={{ fontFamily: font }}
-                                onClick={() => updateElement({ fontFamily: font })}
+                                onClick={() => updateElement({ font: { ...element.font, family: font } })}
                             >
                                 {font}
                             </Button>
@@ -68,7 +68,7 @@ export function TextStylePanel({ element, updateElement }) {
                             min={10}
                             max={100}
                             step={1}
-                            onValueChange={([v]) => updateElement({ fontSize: v })}
+                            onValueChange={([v]) => updateElement({ font: { ...element.font, size: v } })}
                             className="py-1"
                         />
                     </div>
@@ -84,7 +84,7 @@ export function TextStylePanel({ element, updateElement }) {
                                     key={c}
                                     className={`h-7 w-7 rounded-full shadow-sm border border-black/5 transition-all outline-none ${color === c ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110' : 'hover:scale-105'}`}
                                     style={{ backgroundColor: c }}
-                                    onClick={() => updateElement({ strokeColor: c, fill: c })}
+                                    onClick={() => updateElement({ style: { ...element.style, stroke: c, fill: c } })}
                                     title={c}
                                 />
                             ))}
@@ -95,14 +95,14 @@ export function TextStylePanel({ element, updateElement }) {
                     <div className="space-y-3 pt-2">
                         <div className="flex justify-between items-center">
                             <span className="text-[13px] font-medium text-neutral-600 flex items-center gap-1.5">Opacity</span>
-                            <span className="text-xs font-mono text-neutral-400">{Math.round((element.opacity ?? 1) * 100)}%</span>
+                            <span className="text-xs font-mono text-neutral-400">{Math.round((element.style?.opacity ?? 1) * 100)}%</span>
                         </div>
                         <Slider
-                            value={[(element.opacity ?? 1) * 100]}
+                            value={[(element.style?.opacity ?? 1) * 100]}
                             min={0}
                             max={100}
                             step={1}
-                            onValueChange={([v]) => updateElement({ opacity: v / 100 })}
+                            onValueChange={([v]) => updateElement({ style: { ...element.style, opacity: v / 100 } })}
                             className="py-1"
                         />
                     </div>
