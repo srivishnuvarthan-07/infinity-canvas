@@ -4,8 +4,9 @@ export function drawText(ctx, shape) {
     try {
         const layout = getTextLayout(ctx, shape);
 
-        ctx.fillStyle = shape.strokeColor;
-        ctx.font = `${shape.fontSize || 20}px ${shape.fontFamily || 'sans-serif'}`;
+        // Uses style.fill for text color instead of strokeColor
+        ctx.fillStyle = shape.style?.fill || '#000000';
+        ctx.font = `${shape.font?.size || 20}px ${shape.font?.family || 'sans-serif'}`;
 
         // CANONICAL RENDERING: Always Left/Top relative to calculated offsets
         // The layout.offsetX/Y places the top-left of the bounding box relative to the Anchor (0,0)
@@ -31,7 +32,7 @@ export function drawText(ctx, shape) {
             // If align=center, each line x should be centered on X=0.
             // My `getTextLayout` calculates `offsetX` as Box Top-Left.
             // If I just draw at `offsetX`, it's left aligned.
-            // FIX: We should use `ctx.textAlign` match shape.textAlign for INTERNAL alignment?
+            // FIX: We should use `ctx.textAlign` match shape.font.align for INTERNAL alignment?
             // BUT we need to position the anchor correctly.
             // If ctx.textAlign = 'center', then drawing at (0, y) centers the line at 0.
             // If shape.textAlign = 'center', offsetX = -width/2.
@@ -51,23 +52,12 @@ export function drawText(ctx, shape) {
             // AND `ctx.fillText(line, 0, y)`.
             // The vertically, we need `layout.offsetY` (Top of box).
 
-            ctx.textAlign = shape.textAlign || 'center';
+            ctx.textAlign = shape.font?.align || 'center';
             // We draw at x=0 (Anchor X).
 
             ctx.fillText(line, 0, y);
             y += layout.lineHeight;
         }
-
-        // DEBUG: Draw Anchor
-        // ctx.fillStyle = 'red';
-        // ctx.fillRect(-2, -2, 4, 4);
-
-        // DEBUG: Draw Bounding Box (derived)
-        /*
-        ctx.strokeStyle = 'rgba(0,0,255,0.3)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(layout.offsetX, layout.offsetY, layout.width, layout.height);
-        */
 
     } catch (err) {
         console.error('Error drawing text:', err);

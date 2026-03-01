@@ -1,99 +1,82 @@
 export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
-    // New 2-Point Model: shape.x/y is P0. shape.points[1] is P1 (relative).
-    let pEnd = { x: shape.width, y: 0 }; // Default fallback
+    const pts = (shape.points && shape.points.length > 1) ? shape.points : [{ x: 0, y: 0 }, { x: shape.size?.width || 0, y: 0 }];
 
-    if (shape.points && shape.points.length > 1) {
-        pEnd = shape.points[1];
-    }
+    const pStart = pts[0];
+    const pEnd = pts[pts.length - 1];
 
     // ROUGH MODE
     if (roughOps && roughOps.roughCanvas) {
         const { roughCanvas, getRoughDrawable } = roughOps;
         const drawable = getRoughDrawable(shape, (gen) => {
-            const isCartoonist = shape.sloppiness === 'cartoonist';
+            const roughness = shape.style?.roughness || 0;
+            const isCartoonist = roughness > 1.5;
             const options = {
-                stroke: shape.strokeColor,
-                strokeWidth: shape.strokeWidth,
-                roughness: isCartoonist ? 2.5 : 1.5,
+                stroke: shape.style?.stroke || '#000000',
+                strokeWidth: shape.style?.strokeWidth || 2,
+                roughness: roughness,
                 bowing: isCartoonist ? 2 : 1,
-                seed: getShapeSeed(shape)
+                seed: shape.style?.seed || getShapeSeed(shape)
             };
 
-            const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
-            const line = gen.line(pStart.x, pStart.y, pEnd.x, pEnd.y, options);
+            // Draw each segment of the polyline
+            const lines = [];
+            for (let i = 0; i < pts.length - 1; i++) {
+                lines.push(gen.line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, options));
+            }
 
-            if (!isArrow) return line;
+            if (!isArrow) return lines;
 
-            // Arrow logic
-            const headLen = Math.max(shape.strokeWidth * 4, 10);
-            const dx = pEnd.x;
-            const dy = pEnd.y;
+            // Arrowhead direction: last segment
+            const secondLast = pts[pts.length - 2];
+            const headLen = Math.max((shape.style?.strokeWidth || 2) * 4, 10);
+            const dx = pEnd.x - secondLast.x;
+            const dy = pEnd.y - secondLast.y;
             const angle = Math.atan2(dy, dx);
             const arrowAngle = Math.PI / 6;
 
-            const x1 = pEnd.x - headLen * Math.cos(angle - arrowAngle);
-            const y1 = pEnd.y - headLen * Math.sin(angle - arrowAngle);
-            const x2 = pEnd.x - headLen * Math.cos(angle + arrowAngle);
-            const y2 = pEnd.y - headLen * Math.sin(angle + arrowAngle);
+            lines.push(gen.line(pEnd.x, pEnd.y, pEnd.x - headLen * Math.cos(angle - arrowAngle), pEnd.y - headLen * Math.sin(angle - arrowAngle), options));
+            lines.push(gen.line(pEnd.x, pEnd.y, pEnd.x - headLen * Math.cos(angle + arrowAngle), pEnd.y - headLen * Math.sin(angle + arrowAngle), options));
 
-            const arrowLeg1 = gen.line(pEnd.x, pEnd.y, x1, y1, options);
-            const arrowLeg2 = gen.line(pEnd.x, pEnd.y, x2, y2, options);
-
-            // Rough.js doesn't natively support returning multiple shapes from one generator call 
-            // easily if we want to cache them as one "Drawable".
-            // Actually gen.linearPath or returning an array? 
-            // roughCache expects a SINGLE drawable.
-            // But roughCanvas.draw accepts a drawable.
-            // We can return a "Combined" drawable or just draw separately inside here?
-            // Wait, getRoughDrawable stores whatever we return.
-            // If we return an array, roughCanvas.draw(array) won't work.
-            // But the caller expects `canvas.draw(drawable)`.
-            // We can cheat: Return an object with a custom draw method or an array.
-            // BUT roughCanvas.draw only takes one.
-            // SOLUTION: Use `gen.linearPath` for everything in one go or multiple sets?
-            // Actually, we can return an array, and update CanvasRenderer to handle array.
-            // OR simpler: `roughCanvas` can't draw array.
-            // But we can just draw them inside logic if we bypass cache? NO, we NEED cache.
-
-            // Allow returning Array from generator, and update consumer to loop.
-            return [line, arrowLeg1, arrowLeg2];
+            return lines;
         });
 
         if (drawable) {
-            if (Array.isArray(drawable)) {
-                drawable.forEach(d => roughCanvas.draw(d));
-            } else {
-                roughCanvas.draw(drawable);
-            }
+            const list = Array.isArray(drawable) ? drawable : [drawable];
+            list.forEach(d => d && roughCanvas.draw(d));
         }
         return;
     }
 
     // STANDARD MODE
-    ctx.strokeStyle = shape.strokeColor;
-    ctx.lineWidth = shape.strokeWidth;
+    const strokeWidth = shape.style?.strokeWidth || 2;
+    ctx.strokeStyle = shape.style?.stroke || '#000000';
+    ctx.lineWidth = strokeWidth;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    if (shape.strokeStyle === 'dashed') {
-        ctx.setLineDash([shape.strokeWidth * 3, shape.strokeWidth * 3]);
-    } else if (shape.strokeStyle === 'dotted') {
-        ctx.setLineDash([shape.strokeWidth, shape.strokeWidth * 2]);
+    const strokeStyleState = shape.style?.strokeStyle || 'solid';
+    if (strokeStyleState === 'dashed') {
+        ctx.setLineDash([strokeWidth * 3, strokeWidth * 3]);
+    } else if (strokeStyleState === 'dotted') {
+        ctx.setLineDash([strokeWidth, strokeWidth * 2]);
     } else {
         ctx.setLineDash([]);
     }
 
-    const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
-
+    // Draw full polyline through all points
     ctx.beginPath();
-    ctx.moveTo(pStart.x, pStart.y); // Local P0
-    ctx.lineTo(pEnd.x, pEnd.y); // Local P1
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x, pts[i].y);
+    }
     ctx.stroke();
 
     if (isArrow) {
-        // Draw Arrowhead at pEnd
-        const headLen = Math.max(shape.strokeWidth * 4, 10);
-        const dx = pEnd.x; // (pEnd.x - 0)
-        const dy = pEnd.y; // (pEnd.y - 0)
+        // Arrowhead direction = direction of last segment
+        const secondLast = pts[pts.length - 2];
+        const headLen = Math.max(strokeWidth * 4, 10);
+        const dx = pEnd.x - secondLast.x;
+        const dy = pEnd.y - secondLast.y;
         const angle = Math.atan2(dy, dx);
         const arrowAngle = Math.PI / 6;
 

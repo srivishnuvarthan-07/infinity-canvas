@@ -1,25 +1,28 @@
 import { getPatternCanvas } from "../../../utils/canvas/patterns";
 
 export function drawEllipse(ctx, shape, roughOps = null) {
-    const rx = shape.width / 2;
-    const ry = shape.height / 2;
+    const w = shape.size?.width || 0;
+    const h = shape.size?.height || 0;
+    const rx = w / 2;
+    const ry = h / 2;
 
     // ROUGH MODE
     if (roughOps && roughOps.roughCanvas) {
         const { roughCanvas, getRoughDrawable } = roughOps;
         const drawable = getRoughDrawable(shape, (gen) => {
-            const isCartoonist = shape.sloppiness === 'cartoonist';
+            const roughness = shape.style?.roughness || 0;
+            const isCartoonist = roughness > 1.5;
             const options = {
-                stroke: shape.strokeColor,
-                strokeWidth: shape.strokeWidth,
-                fill: shape.fillColor !== 'transparent' ? shape.fillColor : undefined,
-                fillStyle: shape.fillStyle || 'hachure',
-                roughness: isCartoonist ? 2.5 : 1.5,
+                stroke: shape.style?.stroke || '#000000',
+                strokeWidth: shape.style?.strokeWidth || 2,
+                fill: shape.style?.fill !== 'transparent' ? shape.style?.fill : undefined,
+                fillStyle: shape.style?.fillStyle || 'hachure',
+                roughness: roughness,
                 bowing: isCartoonist ? 2 : 1,
-                seed: getShapeSeed(shape)
+                seed: shape.style?.seed || getShapeSeed(shape)
             };
             // center x, center y, width, height
-            return gen.ellipse(0, 0, shape.width, shape.height, options);
+            return gen.ellipse(0, 0, w, h, options);
         });
 
         if (drawable) roughCanvas.draw(drawable);
@@ -27,30 +30,35 @@ export function drawEllipse(ctx, shape, roughOps = null) {
     }
 
     // STANDARD MODE
-    ctx.strokeStyle = shape.strokeColor;
-    ctx.lineWidth = shape.strokeWidth;
+    const strokeWidth = shape.style?.strokeWidth || 2;
+    ctx.strokeStyle = shape.style?.stroke || '#000000';
+    ctx.lineWidth = strokeWidth;
 
     // Handle Fill Style
-    if (shape.fillColor && shape.fillColor !== 'transparent') {
-        if (shape.fillStyle === 'hachure' || shape.fillStyle === 'cross-hatch') {
-            const patternCanvas = getPatternCanvas(shape.fillColor, shape.fillStyle);
+    const fillState = shape.style?.fill || 'transparent';
+    const fillStyleState = shape.style?.fillStyle || 'solid';
+
+    if (fillState && fillState !== 'transparent') {
+        if (fillStyleState === 'hachure' || fillStyleState === 'cross-hatch') {
+            const patternCanvas = getPatternCanvas(fillState, fillStyleState);
             if (patternCanvas) {
                 const pattern = ctx.createPattern(patternCanvas, 'repeat');
                 ctx.fillStyle = pattern;
             } else {
-                ctx.fillStyle = shape.fillColor;
+                ctx.fillStyle = fillState;
             }
         } else {
-            ctx.fillStyle = shape.fillColor;
+            ctx.fillStyle = fillState;
         }
     } else {
         ctx.fillStyle = 'transparent';
     }
 
-    if (shape.strokeStyle === 'dashed') {
-        ctx.setLineDash([shape.strokeWidth * 3, shape.strokeWidth * 3]);
-    } else if (shape.strokeStyle === 'dotted') {
-        ctx.setLineDash([shape.strokeWidth, shape.strokeWidth * 2]);
+    const strokeStyleState = shape.style?.strokeStyle || 'solid';
+    if (strokeStyleState === 'dashed') {
+        ctx.setLineDash([strokeWidth * 3, strokeWidth * 3]);
+    } else if (strokeStyleState === 'dotted') {
+        ctx.setLineDash([strokeWidth, strokeWidth * 2]);
     } else {
         ctx.setLineDash([]);
     }
@@ -58,7 +66,7 @@ export function drawEllipse(ctx, shape, roughOps = null) {
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, 2 * Math.PI);
 
-    if (shape.fillColor && shape.fillColor !== 'transparent') {
+    if (fillState && fillState !== 'transparent') {
         ctx.fill();
     }
     ctx.stroke();
