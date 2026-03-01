@@ -19,10 +19,10 @@ export function QuickActionBar({
     // element.x/y is top-left in canvas coords
 
     // Canvas to Screen
-    const screenX = (selectedElement.x - viewport.x) * viewport.zoom;
-    const screenY = (selectedElement.y - viewport.y) * viewport.zoom;
-    const screenWidth = selectedElement.width * viewport.zoom;
-    // const screenHeight = selectedElement.height * viewport.zoom;
+    const screenX = ((selectedElement.position?.x || 0) - viewport.x) * viewport.zoom;
+    const screenY = ((selectedElement.position?.y || 0) - viewport.y) * viewport.zoom;
+    const screenWidth = (selectedElement.size?.width || 0) * viewport.zoom;
+    // const screenHeight = selectedElement.size?.height * viewport.zoom;
 
     // Position: Center X, Above Y
     // Offset by -50px for toolbar height?
@@ -49,14 +49,14 @@ export function QuickActionBar({
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded hover:bg-neutral-100">
                         <div
                             className="w-4 h-4 rounded-full border border-neutral-300"
-                            style={{ backgroundColor: selectedElement.fill || 'transparent' }}
+                            style={{ backgroundColor: selectedElement.style?.fill || 'transparent' }}
                         />
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-3" align="start">
                     <HexColorPicker
-                        color={selectedElement.fill || "#ffffff"}
-                        onChange={(color) => onUpdateElement({ ...selectedElement, fill: color })}
+                        color={selectedElement.style?.fill || "#ffffff"}
+                        onChange={(color) => onUpdateElement({ style: { ...selectedElement.style, fill: color } })}
                     />
                 </PopoverContent>
             </Popover>

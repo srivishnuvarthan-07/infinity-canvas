@@ -129,8 +129,8 @@ export function DrawingCanvas({
         if (!onMouseMove || !containerRef.current) return;
 
         const rect = containerRef.current.getBoundingClientRect();
-        const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
-        const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+        const x = (e.clientX - rect.left - (viewport?.x || 0)) / (viewport?.zoom || 1);
+        const y = (e.clientY - rect.top - (viewport?.y || 0)) / (viewport?.zoom || 1);
 
         if (socket?.emit) {
             socket.emit('cursor-move', { cursor: { x, y } });
@@ -168,8 +168,8 @@ export function DrawingCanvas({
 
                     // Convert to Canvas Coordinates
                     // x_canvas = (x_screen - pan_x) / zoom
-                    const dropX = (clientX - viewport.x) / viewport.zoom;
-                    const dropY = (clientY - viewport.y) / viewport.zoom;
+                    const dropX = (clientX - (viewport?.x || 0)) / (viewport?.zoom || 1);
+                    const dropY = (clientY - (viewport?.y || 0)) / (viewport?.zoom || 1);
 
                     // Clone and Offset Shapes
                     const newShapes = item.shapes.map(s => {
@@ -179,9 +179,14 @@ export function DrawingCanvas({
                             // Position relative to drop point
                             // Item shapes are normalized to center (0,0)
                             // So just add drop position
-                            x: dropX + s.x,
-                            y: dropY + s.y,
-                            opacity: s.opacity ?? 1, // Ensure defaults
+                            position: {
+                                x: dropX + (s.position?.x || 0),
+                                y: dropY + (s.position?.y || 0)
+                            },
+                            style: {
+                                ...s.style,
+                                opacity: s.style?.opacity ?? 1
+                            }
                         };
                     });
 
@@ -300,8 +305,10 @@ export function DrawingCanvas({
         const newShapes = shapesToDuplicate.map(s => ({
             ...s,
             id: crypto.randomUUID(),
-            x: s.x + 20,
-            y: s.y + 20
+            position: {
+                x: (s.position?.x || 0) + 20,
+                y: (s.position?.y || 0) + 20
+            }
         }));
 
         insertShapes(newShapes);
@@ -481,12 +488,12 @@ export function DrawingCanvas({
             {/* OVERLAYS */}
             <CursorOverlay
                 cursors={Object.values(socket?.remoteCursors || {})}
-                viewport={viewport}
+                viewport={viewport || { x: 0, y: 0, zoom: 1 }}
             />
             <SelectionOverlay
                 selections={Object.values(socket?.remoteSelections || {})}
-                shapes={customShapes}
-                viewport={viewport}
+                shapes={customShapes || []}
+                viewport={viewport || { x: 0, y: 0, zoom: 1 }}
             />
 
             {editingShapeId && customShapes && (
@@ -548,11 +555,11 @@ export function DrawingCanvas({
                         <Redo className="w-4 h-4 text-neutral-700" />
                     </Button>
                 </div>
+            </div>
 
-                {/* COMMAND HINT (Next to buttons) */}
-                <div className="flex items-center px-2 py-1 bg-white/50 backdrop-blur-sm rounded-md border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-10">
-                    ⌘K
-                </div>
+            {/* COMMAND HINT (Next to buttons) */}
+            <div className="flex items-center px-2 py-1 bg-white/50 backdrop-blur-sm rounded-md border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-10">
+                ⌘K
             </div>
 
         </div>
