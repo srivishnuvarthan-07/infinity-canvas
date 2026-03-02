@@ -19,10 +19,10 @@ function getInternalCtx() {
 export function getTextLayout(ctx, shape) {
     const context = ctx || getInternalCtx();
     context.save();
-    context.font = `${shape.fontSize || 20}px ${shape.fontFamily || 'sans-serif'}`;
+    context.font = `${shape.font?.size || 20}px ${shape.font?.family || 'sans-serif'}`;
 
     const lines = (shape.text || '').split('\n');
-    const fontSize = shape.fontSize || 20;
+    const fontSize = shape.font?.size || 20;
     const lineHeight = fontSize * 1.25; // Excalidraw uses ~1.25 usually
 
     let maxWidth = 0;
@@ -41,7 +41,7 @@ export function getTextLayout(ctx, shape) {
     // Calculate Offsets relative to Anchor (0,0 of shape local space)
     // Horizontal
     let offsetX = 0;
-    const align = shape.textAlign || 'center'; // Default to center
+    const align = shape.font?.align || 'center'; // Default to center
 
     if (align === 'left') {
         offsetX = 0;

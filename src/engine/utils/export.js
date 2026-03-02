@@ -18,13 +18,13 @@ export async function exportToPng(shapes, filename = 'canvas-export.png') {
     shapes.forEach(shape => {
         // Approximate bounds using center + width/height + rotation padding
         // For accurate bounds, we'd need full rotated rect points, but max dimension is safe enough foundation.
-        const maxDim = Math.max(shape.width || 0, shape.height || 0) * 1.5; // Padding for rotation
-        const sx = shape.x;
-        const sy = shape.y;
+        const maxDim = Math.max(shape.size?.width || 0, shape.size?.height || 0) * 1.5; // Padding for rotation
+        const sx = shape.position?.x || 0;
+        const sy = shape.position?.y || 0;
 
         // If line/arrow, we need points
         if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
-            // center is shape.x, shape.y
+            // center is shape.position.x, shape.position.y
             // points are relative to center
             if (shape.points) {
                 shape.points.forEach(p => {
