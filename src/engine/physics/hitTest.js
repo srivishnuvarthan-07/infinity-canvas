@@ -1,6 +1,6 @@
 // Physics Constants
-import { SHAPE_TYPES, createBaseSchema } from '../schema';
-import { measureTextShape } from '../utils/textUtils';
+import { SHAPE_TYPES } from '../schema';
+import { getShapeWidth, getShapeHeight } from '../geometry/geometry';
 
 export const HANDLE_SIZE = 10;
 export const ROTATION_HANDLE_OFFSET = 20;
@@ -29,8 +29,8 @@ export function distToSegment(px, py, x1, y1, x2, y2) {
 export function getClosestAnchor(shape, point) {
     if (!shape) return 'center';
 
-    let lx = point.x - shape.x;
-    let ly = point.y - shape.y;
+    let lx = point.x - (shape.position?.x || 0);
+    let ly = point.y - (shape.position?.y || 0);
 
     if (shape.rotation) {
         const angleRad = -(shape.rotation * Math.PI) / 180;
@@ -42,8 +42,8 @@ export function getClosestAnchor(shape, point) {
         ly = ry;
     }
 
-    const halfW = (shape.width || 0) / 2;
-    const halfH = (shape.height || 0) / 2;
+    const halfW = getShapeWidth(shape) / 2;
+    const halfH = getShapeHeight(shape) / 2;
 
     const dLeft = Math.abs(lx - (-halfW));
     const dRight = Math.abs(lx - halfW);
@@ -61,7 +61,7 @@ export function getClosestAnchor(shape, point) {
 
 /**
  * Checks if a point hits a control handle of the selected shape
- * @param {import('../schema').BaseShapeSchema} shape 
+ * @param {Object} shape 
  * @param {number} x - Global X (Scene)
  * @param {number} y - Global Y (Scene)
  * @param {number} zoom - Current Zoom Level (default 1)
@@ -70,16 +70,14 @@ export function getClosestAnchor(shape, point) {
 export function hitTestControls(shape, x, y, zoom = 1, shapeMap = {}) {
     if (!shape) return null;
 
-
-
     // We verify controls in the UNROTATED local space of the shape
     // because handles usually rotate WITH the shape.
 
     // 1. Transform Point to Local Shape Space
-    let lx = x - shape.x;
-    let ly = y - shape.y;
+    let lx = x - (shape.position?.x || 0);
+    let ly = y - (shape.position?.y || 0);
 
-    const angleRad = -(shape.rotation * Math.PI) / 180;
+    const angleRad = -((shape.rotation || 0) * Math.PI) / 180;
     const cosArg = Math.cos(angleRad);
     const sinArg = Math.sin(angleRad);
 
@@ -87,8 +85,8 @@ export function hitTestControls(shape, x, y, zoom = 1, shapeMap = {}) {
     const rx = lx * cosArg - ly * sinArg;
     const ry = lx * sinArg + ly * cosArg;
 
-    const halfW = shape.width / 2;
-    const halfH = shape.height / 2;
+    const halfW = getShapeWidth(shape) / 2;
+    const halfH = getShapeHeight(shape) / 2;
 
     // Zoom-safe padding
     // We want the hit area to be constant SCREEN size (e.g. 10px).
@@ -103,12 +101,11 @@ export function hitTestControls(shape, x, y, zoom = 1, shapeMap = {}) {
 
     // 0. Special Case: Two-Point Shapes (Line, Arrow)
     if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
-        let pEnd = { x: shape.width, y: 0 };
-        if (shape.points && shape.points.length > 1) {
-            pEnd = shape.points[1];
-        }
+        const pts = (shape.points && shape.points.length > 1) ? shape.points : [{ x: 0, y: 0 }, { x: getShapeWidth(shape), y: 0 }];
+        const pStart = pts[0];                   // Always first point
+        const pEnd = pts[pts.length - 1];         // Always LAST point (handles multi-segment routing)
 
-        if (hitHandle(0, 0)) return 'start';
+        if (hitHandle(pStart.x, pStart.y)) return 'start';
         if (hitHandle(pEnd.x, pEnd.y)) return 'end';
         return null;
     }
@@ -139,7 +136,7 @@ export function hitTestControls(shape, x, y, zoom = 1, shapeMap = {}) {
 
 /**
  * Checks if a point (x, y) hits a shape
- * @param {import('../schema').BaseShapeSchema} shape 
+ * @param {Object} shape 
  * @param {number} x - Global X
  * @param {number} y - Global Y
  * @param {number} zoom - Current Zoom Level (default 1)
@@ -150,16 +147,14 @@ export function hitTest(shape, x, y, zoom = 1, shapeMap = {}) {
     if (!shape) return false;
 
     const screenPadding = 10; // 10px tolerance
-    const padding = ((shape.strokeWidth || 0) / 2) + (screenPadding / zoom);
-
-
+    const padding = ((shape.style?.strokeWidth || 0) / 2) + (screenPadding / zoom);
 
     // 1. Convert Global Point to Local Point (Scene Graph Transform)
-    let lx = x - shape.x;
-    let ly = y - shape.y;
+    let lx = x - (shape.position?.x || 0);
+    let ly = y - (shape.position?.y || 0);
 
     // Rotate (Inverse rotation)
-    const angleRad = -(shape.rotation * Math.PI) / 180;
+    const angleRad = -((shape.rotation || 0) * Math.PI) / 180;
     const cosArg = Math.cos(angleRad);
     const sinArg = Math.sin(angleRad);
 
@@ -167,66 +162,67 @@ export function hitTest(shape, x, y, zoom = 1, shapeMap = {}) {
     const rx = lx * cosArg - ly * sinArg;
     const ry = lx * sinArg + ly * cosArg;
 
+    const width = getShapeWidth(shape);
+    const height = getShapeHeight(shape);
+
     // 2. Shape Specific Checks
     switch (shape.type) {
         case SHAPE_TYPES.RECTANGLE:
-            return Math.abs(rx) <= (shape.width / 2) + padding &&
-                Math.abs(ry) <= (shape.height / 2) + padding;
+            return Math.abs(rx) <= (width / 2) + padding &&
+                Math.abs(ry) <= (height / 2) + padding;
 
         case SHAPE_TYPES.ELLIPSE:
             // Normalize to unit circle
-            const rX = (shape.width / 2) + padding;
-            const rY = (shape.height / 2) + padding;
+            const rX = (width / 2) + padding;
+            const rY = (height / 2) + padding;
             return ((rx * rx) / (rX * rX)) + ((ry * ry) / (rY * rY)) <= 1;
 
         case SHAPE_TYPES.DIAMOND:
             // Manhattan distance check for standing diamond (rotated 45deg visually relative to rect)
-            const halfW = (shape.width / 2) + padding;
-            const halfH = (shape.height / 2) + padding;
+            const halfW = (width / 2) + padding;
+            const halfH = (height / 2) + padding;
             return (Math.abs(rx) / halfW) + (Math.abs(ry) / halfH) <= 1;
 
         case SHAPE_TYPES.LINE:
         case SHAPE_TYPES.ARROW:
             if (shape.points && shape.points.length >= 2) {
-                const p1 = shape.points[0];
-                const p2 = shape.points[1];
-                const d = distToSegment(rx, ry, p1.x, p1.y, p2.x, p2.y);
-                return d <= padding;
+                // Check ALL polyline segments (supports multi-point orthogonal routing)
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    const p1 = shape.points[i];
+                    const p2 = shape.points[i + 1];
+                    if (distToSegment(rx, ry, p1.x, p1.y, p2.x, p2.y) <= padding) return true;
+                }
+                return false;
             }
-
             // Fallback for older shapes without points
-            const w2 = (shape.width || 0) / 2;
-            const h2 = (shape.height || 0) / 2;
+            const w2 = width / 2;
+            const h2 = height / 2;
             const d1 = distToSegment(rx, ry, -w2, -h2, w2, h2);
             const d2 = distToSegment(rx, ry, -w2, h2, w2, -h2);
-
             return Math.min(d1, d2) <= padding;
 
         case SHAPE_TYPES.TEXT:
             // Text Hit Test - Matches src/engine/utils/textUtils.js Canonical Logic
-            // We rely on shape.width and shape.height being cached correctly.
-
-            const textW = shape.width || 0;
-            const textH = shape.height || 0;
-            const align = shape.textAlign || 'center';
+            // We rely on shape.size being cached correctly.
+            const align = shape.font?.align || 'center';
 
             let minX, maxX;
 
             // X Alignment (Matches Derived Offset)
             if (align === 'left') {
                 minX = 0;
-                maxX = textW;
+                maxX = width;
             } else if (align === 'right') {
-                minX = -textW;
+                minX = -width;
                 maxX = 0;
             } else { // center (default)
-                minX = -textW / 2;
-                maxX = textW / 2;
+                minX = -width / 2;
+                maxX = width / 2;
             }
 
             // Y Alignment (Matches Middle Baseline assumption)
-            const minY = -textH / 2;
-            const maxY = textH / 2;
+            const minY = -height / 2;
+            const maxY = height / 2;
 
             return rx >= minX - padding && rx <= maxX + padding &&
                 ry >= minY - padding && ry <= maxY + padding;
@@ -248,8 +244,8 @@ export function hitTest(shape, x, y, zoom = 1, shapeMap = {}) {
             // Simple Bounding Box Hit Test for the Group Container
             // We treat the group as a single object (Rect)
             // (rx, ry) is already in local unrotated space relative to group center
-            return Math.abs(rx) <= (shape.width / 2) + padding &&
-                Math.abs(ry) <= (shape.height / 2) + padding;
+            return Math.abs(rx) <= (width / 2) + padding &&
+                Math.abs(ry) <= (height / 2) + padding;
 
         default:
             return false;
