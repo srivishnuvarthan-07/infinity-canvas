@@ -8,6 +8,7 @@ import { drawPencil } from './shapes/pencil';
 
 import rough from 'roughjs';
 import { getTextLayout } from '../utils/textUtils';
+import { getShapeWidth, getShapeHeight } from '../geometry/geometry';
 
 export class CanvasRenderer {
     /**
@@ -132,8 +133,10 @@ export class CanvasRenderer {
                 // Simplified: AABB of rotated shape
                 // Actually, for V1, just use current bbox logic or shape.x/y/w/h
                 // But shape.x/y is center.
-                const hw = shape.width / 2;
-                const hh = shape.height / 2;
+                const w = getShapeWidth(shape);
+                const h = getShapeHeight(shape);
+                const hw = w / 2;
+                const hh = h / 2;
 
                 // If rotated, bounding box is larger. 
                 // Let's compute 4 corners and expand.
@@ -149,8 +152,8 @@ export class CanvasRenderer {
                 const sin = Math.sin(rad);
 
                 corners.forEach(p => {
-                    const gx = shape.x + (p.x * cos - p.y * sin);
-                    const gy = shape.y + (p.x * sin + p.y * cos);
+                    const gx = (shape.position?.x || 0) + (p.x * cos - p.y * sin);
+                    const gy = (shape.position?.y || 0) + (p.x * sin + p.y * cos);
                     minX = Math.min(minX, gx);
                     minY = Math.min(minY, gy);
                     maxX = Math.max(maxX, gx);
@@ -184,17 +187,17 @@ export class CanvasRenderer {
      */
     drawSelectionOutline(shape, color) {
         this.ctx.save();
-        this.ctx.translate(shape.x, shape.y);
-        this.ctx.rotate((shape.rotation * Math.PI) / 180);
+        this.ctx.translate(shape.position?.x || 0, shape.position?.y || 0);
+        this.ctx.rotate(((shape.rotation || 0) * Math.PI) / 180);
 
         this.ctx.strokeStyle = color;
         this.ctx.lineWidth = 2;
 
         // Simple bounding box for now
         // Ideally we use the specific shape path, but rect is fine for v1
-        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.strokeWidth || 0);
-        const w = (shape.width || 0) + 10 + strokeWidth;
-        const h = (shape.height || 0) + 10 + strokeWidth;
+        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.style?.strokeWidth || 0);
+        const w = getShapeWidth(shape) + 10 + strokeWidth;
+        const h = getShapeHeight(shape) + 10 + strokeWidth;
 
         this.ctx.strokeRect(-w / 2, -h / 2, w, h);
 
@@ -207,25 +210,52 @@ export class CanvasRenderer {
      */
     drawGlow(shape) {
         this.ctx.save();
-        this.ctx.translate(shape.x, shape.y);
-        this.ctx.rotate((shape.rotation * Math.PI) / 180);
+        this.ctx.translate(shape.position?.x || 0, shape.position?.y || 0);
+        this.ctx.rotate(((shape.rotation || 0) * Math.PI) / 180);
 
-        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.strokeWidth || 0);
-        const w = (shape.width || 0) + strokeWidth;
-        const h = (shape.height || 0) + strokeWidth;
+        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.style?.strokeWidth || 0);
         const padding = 10;
 
         this.ctx.shadowColor = 'rgba(59, 130, 246, 0.8)'; // Tailwind blue-500
         this.ctx.shadowBlur = 15;
-        this.ctx.strokeStyle = 'transparent';
-        this.ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+        this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+        this.ctx.lineWidth = strokeWidth + padding * 2;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+
         this.ctx.beginPath();
         if (shape.type === SHAPE_TYPES.ELLIPSE) {
+            const w = (shape.size?.width || 0) + strokeWidth;
+            const h = (shape.size?.height || 0) + strokeWidth;
             this.ctx.ellipse(0, 0, w / 2 + padding, h / 2 + padding, 0, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+            this.ctx.fill();
+        } else if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
+            const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
+            const pEnd = (shape.points && shape.points.length > 1) ? shape.points[1] : { x: getShapeWidth(shape), y: 0 };
+            this.ctx.moveTo(pStart.x, pStart.y);
+            this.ctx.lineTo(pEnd.x, pEnd.y);
+            this.ctx.stroke();
+        } else if (shape.type === SHAPE_TYPES.PENCIL) {
+            if (shape.points && shape.points.length > 0) {
+                this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                for (let i = 1; i < shape.points.length; i++) {
+                    this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                }
+                this.ctx.stroke();
+            }
+        } else if (shape.type === SHAPE_TYPES.TEXT) {
+            const layout = getTextLayout(this.ctx, shape);
+            this.ctx.roundRect(layout.offsetX - padding, layout.offsetY - padding, layout.width + padding * 2, layout.height + padding * 2, 8);
+            this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+            this.ctx.fill();
         } else {
+            const w = getShapeWidth(shape) + strokeWidth;
+            const h = getShapeHeight(shape) + strokeWidth;
             this.ctx.roundRect(-w / 2 - padding, -h / 2 - padding, w + padding * 2, h + padding * 2, 8);
+            this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+            this.ctx.fill();
         }
-        this.ctx.fill();
 
         this.ctx.restore();
     }
@@ -237,13 +267,13 @@ export class CanvasRenderer {
     drawControls(shape) {
         this.ctx.save();
         if (true) {
-            this.ctx.translate(shape.x, shape.y);
-            this.ctx.rotate((shape.rotation * Math.PI) / 180);
+            this.ctx.translate(shape.position?.x || 0, shape.position?.y || 0);
+            this.ctx.rotate(((shape.rotation || 0) * Math.PI) / 180);
         }
 
-        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.strokeWidth || 0);
-        const w = (shape.width || 0) + strokeWidth;
-        const h = (shape.height || 0) + strokeWidth;
+        const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.style?.strokeWidth || 0);
+        const w = getShapeWidth(shape) + strokeWidth;
+        const h = getShapeHeight(shape) + strokeWidth;
         const padding = 10;
 
         this.ctx.strokeStyle = '#0066ff'; // Selection color
@@ -263,7 +293,7 @@ export class CanvasRenderer {
         if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
             // ... (existing code)
             const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
-            let pEnd = { x: shape.width, y: 0 };
+            let pEnd = { x: getShapeWidth(shape), y: 0 };
             if (shape.points && shape.points.length > 1) {
                 pEnd = shape.points[1];
             }
@@ -338,39 +368,69 @@ export class CanvasRenderer {
         if (!shape) return;
 
         this.ctx.save();
-        this.ctx.globalAlpha = shape.opacity;
+        this.ctx.globalAlpha = shape.style?.opacity ?? 1;
 
         // Draw Soft Glow for actual geometry background if highlighted
         if (shape.isHighlighted) {
             this.ctx.save();
 
             // Common Transform for background glow specifically
-            this.ctx.translate(shape.x, shape.y);
-            this.ctx.rotate((shape.rotation * Math.PI) / 180);
+            this.ctx.translate(shape.position?.x || 0, shape.position?.y || 0);
+            this.ctx.rotate(((shape.rotation || 0) * Math.PI) / 180);
 
-            const gw = (shape.width || 0) + (shape.strokeWidth || 0);
-            const gh = (shape.height || 0) + (shape.strokeWidth || 0);
+            const strokeWidth = shape.type === SHAPE_TYPES.TEXT ? 0 : (shape.style?.strokeWidth || 0);
             const padding = 10;
 
             this.ctx.shadowColor = 'rgba(59, 130, 246, 0.8)';
             this.ctx.shadowBlur = 15;
-            this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+            this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+            this.ctx.lineWidth = strokeWidth + padding * 2;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+
             this.ctx.beginPath();
             if (shape.type === SHAPE_TYPES.ELLIPSE) {
+                const gw = (shape.size?.width || 0) + strokeWidth;
+                const gh = (shape.size?.height || 0) + strokeWidth;
                 this.ctx.ellipse(0, 0, gw / 2 + padding, gh / 2 + padding, 0, 0, Math.PI * 2);
+                this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+                this.ctx.fill();
+            } else if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
+                const pStart = (shape.points && shape.points.length > 0) ? shape.points[0] : { x: 0, y: 0 };
+                const pEnd = (shape.points && shape.points.length > 1) ? shape.points[1] : { x: shape.size?.width || 0, y: 0 };
+                this.ctx.moveTo(pStart.x, pStart.y);
+                this.ctx.lineTo(pEnd.x, pEnd.y);
+                this.ctx.stroke();
+            } else if (shape.type === SHAPE_TYPES.PENCIL) {
+                if (shape.points && shape.points.length > 0) {
+                    this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                    for (let i = 1; i < shape.points.length; i++) {
+                        this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                    }
+                    this.ctx.stroke();
+                }
+            } else if (shape.type === SHAPE_TYPES.TEXT) {
+                const layout = getTextLayout(this.ctx, shape);
+                this.ctx.roundRect(layout.offsetX - padding, layout.offsetY - padding, layout.width + padding * 2, layout.height + padding * 2, 8);
+                this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+                this.ctx.fill();
             } else {
+                const gw = (shape.size?.width || 0) + strokeWidth;
+                const gh = (shape.size?.height || 0) + strokeWidth;
                 this.ctx.roundRect(-gw / 2 - padding, -gh / 2 - padding, gw + padding * 2, gh + padding * 2, 8);
+                this.ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+                this.ctx.fill();
             }
-            this.ctx.fill();
             this.ctx.restore();
         }
 
         // Common Transform (Center Origin)
-        this.ctx.translate(shape.x, shape.y);
-        this.ctx.rotate((shape.rotation * Math.PI) / 180);
+        this.ctx.translate(shape.position?.x || 0, shape.position?.y || 0);
+        this.ctx.rotate(((shape.rotation || 0) * Math.PI) / 180);
 
         // Rough.js Context
-        const isRough = shape.sloppiness === 'artist' || shape.sloppiness === 'cartoonist';
+        const roughness = shape.style?.roughness ?? (shape.sloppiness === 'artist' ? 1.5 : (shape.sloppiness === 'cartoonist' ? 2.5 : 0));
+        const isRough = roughness > 0;
         const roughOps = isRough ? {
             roughCanvas: this.roughCanvas,
             getRoughDrawable: this.getRoughDrawable.bind(this)
@@ -438,7 +498,9 @@ export class CanvasRenderer {
         }
 
         if (img.complete && img.naturalWidth > 0) {
-            this.ctx.drawImage(img, -shape.width / 2, -shape.height / 2, shape.width, shape.height);
+            const w = getShapeWidth(shape);
+            const h = getShapeHeight(shape);
+            this.ctx.drawImage(img, -w / 2, -h / 2, w, h);
         }
     }
 

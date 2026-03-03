@@ -4,7 +4,7 @@
  * Computes point-to-point relative paths for arrows and provides integration helpers.
  */
 
-import { computeEdgeConnection } from "./edgeAnchor";
+import { computeEdgeConnection, getEdgeAnchor } from "./edgeAnchor";
 
 /**
  * Computes a straight line route between two points.
@@ -21,6 +21,94 @@ export function computeStraightRoute(start, end) {
 }
 
 /**
+ * Detects whether a route is a "back-edge" — going against the dominant flow direction.
+ *
+ * In TB layout the natural flow exits "bottom" → enters "top".
+ * A back-edge exits "top" → enters "bottom" (or "top" → "top" for a self-loop).
+ *
+ * In LR layout the natural flow exits "right" → enters "left".
+ * A back-edge exits "left" → enters "right".
+ */
+function isBackEdge(start, end) {
+    const { anchorType: sa } = start;
+    const { anchorType: ae } = end;
+    // Vertical-dominant back-edges (TB layout)
+    if ((sa === 'top' && ae === 'bottom') ||
+        (sa === 'top' && ae === 'top') ||
+        (sa === 'bottom' && ae === 'bottom')) return true;
+    // Horizontal-dominant back-edges (LR layout)
+    if ((sa === 'left' && ae === 'right') ||
+        (sa === 'left' && ae === 'left') ||
+        (sa === 'right' && ae === 'right')) return true;
+    return false;
+}
+
+/**
+ * Computes a U-loop route for back-edges.
+ *
+ * The path goes:
+ *   start → stub away from source → loop to the side → travel past target →
+ *   approach target from same side → enter target anchor
+ *
+ * This guarantees the arrow never passes through nodes between source and target.
+ *
+ * @param {{x:number,y:number,anchorType:string}} start  World-space anchor on source
+ * @param {{x:number,y:number,anchorType:string}} end    World-space anchor on target
+ * @returns {Array<{x:number,y:number}>}  Points relative to start
+ */
+function computeBackEdgeRoute(start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+
+    // How far to pop out before turning (avoids clipping the source shape corner)
+    const STUB = 36;
+    // Minimum clearance past the outermost node on the way around
+    const MIN_MARGIN = 70;
+
+    const isVertical = start.anchorType === 'top' || start.anchorType === 'bottom';
+
+    if (isVertical) {
+        // ── TB back-edge loop ──────────────────────────────────────────────
+        // Determine stub direction: out of source top → go UP (negative y)
+        const stubDir = start.anchorType === 'top' ? -1 : 1;
+
+        // Loop to whichever side gives more clearance; default: opposite of dx
+        // If target is to the right (dx > 0), loop left; otherwise loop right.
+        const sideMargin = Math.max(MIN_MARGIN, Math.abs(dx) / 2 + MIN_MARGIN);
+        const side = dx >= 0 ? -sideMargin : sideMargin;
+
+        // Extra overshoot ensures we clear the target node's far edge before
+        // turning back in; proportional to the vertical span of the loop.
+        const overshoot = STUB;
+
+        return [
+            { x: 0, y: 0 },  // start at source anchor
+            { x: 0, y: stubDir * STUB },  // pop out from source face
+            { x: side, y: stubDir * STUB },  // go to the side
+            { x: side, y: dy - stubDir * overshoot }, // travel past target
+            { x: dx, y: dy - stubDir * overshoot }, // come in from side to target X
+            { x: dx, y: dy },  // enter target anchor
+        ];
+    } else {
+        // ── LR back-edge loop ──────────────────────────────────────────────
+        const stubDir = start.anchorType === 'left' ? -1 : 1;
+
+        const sideMargin = Math.max(MIN_MARGIN, Math.abs(dy) / 2 + MIN_MARGIN);
+        const side = dy >= 0 ? -sideMargin : sideMargin;
+        const overshoot = STUB;
+
+        return [
+            { x: 0, y: 0 },
+            { x: stubDir * STUB, y: 0 },
+            { x: stubDir * STUB, y: side },
+            { x: dx - stubDir * overshoot, y: side },
+            { x: dx - stubDir * overshoot, y: dy },
+            { x: dx, y: dy },
+        ];
+    }
+}
+
+/**
  * Computes an orthogonal (elbow) route between two anchor points.
  * Retuns a polyline array of points relative to the start point.
  * @param {{x: number, y: number, anchorType: string}} start 
@@ -30,6 +118,11 @@ export function computeStraightRoute(start, end) {
 export function computeOrthogonalRoute(start, end) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
+
+    // ── Back-edge: route around the side with a U-loop ───────────────────
+    if (isBackEdge(start, end)) {
+        return computeBackEdgeRoute(start, end);
+    }
 
     // Use anchor type to determine the dominant routing direction out of the shape
     const isHorizontalStart = start.anchorType === "left" || start.anchorType === "right";
@@ -57,6 +150,7 @@ export function computeOrthogonalRoute(start, end) {
 
     return points;
 }
+
 
 /**
  * Pure function to map an arrow shape with a new route between two shapes.
@@ -93,7 +187,10 @@ export function routeArrow(arrow, sourceShape, targetShape, mode = "orthogonal")
  * Integration helper for interaction layer (drag & resize hooks).
  * Accepts a Set of moved shape IDs and the full shapes array.
  * Returns a new full shapes array with connected arrows re-routed.
- * Safe for direct use as the return value of setShapes(prev => ...).
+ * Handles three cases:
+ *   1. Both ends bound → full edge-aware re-route
+ *   2. Only start bound → snap start to shape edge, keep free end world-stable
+ *   3. Only end bound → snap end to shape edge, keep free start world-stable
  * @param {Set<string>} movedShapeIds
  * @param {Array<Object>} allShapes
  * @returns {Array<Object>}
@@ -107,29 +204,73 @@ export function updateConnectedArrows(movedShapeIds, allShapes) {
     let hasUpdates = false;
 
     const result = allShapes.map(s => {
-        // Only process arrows with valid bindings
         if (s.type !== "arrow" || !s.bindings) return s;
 
         const startBoundId = s.bindings.start?.elementId;
         const endBoundId = s.bindings.end?.elementId;
 
-        // Only re-route if one of this arrow's bound shapes moved
-        if (!movedShapeIds.has(startBoundId) && !movedShapeIds.has(endBoundId)) return s;
+        const startMoved = startBoundId && movedShapeIds.has(startBoundId);
+        const endMoved = endBoundId && movedShapeIds.has(endBoundId);
 
-        const source = allShapes.find(sh => sh.id === startBoundId);
-        const target = allShapes.find(sh => sh.id === endBoundId);
+        if (!startMoved && !endMoved) return s;
 
-        // Skip if either endpoint shape is missing
-        if (!source || !target) return s;
+        const source = startBoundId ? allShapes.find(sh => sh.id === startBoundId) : null;
+        const target = endBoundId ? allShapes.find(sh => sh.id === endBoundId) : null;
 
         try {
             hasUpdates = true;
-            return routeArrow(s, source, target, "orthogonal");
+
+            // Case 1: Both ends bound → full orthogonal re-route
+            if (source && target) {
+                return routeArrow(s, source, target, "orthogonal");
+            }
+
+            const pts = s.points || [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+            const posX = s.position?.x || 0;
+            const posY = s.position?.y || 0;
+
+            // Case 2: Only START bound, end is free
+            if (source && !target) {
+                // Free end is fixed in world space: arrow.position + last point
+                const lastPt = pts[pts.length - 1];
+                const freeEnd = { x: posX + lastPt.x, y: posY + lastPt.y };
+
+                // Snap source edge to face the free end
+                const startAnchor = getEdgeAnchor(source, freeEnd);
+
+                return {
+                    ...s,
+                    position: { x: startAnchor.x, y: startAnchor.y },
+                    points: [
+                        { x: 0, y: 0 },
+                        { x: freeEnd.x - startAnchor.x, y: freeEnd.y - startAnchor.y }
+                    ]
+                };
+            }
+
+            // Case 3: Only END bound, start is free
+            if (!source && target) {
+                // Free start is fixed: arrow.position (points[0] is always {0,0})
+                const freeStart = { x: posX, y: posY };
+
+                // Snap target edge to face the free start
+                const endAnchor = getEdgeAnchor(target, freeStart);
+
+                return {
+                    ...s,
+                    // position stays the same (free start doesn't move)
+                    points: [
+                        { x: 0, y: 0 },
+                        { x: endAnchor.x - posX, y: endAnchor.y - posY }
+                    ]
+                };
+            }
+
         } catch (e) {
-            // Never crash the drag handler — return original arrow on error
-            console.warn("[smartArrow] routeArrow failed:", e);
-            return s;
+            console.warn("[smartArrow] updateConnectedArrows failed:", e);
         }
+
+        return s;
     });
 
     return hasUpdates ? result : allShapes;

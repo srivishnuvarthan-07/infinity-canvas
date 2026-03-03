@@ -207,7 +207,7 @@ export const useBoardStore = create((set, get) => ({
             || null;
         if (!meta) return null;
         const data = boardDataCache[boardId];
-        return { ...meta, shapes: data?.shapes || [] };
+        return { ...meta, shapes: Array.isArray(data?.shapes) ? data.shapes : [] };
     },
 
     // ─────────────────────────────────────────
@@ -362,7 +362,7 @@ export const useBoardStore = create((set, get) => ({
         set(state => ({
             boardDataCache: {
                 ...state.boardDataCache,
-                [boardId]: { ...(state.boardDataCache[boardId] || {}), shapes },
+                [boardId]: { ...(state.boardDataCache[boardId] || {}), shapes: Array.isArray(shapes) ? shapes : [] },
             },
         }));
 
