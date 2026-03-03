@@ -7,7 +7,7 @@ import { AlignLeft, AlignCenter, AlignRight, Type } from "lucide-react";
 // Common text colors
 const COLORS = ["#000000", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
 // Common font families
-const FONTS = ["Inter", "Arial", "Times New Roman", "Courier New"];
+const FONTS = ["Inter", "Poppins", "Roboto Slab", "JetBrains Mono", "Caveat", "Playfair Display", "Orbitron", "Impact", "Comic Sans MS"];
 
 export function TextStylePanel({ element, updateElement }) {
     // Derive state from element
@@ -39,19 +39,20 @@ export function TextStylePanel({ element, updateElement }) {
                         </ToggleGroup>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-1.5">
-                        {FONTS.map(font => (
-                            <Button
-                                key={font}
-                                variant={fontFamily === font ? "default" : "outline"}
-                                size="sm"
-                                className="text-[11px] h-8 justify-start px-3 overflow-hidden text-ellipsis whitespace-nowrap shadow-sm"
-                                style={{ fontFamily: font }}
-                                onClick={() => updateElement({ font: { ...element.font, family: font } })}
-                            >
-                                {font}
-                            </Button>
-                        ))}
+                    <div className="flex flex-col gap-1">
+                        <input
+                            type="text"
+                            list="font-list"
+                            className="h-8 w-full border rounded text-[13px] px-2 outline-none focus:border-indigo-500 bg-white cursor-pointer"
+                            placeholder="e.g. Inter, Arial"
+                            value={fontFamily}
+                            onChange={(e) => updateElement({ font: { ...element.font, family: e.target.value } })}
+                        />
+                        <datalist id="font-list">
+                            {FONTS.map(font => (
+                                <option key={font} value={font} />
+                            ))}
+                        </datalist>
                     </div>
                 </div>
 
@@ -78,16 +79,22 @@ export function TextStylePanel({ element, updateElement }) {
                         <div className="flex justify-between items-center">
                             <span className="text-[13px] font-medium text-neutral-600">Color</span>
                         </div>
-                        <div className="flex gap-2 flex-wrap mt-2">
-                            {COLORS.map((c) => (
-                                <button
-                                    key={c}
-                                    className={`h-7 w-7 rounded-full shadow-sm border border-black/5 transition-all outline-none ${color === c ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110' : 'hover:scale-105'}`}
-                                    style={{ backgroundColor: c }}
-                                    onClick={() => updateElement({ style: { ...element.style, stroke: c, fill: c } })}
-                                    title={c}
-                                />
-                            ))}
+                        <div className="flex gap-2 items-center mt-2">
+                            <input
+                                type="color"
+                                className="h-8 w-8 rounded cursor-pointer p-0 border-0 outline-none"
+                                value={color}
+                                onChange={(e) => updateElement({ style: { ...element.style, stroke: e.target.value, fill: e.target.value } })}
+                                title="Text Color"
+                            />
+                            <input
+                                type="text"
+                                className="h-8 text-sm px-2 w-20 border rounded font-mono text-neutral-600 outline-none focus:border-indigo-500"
+                                value={color}
+                                onChange={(e) => updateElement({ style: { ...element.style, stroke: e.target.value, fill: e.target.value } })}
+                                placeholder="#000000"
+                                maxLength={7}
+                            />
                         </div>
                     </div>
 

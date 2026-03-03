@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sparkles, Loader2, Send } from 'lucide-react';
 import { getAIService } from '@/services/ai.service';
 import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
+import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 
 export function LibraryAIPrompt({ onGenerateSuccess }) {
@@ -22,20 +23,27 @@ export function LibraryAIPrompt({ onGenerateSuccess }) {
         setIsGenerating(true);
         try {
             const aiService = getAIService(apiKey);
-            const intent = await aiService.generateMermaid(prompt);
+            const intent = await aiService.generateGraphJSON(prompt);
 
             if (intent.intent_type === 'non_visual') {
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
             } else if (intent.intent_type === 'visual') {
+                const validation = validateGraph(intent.graph);
+                if (!validation.success) {
+                    toast.error('AI returned an invalid diagram format. Please try again.');
+                    console.error("Zod Validation Error:", validation.error);
+                    return;
+                }
+
                 const newShapes = generateDiagramShapes(intent);
                 if (newShapes && newShapes.length > 0) {
                     if (onGenerateSuccess) {
                         await onGenerateSuccess(newShapes, `AI Diagram`);
                     }
-                    toast.success('Generated Mermaid scene and saved to Library!');
+                    toast.success('Generated diagram and saved to Library!');
                     setPrompt('');
                 } else {
-                    toast.error('Could not parse diagram.');
+                    toast.error('Could not layout diagram.');
                 }
             }
         } catch (error) {
