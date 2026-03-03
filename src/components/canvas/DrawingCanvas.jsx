@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { ShareModal } from "./ShareModal";
 
 import { FloatingMenu } from "@/components/layout/FloatingMenu";
+import { AIPromptBar } from "@/components/canvas/AIPromptBar";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
 import { toast } from "sonner";
@@ -446,6 +447,9 @@ export function DrawingCanvas({
                     orientation="horizontal"
                 />
             </div>
+
+            {/* BOTTOM LEFT: AI PROMPT BAR */}
+            <AIPromptBar onInsertShapes={insertShapes} />
 
             {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
             {!disablePropertyPanel && selectedElement && (

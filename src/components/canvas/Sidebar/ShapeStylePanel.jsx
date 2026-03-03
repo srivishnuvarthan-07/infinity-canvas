@@ -51,16 +51,22 @@ export function ShapeStylePanel({ element, updateElement }) {
             className="py-1"
           />
 
-          <div className="flex gap-2 flex-wrap mt-2">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                className={`h-7 w-7 rounded-full shadow-sm border border-black/5 transition-all outline-none ${strokeColor === color ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110' : 'hover:scale-105'}`}
-                style={{ backgroundColor: color }}
-                onClick={() => updateElement({ style: { ...element.style, stroke: color } })}
-                title={color}
-              />
-            ))}
+          <div className="flex gap-2 items-center mt-2">
+            <input
+              type="color"
+              className="h-8 w-8 rounded cursor-pointer p-0 border-0 outline-none"
+              value={strokeColor}
+              onChange={(e) => updateElement({ style: { ...element.style, stroke: e.target.value } })}
+              title="Stroke Color"
+            />
+            <input
+              type="text"
+              className="h-8 text-sm px-2 w-20 border rounded font-mono text-neutral-600 outline-none focus:border-indigo-500"
+              value={strokeColor}
+              onChange={(e) => updateElement({ style: { ...element.style, stroke: e.target.value } })}
+              placeholder="#000000"
+              maxLength={7}
+            />
           </div>
         </div>
 

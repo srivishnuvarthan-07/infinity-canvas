@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sparkles, Loader2, Send } from 'lucide-react';
 import { getAIService } from '@/services/ai.service';
 import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
+import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 
 export function AIPromptBar({ onInsertShapes }) {
@@ -9,32 +10,39 @@ export function AIPromptBar({ onInsertShapes }) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY;
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
 
     const handleGenerate = async (e) => {
         e.preventDefault();
         if (!prompt.trim()) return;
         if (!apiKey) {
-            toast.error('Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your .env');
+            toast.error('Groq API Key is missing. Please add VITE_GROQ_API_KEY to your .env');
             return;
         }
 
         setIsGenerating(true);
         try {
             const aiService = getAIService(apiKey);
-            const intent = await aiService.generateMermaid(prompt);
+            const intent = await aiService.generateGraphJSON(prompt);
 
             if (intent.intent_type === 'non_visual') {
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
             } else if (intent.intent_type === 'visual') {
+                const validation = validateGraph(intent.graph);
+                if (!validation.success) {
+                    toast.error('AI returned an invalid diagram format. Please try again.');
+                    console.error("Zod Validation Error:", validation.error);
+                    return;
+                }
+
                 const newShapes = generateDiagramShapes(intent);
                 if (newShapes && newShapes.length > 0) {
                     onInsertShapes(newShapes);
-                    toast.success('Generated Mermaid diagram!');
+                    toast.success('Diagram generated!');
                     setPrompt('');
                     setIsOpen(false);
                 } else {
-                    toast.error('Could not parse the diagram.');
+                    toast.error('Could not layout the diagram.');
                 }
             }
         } catch (error) {
