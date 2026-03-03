@@ -2,45 +2,41 @@ export const aiEngineSystemInstruction = `
 You are the Creative Whiteboard AI engine for Infinity Canvas.
 
 Your task:
-Generate ONLY valid Mermaid diagram code.
+Generate ONLY valid JSON matching the exact schema below.
 
 --------------------------------------------------
+
+SCHEMA:
+{
+  "direction": "TB",
+  "nodes": [
+    { "id": "A", "label": "Start", "type": "rectangle" },
+    { "id": "B", "label": "Process", "type": "ellipse" },
+    { "id": "C", "label": "Decision", "type": "diamond" }
+  ],
+  "edges": [
+    { "from": "A", "to": "B", "label": "Optional label" },
+    { "from": "B", "to": "C" }
+  ]
+}
 
 RULES:
-
-1. Use flowchart syntax:
-   graph TD
-   graph LR
-
+1. Node types MUST be one of: "rectangle", "ellipse", "diamond".
 2. Keep maximum 25 nodes.
-
 3. Keep labels short (2–5 words).
-
-4. Use clear IDs:
-   A, B, C, D...
-   or
-   N1, N2, N3...
-
-5. Use:
-   A[Rectangle]
-   A((Circle))
-   A{Decision}
-
-6. Use arrows:
-   A --> B
-   A -->|Label| B
-
-7. Add a TITLE as the first node:
-   TITLE[Diagram Title]
-
-8. Do NOT explain anything.
-9. Do NOT wrap in markdown.
-10. Return plain Mermaid code only.
+4. Use simple IDs like A, B, C, N1, N2...
+5. Include a TITLE node as the first node if appropriate:
+   { "id": "TITLE", "label": "Diagram Title", "type": "rectangle" }
+6. Choose "direction" based on diagram shape:
+   - Use "LR" (left-to-right) for: pipelines, CI/CD, state machines, parallel branches, horizontal flows.
+   - Use "TB" (top-to-bottom) for: flowcharts, decision trees, org charts, sequences, vertical flows.
+7. Do NOT explain anything.
+8. Do NOT wrap the JSON in markdown code blocks (\`\`\`json).
+9. Return raw JSON text only.
 
 --------------------------------------------------
 
-If the request is not visual, respond with:
-
+If the request is not visual, respond with a plain text string starting with:
 NON_VISUAL: <short suggestion>
 `;
 
@@ -51,7 +47,7 @@ export class AIService {
     this.model = "llama-3.3-70b-versatile";
   }
 
-  async generateMermaid(prompt, retryCount = 0) {
+  async generateGraphJSON(prompt, retryCount = 0) {
     try {
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -65,7 +61,8 @@ export class AIService {
             { role: "system", content: aiEngineSystemInstruction },
             { role: "user", content: prompt }
           ],
-          temperature: 0.2
+          temperature: 0.2,
+          response_format: { type: "json_object" }
         })
       });
 
@@ -75,7 +72,7 @@ export class AIService {
       }
 
       const resData = await response.json();
-      const text = resData.choices[0]?.message?.content?.trim() || "";
+      let text = resData.choices[0]?.message?.content?.trim() || "";
 
       // Detect non-visual
       if (text.startsWith("NON_VISUAL:")) {
@@ -85,24 +82,33 @@ export class AIService {
         };
       }
 
-      // Validate Mermaid start
-      if (!text.startsWith("graph")) {
+      // Sometimes Llama still wraps in markdown despite instructions if response_format JSON is buggy
+      if (text.startsWith("\`\`\`json")) {
+        text = text.replace(/^\`\`\`json\n?/, "").replace(/\n?\`\`\`$/, "");
+      } else if (text.startsWith("\`\`\`")) {
+        text = text.replace(/^\`\`\`\n?/, "").replace(/\n?\`\`\`$/, "");
+      }
+
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(text);
+      } catch (parseErr) {
         if (retryCount < 2) {
-          return this.generateMermaid(
-            prompt + "\n\nReturn valid Mermaid starting with 'graph TD' or 'graph LR'. No explanation.",
+          return this.generateGraphJSON(
+            prompt + "\n\nReturn ONLY valid JSON. Your previous response failed to parse.",
             retryCount + 1
           );
         }
-        throw new Error("Invalid Mermaid response.");
+        throw new Error("Invalid output from AI: Not valid JSON.");
       }
 
       return {
         intent_type: "visual",
-        mermaid: text
+        graph: parsedJson
       };
 
     } catch (error) {
-      console.error("AI Mermaid Generation Error:", error);
+      console.error("AI Graph Generation Error:", error);
       throw error;
     }
   }
