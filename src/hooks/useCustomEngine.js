@@ -44,7 +44,9 @@ export function useCustomEngine({
         sendToBack,
         bringForward,
         sendBackward,
-        emitUpdate
+        emitUpdate,
+        resetHistory,
+        clearCanvas
     } = useEngineState(initialShapes, socket);
 
     // 2. Viewport Management (Zoom, Pan, Coordinates)
@@ -140,9 +142,8 @@ export function useCustomEngine({
         undo,
         redo,
         canUndo,
-        canUndo,
         canRedo,
-        saveState, // Add this export
+        saveState,
 
         viewport,
         setViewport,
@@ -169,14 +170,9 @@ export function useCustomEngine({
         setShapes,
         selectedShapeIds,
         setSelectedShapeIds,
-        clearCanvas: () => {
-            setShapes([]);
-            setHistory([[]]);
-            // clear others?
-        },
+        clearCanvas,
         setCanvasState: (newShapes) => {
-            setShapes(newShapes);
-            setHistory([newShapes]); // Reset history to this state
+            resetHistory(newShapes);
         },
 
         groupShapes,

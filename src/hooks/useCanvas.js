@@ -101,10 +101,10 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
       return {
         id: 'selection-group',
         type: 'activeSelection',
-        stroke: objects[0].strokeColor,
-        strokeWidth: objects[0].strokeWidth,
-        opacity: objects[0].opacity,
-        sloppiness: objects[0].sloppiness,
+        stroke: objects[0].style?.stroke,
+        strokeWidth: objects[0].style?.strokeWidth,
+        opacity: objects[0].style?.opacity,
+        sloppiness: objects[0].style?.sloppiness,
         objects: objects
       };
     }
@@ -115,14 +115,14 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
       updateShapes(selectedShapeIds, updates);
 
       // Sync global tool state with selection changes ("Pick up style")
-      if (updates.strokeColor || updates.stroke || updates.color) {
-        setActiveColor(updates.strokeColor || updates.stroke || updates.color);
+      if (updates.style?.stroke || updates.color) {
+        setActiveColor(updates.style?.stroke || updates.color);
       }
-      if (updates.strokeWidth) {
-        setStrokeWidth(updates.strokeWidth);
+      if (updates.style?.strokeWidth) {
+        setStrokeWidth(updates.style?.strokeWidth);
       }
-      if (updates.strokeStyle) {
-        setStrokeStyle(updates.strokeStyle);
+      if (updates.style?.strokeStyle) {
+        setStrokeStyle(updates.style?.strokeStyle);
       }
     }
   };
@@ -187,18 +187,18 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
           const newShape = {
             id,
             type: 'image',
-            x,
-            y,
-            width: w,
-            height: h,
+            position: { x, y },
+            size: { width: w, height: h },
             rotation: 0,
-            opacity: 1,
             src: src,
-            strokeColor: 'transparent',
-            // Add other defaults to avoid crashes in generic utils
-            strokeWidth: 0,
-            strokeStyle: 'solid',
-            sloppiness: 'architect'
+            style: {
+              opacity: 1,
+              stroke: 'transparent',
+              // Add other defaults to avoid crashes in generic utils
+              strokeWidth: 0,
+              strokeStyle: 'solid',
+              sloppiness: 'architect'
+            }
           };
 
           setShapes(prev => [...prev, newShape]);

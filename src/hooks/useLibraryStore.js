@@ -89,12 +89,12 @@ export function useLibraryStore() {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         shapes.forEach(s => {
             // simplified bounds check
-            const hw = (s.width * (s.scaleX || 1)) / 2;
-            const hh = (s.height * (s.scaleY || 1)) / 2;
-            minX = Math.min(minX, s.x - hw);
-            minY = Math.min(minY, s.y - hh);
-            maxX = Math.max(maxX, s.x + hw);
-            maxY = Math.max(maxY, s.y + hh);
+            const hw = (s.size.width * s.scale.x) / 2;
+            const hh = (s.size.height * s.scale.y) / 2;
+            minX = Math.min(minX, s.position.x - hw);
+            minY = Math.min(minY, s.position.y - hh);
+            maxX = Math.max(maxX, s.position.x + hw);
+            maxY = Math.max(maxY, s.position.y + hh);
         });
 
         const width = maxX - minX;
@@ -104,8 +104,10 @@ export function useLibraryStore() {
 
         const normalizedShapes = shapes.map(s => ({
             ...s,
-            x: s.x - centerX,
-            y: s.y - centerY,
+            position: {
+                x: s.position.x - centerX,
+                y: s.position.y - centerY
+            }
         }));
 
         const tempId = generateId();
