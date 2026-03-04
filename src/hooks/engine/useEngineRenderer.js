@@ -16,6 +16,7 @@ export function useEngineRenderer({
 
     // Offscreen Buffer
     const offscreenRef = useRef(null);
+    const staticRendererRef = useRef(null);
     const isDirtyRef = useRef(true);
 
     // Refs for mutable state access
@@ -68,6 +69,13 @@ export function useEngineRenderer({
                     offscreenRef.current.width = w * dpr;
                     offscreenRef.current.height = h * dpr;
                     offscreenRef.current.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                    if (!staticRendererRef.current) {
+                        staticRendererRef.current = new CanvasRenderer(offscreenRef.current);
+                    }
+                    staticRendererRef.current.width = w;
+                    staticRendererRef.current.height = h;
+
                     isDirtyRef.current = true; // Force redraw
                 }
             } else {
@@ -148,39 +156,31 @@ export function useEngineRenderer({
 
             // Determine what is "Static"
             let staticShapes = shapesRef.current;
+            const selectedIds = selectedIdsRef.current;
 
-            // If dragging/resizing, exclude the active shapes from background
-            if (isDraggingRef.current && selectedIdsRef.current.size > 0) {
-                staticShapes = staticShapes.filter(s => !selectedIdsRef.current.has(s.id));
+            // Helper: check if an arrow is bound to any selected shape
+            const isBoundToSelected = (s) => {
+                if (s.type !== "arrow" || !s.bindings) return false;
+                const startId = s.bindings.start?.elementId;
+                const endId = s.bindings.end?.elementId;
+                return (startId && selectedIds.has(startId)) || (endId && selectedIds.has(endId));
+            };
+
+            // If dragging/resizing, exclude the active shapes AND their connected arrows from background
+            if (isDraggingRef.current && selectedIds.size > 0) {
+                staticShapes = staticShapes.filter(s => !selectedIds.has(s.id) && !isBoundToSelected(s));
             }
             if (editingShapeIdRef.current) {
                 staticShapes = staticShapes.filter(s => s.id !== editingShapeIdRef.current);
             }
 
-            // Draw Static to Offscreen
-            // We reuse CanvasRenderer logic but point it to offCtx? 
-            // CanvasRenderer encapsulates the context usually. 
-            // We might need to expose a helper or instantiate a temporary renderer.
-            // Better: Add `renderToContext` method to CanvasRenderer.
-
-            // Short-term: Just access CanvasRenderer's internal helpers or copy logic?
-            // CanvasRenderer probably stores `this.ctx`.
-            // Let's assume we can use a helper. 
-            // For now, I'll assume CanvasRenderer has a static helper or I can re-use it.
-            // Actually, constructing a new Renderer is cheap if it's stateless.
-            // Or better, let's look at CanvasRenderer. 
-            // I'll make a quick instance or assume `render` takes ctx.
-            // Standard Pattern: renderer.render(shapes, options, viewport, targetCtx)
-
-            // If I can't pass targetCtx, I have to swap `this.ctx` or use a new instance.
-            // Let's assume I need to create a `staticRenderer`.
-            const staticRenderer = new CanvasRenderer(offscreenRef.current);
-            staticRenderer.width = width / dpr;
-            staticRenderer.height = height / dpr;
-            staticRenderer.render(staticShapes, {
-                selectedIds: new Set(), // No selection highlights on static
-                hoveredId: null
-            }, viewportRef.current);
+            // Draw Static to Offscreen using persistent renderer
+            if (staticRendererRef.current) {
+                staticRendererRef.current.render(staticShapes, {
+                    selectedIds: new Set(), // No selection highlights on static
+                    hoveredId: null
+                }, viewportRef.current);
+            }
 
             isDirtyRef.current = false;
         }
@@ -196,12 +196,17 @@ export function useEngineRenderer({
 
         // B. Draw Active/Dynamic Elements
         if (isDraggingRef.current && selectedIdsRef.current.size > 0) {
-            const dynamicShapes = shapesRef.current.filter(s => selectedIdsRef.current.has(s.id));
-
-            // We need to render these on the main ctx
-            // Use existing renderer which is bound to main canvas
-            // But we ONLY want to render these specific shapes.
-            // And we want Selection Box / Overlays.
+            const selectedIds = selectedIdsRef.current;
+            // Include selected shapes AND arrows bound to them in the dynamic layer
+            const dynamicShapes = shapesRef.current.filter(s => {
+                if (selectedIds.has(s.id)) return true;
+                if (s.type === "arrow" && s.bindings) {
+                    const startId = s.bindings.start?.elementId;
+                    const endId = s.bindings.end?.elementId;
+                    return (startId && selectedIds.has(startId)) || (endId && selectedIds.has(endId));
+                }
+                return false;
+            });
 
             rendererRef.current.render(dynamicShapes, {
                 hoveredId: null,

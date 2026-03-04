@@ -9,16 +9,18 @@ export function useEngineViewport() {
 
     // Coordinate Conversion Helpers
     const toWorld = useCallback((screenX, screenY) => {
+        const { x, y, zoom } = viewport || { x: 0, y: 0, zoom: 1 };
         return {
-            x: (screenX - viewport.x) / viewport.zoom,
-            y: (screenY - viewport.y) / viewport.zoom
+            x: (screenX - x) / (zoom || 1),
+            y: (screenY - y) / (zoom || 1)
         };
     }, [viewport]);
 
     const toScreen = useCallback((worldX, worldY) => {
+        const { x, y, zoom } = viewport || { x: 0, y: 0, zoom: 1 };
         return {
-            x: worldX * viewport.zoom + viewport.x,
-            y: worldY * viewport.zoom + viewport.y
+            x: worldX * (zoom || 1) + x,
+            y: worldY * (zoom || 1) + y
         };
     }, [viewport]);
 

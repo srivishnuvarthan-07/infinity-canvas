@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { hitTest, hitTestControls, getClosestAnchor } from '@/engine/physics/hitTest';
 import { createBaseSchema, SHAPE_TYPES } from '@/engine/schema';
 import { calculateResize, calculateRotation } from '@/engine/physics/resize';
+import { routeArrow, updateConnectedArrows } from '@/engine/routing/smartArrow';
 import { measureTextShape } from '@/engine/utils/textUtils';
 import { Quadtree, Rectangle } from '@/engine/utils/Quadtree';
 import React from 'react';
@@ -77,15 +78,7 @@ export function useEngineInteraction({
     const spatialIndex = useMemo(() => {
         const qt = new Quadtree(new Rectangle(-50000, -50000, 100000, 100000), 20);
         shapes.forEach(s => {
-            const w = Math.abs(s.width);
-            const h = Math.abs(s.height);
-            qt.insert({
-                x: s.x,
-                y: s.y,
-                width: w,
-                height: h,
-                id: s.id
-            });
+            qt.insert(s);
         });
         return qt;
     }, [shapes]);
@@ -161,15 +154,14 @@ export function useEngineInteraction({
 
                 if (type === SHAPE_TYPES.TEXT) {
                     newShape.text = 'Double click to edit';
-                    newShape.fontSize = 20;
-                    newShape.textAlign = 'center';
+                    newShape.font = { ...newShape.font, size: 20, align: 'center' };
                     if (canvasRef.current) {
                         try {
                             const ctx = canvasRef.current.getContext('2d');
                             const { width, height } = measureTextShape(ctx, newShape);
-                            newShape.width = width; newShape.height = height;
+                            newShape.size = { width, height };
                         } catch (e) {
-                            newShape.width = 100; newShape.height = 20;
+                            newShape.size = { width: 100, height: 20 };
                         }
                     }
 
@@ -183,10 +175,8 @@ export function useEngineInteraction({
                     return;
                 }
 
-                newShape.width = 0; newShape.height = 0;
-                newShape.strokeColor = activeColor;
-                newShape.strokeWidth = strokeWidth;
-                newShape.strokeStyle = strokeStyle;
+                newShape.size = { width: 0, height: 0 };
+                newShape.style = { ...newShape.style, stroke: activeColor, strokeWidth, strokeStyle };
 
                 setShapes(prev => [...prev, newShape]);
                 setSelectedShapeIds(new Set([id]));
@@ -211,9 +201,11 @@ export function useEngineInteraction({
                     setActiveHandle(handle);
                     setDragOffset({ startX: x, startY: y });
                     setStartDimensions({
-                        x: selectedShape.x, y: selectedShape.y,
-                        width: selectedShape.width, height: selectedShape.height,
-                        rotation: selectedShape.rotation,
+                        x: selectedShape.position?.x || 0,
+                        y: selectedShape.position?.y || 0,
+                        width: selectedShape.size?.width || 0,
+                        height: selectedShape.size?.height || 0,
+                        rotation: selectedShape.rotation || 0,
                         points: selectedShape.points ? JSON.parse(JSON.stringify(selectedShape.points)) : undefined,
                         children: selectedShape.children ? JSON.parse(JSON.stringify(selectedShape.children)) : undefined
                     });
@@ -259,7 +251,8 @@ export function useEngineInteraction({
                 const initPos = new Map();
                 shapes.forEach(s => {
                     initPos.set(s.id, {
-                        x: s.x, y: s.y,
+                        x: s.position?.x || 0,
+                        y: s.position?.y || 0,
                     });
                 });
                 setInitialShapePositions(initPos);
@@ -352,11 +345,9 @@ export function useEngineInteraction({
 
                     const newShape = {
                         ...s,
-                        x: cx,
-                        y: cy,
+                        position: { ...s.position, x: cx, y: cy },
                         points: [p0, p1],
-                        width: Math.abs(x - startX),
-                        height: Math.abs(y - startY)
+                        size: { ...s.size, width: Math.abs(x - startX), height: Math.abs(y - startY) }
                     };
                     if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                     return newShape;
@@ -366,10 +357,8 @@ export function useEngineInteraction({
                 const top = Math.min(startY, y);
                 const newShape = {
                     ...s,
-                    x: left + Math.abs(x - startX) / 2,
-                    y: top + Math.abs(y - startY) / 2,
-                    width: Math.abs(x - startX),
-                    height: Math.abs(y - startY)
+                    position: { ...s.position, x: left + Math.abs(x - startX) / 2, y: top + Math.abs(y - startY) / 2 },
+                    size: { ...s.size, width: Math.abs(x - startX), height: Math.abs(y - startY) }
                 };
                 if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                 return newShape;
@@ -380,115 +369,122 @@ export function useEngineInteraction({
         // Resizing
         if (isResizing && selectedShapeIds.size === 1 && activeHandle) {
             const resizeId = [...selectedShapeIds][0];
-            setShapes(prev => prev.map(shape => {
-                let s = shape;
-                if (s.id === dragGlowHitShapeId && !s.isHighlighted) s = { ...s, isHighlighted: true };
-                else if (s.id !== dragGlowHitShapeId && s.isHighlighted) s = { ...s, isHighlighted: false };
+            setShapes(prev => {
+                const mappedShapes = prev.map(shape => {
+                    let s = shape;
+                    if (s.id === dragGlowHitShapeId && !s.isHighlighted) s = { ...s, isHighlighted: true };
+                    else if (s.id !== dragGlowHitShapeId && s.isHighlighted) s = { ...s, isHighlighted: false };
 
-                if (s.id === resizeId) {
-                    if (activeHandle === 'rot') {
-                        const newShape = { ...s, rotation: calculateRotation(s, x, y) };
-                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                        return newShape;
-                    }
-
-                    if (s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) {
-                        const handle = activeHandle;
-                        let newShape = { ...s };
-
-                        const rad = (startDimensions.rotation || 0) * Math.PI / 180;
-                        const cos = Math.cos(rad); const sin = Math.sin(rad);
-
-                        const p0x = startDimensions.points[0]?.x || 0;
-                        const p0y = startDimensions.points[0]?.y || 0;
-                        const p1x = startDimensions.points[1]?.x || 0;
-                        const p1y = startDimensions.points[1]?.y || 0;
-
-                        let p0g = {
-                            x: startDimensions.x + (p0x * cos - p0y * sin),
-                            y: startDimensions.y + (p0x * sin + p0y * cos)
-                        };
-                        let p1g = {
-                            x: startDimensions.x + (p1x * cos - p1y * sin),
-                            y: startDimensions.y + (p1x * sin + p1y * cos)
-                        };
-
-                        if (handle === 'start') p0g = { x, y };
-                        else if (handle === 'end') p1g = { x, y };
-                        else return s;
-
-                        const cx = (p0g.x + p1g.x) / 2;
-                        const cy = (p0g.y + p1g.y) / 2;
-
-                        const invCos = Math.cos(-rad); const invSin = Math.sin(-rad);
-                        const dx0 = p0g.x - cx; const dy0 = p0g.y - cy;
-                        const dx1 = p1g.x - cx; const dy1 = p1g.y - cy;
-
-                        newShape.x = cx;
-                        newShape.y = cy;
-                        newShape.points = [
-                            { x: dx0 * invCos - dy0 * invSin, y: dx0 * invSin + dy0 * invCos },
-                            { x: dx1 * invCos - dy1 * invSin, y: dx1 * invSin + dy1 * invCos }
-                        ];
-                        newShape.width = Math.abs(newShape.points[0].x - newShape.points[1].x);
-                        newShape.height = Math.abs(newShape.points[0].y - newShape.points[1].y);
-
-                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                        return newShape;
-                    }
-
-                    const updates = calculateResize(s, activeHandle, x, y, {
-                        ...startDimensions, startMouseX: dragOffset.startX, startMouseY: dragOffset.startY
-                    });
-
-                    if (updates) {
-                        if (s.type === SHAPE_TYPES.PENCIL && startDimensions.points) {
-                            const scaleX = updates.width / startDimensions.width;
-                            const scaleY = updates.height / startDimensions.height;
-                            const newPoints = startDimensions.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
-                            const newShape = { ...s, ...updates, points: newPoints };
+                    if (s.id === resizeId) {
+                        if (activeHandle === 'rot') {
+                            const newShape = { ...s, rotation: calculateRotation(s, x, y) };
                             if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                             return newShape;
                         }
 
-                        if (s.type === SHAPE_TYPES.GROUP && startDimensions.children) {
-                            const scaleX = updates.width / startDimensions.width;
-                            const scaleY = updates.height / startDimensions.height;
+                        if (s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) {
+                            const handle = activeHandle;
+                            let newShape = { ...s };
 
-                            const newChildren = startDimensions.children.map(child => {
-                                const nx = child.x * scaleX;
-                                const ny = child.y * scaleY;
-                                const nw = child.width * scaleX;
-                                const nh = child.height * scaleY;
-                                let nPoints = child.points;
-                                if (child.points) {
-                                    nPoints = child.points.map(p => ({
-                                        x: p.x * scaleX,
-                                        y: p.y * scaleY
-                                    }));
-                                }
-                                return {
-                                    ...child,
-                                    x: nx,
-                                    y: ny,
-                                    width: nw,
-                                    height: nh,
-                                    points: nPoints
-                                };
-                            });
+                            const rad = (startDimensions.rotation || 0) * Math.PI / 180;
+                            const cos = Math.cos(rad); const sin = Math.sin(rad);
 
-                            const newShape = { ...s, ...updates, children: newChildren };
+                            const p0x = startDimensions.points[0]?.x || 0;
+                            const p0y = startDimensions.points[0]?.y || 0;
+                            const p1x = startDimensions.points[1]?.x || 0;
+                            const p1y = startDimensions.points[1]?.y || 0;
+
+                            let p0g = {
+                                x: startDimensions.x + (p0x * cos - p0y * sin),
+                                y: startDimensions.y + (p0x * sin + p0y * cos)
+                            };
+                            let p1g = {
+                                x: startDimensions.x + (p1x * cos - p1y * sin),
+                                y: startDimensions.y + (p1x * sin + p1y * cos)
+                            };
+
+                            if (handle === 'start') p0g = { x, y };
+                            else if (handle === 'end') p1g = { x, y };
+                            else return s;
+
+                            const cx = (p0g.x + p1g.x) / 2;
+                            const cy = (p0g.y + p1g.y) / 2;
+
+                            const invCos = Math.cos(-rad); const invSin = Math.sin(-rad);
+                            const dx0 = p0g.x - cx; const dy0 = p0g.y - cy;
+                            const dx1 = p1g.x - cx; const dy1 = p1g.y - cy;
+
+                            newShape.position = { ...newShape.position, x: cx, y: cy };
+                            newShape.points = [
+                                { x: dx0 * invCos - dy0 * invSin, y: dx0 * invSin + dy0 * invCos },
+                                { x: dx1 * invCos - dy1 * invSin, y: dx1 * invSin + dy1 * invCos }
+                            ];
+                            newShape.size = {
+                                ...newShape.size,
+                                width: Math.abs(newShape.points[0].x - newShape.points[1].x),
+                                height: Math.abs(newShape.points[0].y - newShape.points[1].y)
+                            };
+
                             if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
                             return newShape;
                         }
 
-                        const newShape = { ...s, ...updates };
-                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                        return newShape;
+                        const updates = calculateResize(s, activeHandle, x, y, {
+                            ...startDimensions, startMouseX: dragOffset.startX, startMouseY: dragOffset.startY
+                        });
+
+                        if (updates) {
+                            if (s.type === SHAPE_TYPES.PENCIL && startDimensions.points) {
+                                const scaleX = updates.size.width / startDimensions.width;
+                                const scaleY = updates.size.height / startDimensions.height;
+                                const newPoints = startDimensions.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
+                                const newShape = { ...s, ...updates, points: newPoints };
+                                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                                return newShape;
+                            }
+
+                            if (s.type === SHAPE_TYPES.GROUP && startDimensions.children) {
+                                const scaleX = updates.size.width / startDimensions.width;
+                                const scaleY = updates.size.height / startDimensions.height;
+
+                                const newChildren = startDimensions.children.map(child => {
+                                    const nx = (child.position?.x || 0) * scaleX;
+                                    const ny = (child.position?.y || 0) * scaleY;
+                                    const nw = (child.size?.width || 0) * scaleX;
+                                    const nh = (child.size?.height || 0) * scaleY;
+                                    let nPoints = child.points;
+                                    if (child.points) {
+                                        nPoints = child.points.map(p => ({
+                                            x: p.x * scaleX,
+                                            y: p.y * scaleY
+                                        }));
+                                    }
+                                    return {
+                                        ...child,
+                                        position: { ...child.position, x: nx, y: ny },
+                                        size: { ...child.size, width: nw, height: nh },
+                                        points: nPoints
+                                    };
+                                });
+
+                                const newShape = { ...s, ...updates, children: newChildren };
+                                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                                return newShape;
+                            }
+
+                            const newShape = { ...s, ...updates };
+                            if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
+                            return newShape;
+                        }
                     }
-                }
-                return s;
-            }));
+                    return s;
+                });
+
+                // Secondary Pass: Smart Arrow Routing
+                const finalShapes = updateConnectedArrows(selectedShapeIds, mappedShapes);
+
+                return finalShapes;
+            });
             return;
         }
 
@@ -496,17 +492,24 @@ export function useEngineInteraction({
         if (isDragging && dragStartPos) {
             const dx = x - dragStartPos.x;
             const dy = y - dragStartPos.y;
-            setShapes(prev => prev.map(s => {
-                const init = initialShapePositions.get(s.id);
-                if (!init) return s;
+            setShapes(prev => {
+                const mappedShapes = prev.map(s => {
+                    const init = initialShapePositions.get(s.id);
+                    if (!init) return s;
 
-                if (selectedShapeIds.has(s.id)) {
-                    const newShape = { ...s, x: init.x + dx, y: init.y + dy };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
-                    return newShape;
-                }
-                return s;
-            }));
+                    if (selectedShapeIds.has(s.id)) {
+                        const newShape = { ...s, position: { ...s.position, x: init.x + dx, y: init.y + dy } };
+                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
+                        return newShape;
+                    }
+                    return s;
+                });
+
+                // Secondary Pass: Smart Arrow Routing
+                const finalShapes = updateConnectedArrows(selectedShapeIds, mappedShapes);
+
+                return finalShapes;
+            });
             canvasRef.current.style.cursor = 'grabbing';
         } else if (isDragSelecting) {
             setSelectionBox(prev => ({ ...prev, currentX: x, currentY: y }));
@@ -558,7 +561,7 @@ export function useEngineInteraction({
         if (isCreating && selectedShapeIds.size > 0) {
             const creationId = [...selectedShapeIds][0];
             setShapes(prev => {
-                const newShapes = prev.map(s => {
+                let newShapes = prev.map(s => {
                     if (s.id === creationId && s.type === SHAPE_TYPES.PENCIL && s.points) {
                         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                         s.points.forEach(p => {
@@ -566,37 +569,144 @@ export function useEngineInteraction({
                             maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
                         });
                         const w = maxX - minX; const h = maxY - minY;
-                        const centerX = s.x + minX + w / 2; const centerY = s.y + minY + h / 2;
-                        const newPoints = s.points.map(p => ({ x: (s.x + p.x) - centerX, y: (s.y + p.y) - centerY }));
-                        return { ...s, x: centerX, y: centerY, width: w, height: h, points: newPoints };
+                        const px = s.position?.x || 0;
+                        const py = s.position?.y || 0;
+                        const centerX = px + minX + w / 2; const centerY = py + minY + h / 2;
+                        const newPoints = s.points.map(p => ({ x: (px + p.x) - centerX, y: (py + p.y) - centerY }));
+                        return { ...s, position: { ...s.position, x: centerX, y: centerY }, size: { ...s.size, width: w, height: h }, points: newPoints };
                     }
                     return s;
                 }).filter(s => {
                     if (s.id === creationId) {
                         if (s.type === SHAPE_TYPES.PENCIL && s.points.length > 2) return true;
-                        if (s.width > 5 || s.height > 5) return true;
-                        if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (Math.abs(s.width) > 5 || Math.abs(s.height) > 5)) return true;
+                        const w = s.size?.width || 0;
+                        const h = s.size?.height || 0;
+                        if (w > 5 || h > 5) return true;
+                        if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (Math.abs(w) > 5 || Math.abs(h) > 5)) return true;
                         return false;
                     }
                     return true;
                 });
+
+                // --- Arrow Binding Logic ---
+                const createdShape = newShapes.find(s => s.id === creationId);
+                if (createdShape && createdShape.type === SHAPE_TYPES.ARROW) {
+                    const startPos = dragOffset ? { x: dragOffset.startX, y: dragOffset.startY } : null;
+                    const endPos = { x: e.clientX, y: e.clientY }; // We need world x, y
+
+                    if (canvasRef.current && startPos) {
+                        const rect = canvasRef.current.getBoundingClientRect();
+                        const worldEnd = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+                        let startHitId = null;
+                        let endHitId = null;
+
+                        // Inverse array order (top to bottom)
+                        for (let i = newShapes.length - 1; i >= 0; i--) {
+                            const target = newShapes[i];
+                            if (target.id === creationId) continue;
+
+                            if (!startHitId && hitTest(target, startPos.x, startPos.y, viewport.zoom)) {
+                                startHitId = target.id;
+                            }
+                            if (!endHitId && hitTest(target, worldEnd.x, worldEnd.y, viewport.zoom)) {
+                                endHitId = target.id;
+                            }
+                            if (startHitId && endHitId) break;
+                        }
+
+                        if (startHitId || endHitId) {
+                            newShapes = newShapes.map(s => {
+                                if (s.id === creationId) {
+                                    return {
+                                        ...s,
+                                        bindings: {
+                                            start: startHitId ? { elementId: startHitId, anchor: "center" } : null,
+                                            end: endHitId ? { elementId: endHitId, anchor: "center" } : null
+                                        }
+                                    };
+                                }
+                                return s;
+                            });
+                        }
+                    }
+                }
+                // ---------------------------
+
                 saveState(newShapes);
                 return newShapes;
             });
             if (setActiveTool) setActiveTool('select');
-        } else if (isDragging || isResizing) {
-            saveState(shapes, boardId);
+        } else if (isResizing && selectedShapeIds.size === 1 && (activeHandle === 'start' || activeHandle === 'end')) {
+            // --- Arrow endpoint re-binding: drag endpoint onto a shape to connect ---
+            const resizeId = [...selectedShapeIds][0];
+            const resizedShape = shapes.find(s => s.id === resizeId);
+            if (resizedShape && resizedShape.type === SHAPE_TYPES.ARROW && canvasRef.current) {
+                const rect = canvasRef.current.getBoundingClientRect();
+                const worldPoint = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+                let hitId = null;
+                for (let i = shapes.length - 1; i >= 0; i--) {
+                    const target = shapes[i];
+                    if (target.id === resizeId) continue;
+                    if (hitTest(target, worldPoint.x, worldPoint.y, viewport.zoom)) {
+                        hitId = target.id;
+                        break;
+                    }
+                }
+
+                const hadBinding = resizedShape.bindings && resizedShape.bindings[activeHandle];
+
+                if (hitId || hadBinding) {
+                    // Update binding and immediately route the arrow to snap to the new shape
+                    setShapes(prev => {
+                        const updatedShapes = prev.map(s => {
+                            if (s.id !== resizeId) return s;
+                            const newBindings = {
+                                start: s.bindings?.start ?? null,
+                                end: s.bindings?.end ?? null,
+                                [activeHandle]: hitId ? { elementId: hitId, anchor: "center" } : null
+                            };
+                            return { ...s, bindings: newBindings };
+                        });
+
+                        // If both ends are now bound, immediately route the arrow
+                        const updatedArrow = updatedShapes.find(s => s.id === resizeId);
+                        if (updatedArrow?.bindings?.start && updatedArrow?.bindings?.end) {
+                            const source = updatedShapes.find(s => s.id === updatedArrow.bindings.start.elementId);
+                            const target = updatedShapes.find(s => s.id === updatedArrow.bindings.end.elementId);
+                            if (source && target) {
+                                const routedArrow = routeArrow(updatedArrow, source, target, "orthogonal");
+                                const finalShapes = updatedShapes.map(s => s.id === resizeId ? routedArrow : s);
+                                saveState(finalShapes);
+                                return finalShapes;
+                            }
+                        }
+
+                        saveState(updatedShapes);
+                        return updatedShapes;
+                    });
+                } else {
+                    saveState(shapes, boardId);
+                }
+            } else {
+                saveState(shapes, boardId);
+            }
         } else if (isDragSelecting && selectionBox) {
             const box = selectionBox;
             const x1 = Math.min(box.startX, box.currentX); const x2 = Math.max(box.startX, box.currentX);
             const y1 = Math.min(box.startY, box.currentY); const y2 = Math.max(box.startY, box.currentY);
             const hitIds = new Set();
             shapes.forEach(s => {
-                const sx1 = s.x - s.width / 2; const sx2 = s.x + s.width / 2;
-                const sy1 = s.y - s.height / 2; const sy2 = s.y + s.height / 2;
+                const w = s.size?.width || 0;
+                const h = s.size?.height || 0;
+                const sx1 = (s.position?.x || 0) - w / 2; const sx2 = (s.position?.x || 0) + w / 2;
+                const sy1 = (s.position?.y || 0) - h / 2; const sy2 = (s.position?.y || 0) + h / 2;
                 if (sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1) hitIds.add(s.id);
             });
             setSelectedShapeIds(hitIds);
+        } else if (isDragging || isResizing) {
+            saveState(shapes, boardId);
         }
 
         setIsDragging(false);

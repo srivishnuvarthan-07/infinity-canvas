@@ -16,6 +16,7 @@ export function useEngineState(initialShapes = [], socket = null) {
 
     // Mutable access to current shapes for diffing
     const shapesRef = useRef(shapes);
+    const lastSavedShapesRef = useRef(initialShapes); // Track last state pushed to history
     useEffect(() => { shapesRef.current = shapes; }, [shapes]);
 
     // Live Emit for Dragging/Drawing (Throttled)
@@ -35,7 +36,7 @@ export function useEngineState(initialShapes = [], socket = null) {
     // Command Structure: { type: 'ADD'|'REMOVE'|'UPDATE', id: string, prev: Shape, next: Shape }
 
     const saveState = useCallback((newShapes) => {
-        const prevShapes = shapesRef.current;
+        const prevShapes = lastSavedShapesRef.current;
         const nextShapes = newShapes;
 
         // Calculate Diff
@@ -63,6 +64,9 @@ export function useEngineState(initialShapes = [], socket = null) {
 
         if (commands.length === 0) return; // No changes
 
+        // Update Ref immediately so next call sees this as "prev"
+        lastSavedShapesRef.current = nextShapes;
+
         setHistory(prev => {
             const newHistory = prev.slice(0, historyIndex + 1);
             newHistory.push(commands);
@@ -72,7 +76,7 @@ export function useEngineState(initialShapes = [], socket = null) {
 
         setHistoryIndex(prev => {
             const nextIndex = prev + 1;
-            return prev >= 49 ? 49 : nextIndex;
+            return nextIndex >= 50 ? 49 : nextIndex;
         });
 
         // EMIT ACTIONS TO SOCKET
@@ -124,26 +128,39 @@ export function useEngineState(initialShapes = [], socket = null) {
         setHistoryIndex(prev => prev - 1);
 
         setShapes(current => {
-            const next = [...current];
-            const nextMap = new Map(next.map(s => [s.id, s]));
+            const nextMap = new Map(current.map(s => [s.id, s]));
 
             // Apply Inverse Actions (Backwards)
             for (let i = commands.length - 1; i >= 0; i--) {
                 const cmd = commands[i];
+                let inverseAction = null;
+
                 if (cmd.type === 'ADD') {
-                    // Inverse: Remove
                     nextMap.delete(cmd.id);
+                    inverseAction = { type: 'REMOVE', payload: { id: cmd.id } };
                 } else if (cmd.type === 'REMOVE') {
-                    // Inverse: Add
                     nextMap.set(cmd.id, cmd.prev);
+                    inverseAction = { type: 'ADD', payload: cmd.prev };
                 } else if (cmd.type === 'UPDATE') {
-                    // Inverse: Revert to prev
                     nextMap.set(cmd.id, cmd.prev);
+                    inverseAction = { type: 'UPDATE', payload: cmd.prev };
+                }
+
+                if (socket && inverseAction) {
+                    socket.emit('board-action', {
+                        action: {
+                            id: crypto.randomUUID(),
+                            ...inverseAction,
+                            timestamp: new Date()
+                        }
+                    });
                 }
             }
-            return Array.from(nextMap.values());
+            const nextShapes = Array.from(nextMap.values());
+            lastSavedShapesRef.current = nextShapes;
+            return nextShapes;
         });
-    }, [history, historyIndex]);
+    }, [history, historyIndex, socket]);
 
     const redo = useCallback(() => {
         if (historyIndex >= history.length - 1) return;
@@ -152,22 +169,37 @@ export function useEngineState(initialShapes = [], socket = null) {
         setHistoryIndex(prev => prev + 1);
 
         setShapes(current => {
-            const next = [...current];
-            const nextMap = new Map(next.map(s => [s.id, s]));
+            const nextMap = new Map(current.map(s => [s.id, s]));
 
             // Apply Actions (Forwards)
             for (const cmd of commands) {
+                let action = null;
                 if (cmd.type === 'ADD') {
                     nextMap.set(cmd.id, cmd.next);
+                    action = { type: 'ADD', payload: cmd.next };
                 } else if (cmd.type === 'REMOVE') {
                     nextMap.delete(cmd.id);
+                    action = { type: 'REMOVE', payload: { id: cmd.id } };
                 } else if (cmd.type === 'UPDATE') {
                     nextMap.set(cmd.id, cmd.next);
+                    action = { type: 'UPDATE', payload: cmd.next };
+                }
+
+                if (socket && action) {
+                    socket.emit('board-action', {
+                        action: {
+                            id: crypto.randomUUID(),
+                            ...action,
+                            timestamp: new Date()
+                        }
+                    });
                 }
             }
-            return Array.from(nextMap.values());
+            const nextShapes = Array.from(nextMap.values());
+            lastSavedShapesRef.current = nextShapes;
+            return nextShapes;
         });
-    }, [history, historyIndex]);
+    }, [history, historyIndex, socket]);
 
     // Layer Management
     const bringToFront = useCallback(() => {
@@ -233,13 +265,19 @@ export function useEngineState(initialShapes = [], socket = null) {
     }, [selectedShapeIds, saveState]);
 
     const clearCanvas = useCallback(() => {
-        setShapes(prev => {
-            const next = [];
-            saveState(next);
-            return next;
-        });
+        setShapes([]);
+        setHistory([]);
+        setHistoryIndex(-1);
         setSelectedShapeIds(new Set());
-    }, [saveState]);
+    }, []);
+
+    const resetHistory = useCallback((newShapes = []) => {
+        setShapes(newShapes);
+        setHistory([]);
+        setHistoryIndex(-1);
+        lastSavedShapesRef.current = newShapes;
+        setSelectedShapeIds(new Set());
+    }, []);
 
     // Helpers
     const updateShapes = useCallback((ids, updates) => {
@@ -249,16 +287,34 @@ export function useEngineState(initialShapes = [], socket = null) {
         setShapes(prev => {
             const newShapes = prev.map(shape => {
                 if (idsSet.has(shape.id)) {
-                    const newShape = { ...shape, ...updates };
+                    // ⚛️ Deep Merge for V2 Schema
+                    const newShape = {
+                        ...shape,
+                        ...updates,
+                        // Recursively merge known sub-objects
+                        position: updates.position ? { ...shape.position, ...updates.position } : shape.position,
+                        size: updates.size ? { ...shape.size, ...updates.size } : shape.size,
+                        scale: updates.scale ? { ...shape.scale, ...updates.scale } : shape.scale,
+                        style: updates.style ? { ...shape.style, ...updates.style } : shape.style,
+                        font: updates.font ? { ...shape.font, ...updates.font } : shape.font,
+                        revision: {
+                            number: (shape.revision?.number || 0) + 1,
+                            timestamp: Date.now()
+                        }
+                    };
 
                     // 1️⃣ Recalculate Text Bounds Immediately
                     if (newShape.type === SHAPE_TYPES.TEXT) {
-                        const styleChanged = 'text' in updates || 'fontSize' in updates || 'fontFamily' in updates || 'textAlign' in updates;
+                        const styleChanged = 'text' in updates || 'font' in updates;
+
                         if (styleChanged) {
                             try {
                                 const layout = getTextLayout(null, newShape);
-                                newShape.width = layout.width;
-                                newShape.height = layout.height;
+                                newShape.size = {
+                                    ...newShape.size,
+                                    width: layout.width,
+                                    height: layout.height
+                                };
                             } catch (e) {
                                 console.warn('Failed to measure text during update', e);
                             }
@@ -284,12 +340,12 @@ export function useEngineState(initialShapes = [], socket = null) {
             // 1. Calculate Bounding Box
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             selected.forEach(s => {
-                const hw = s.width / 2;
-                const hh = s.height / 2;
-                minX = Math.min(minX, s.x - hw);
-                minY = Math.min(minY, s.y - hh);
-                maxX = Math.max(maxX, s.x + hw);
-                maxY = Math.max(maxY, s.y + hh);
+                const hw = s.size.width / 2;
+                const hh = s.size.height / 2;
+                minX = Math.min(minX, s.position.x - hw);
+                minY = Math.min(minY, s.position.y - hh);
+                maxX = Math.max(maxX, s.position.x + hw);
+                maxY = Math.max(maxY, s.position.y + hh);
             });
 
             // Padding
@@ -305,18 +361,22 @@ export function useEngineState(initialShapes = [], socket = null) {
             const group = {
                 id: groupId,
                 type: 'group',
-                x, y,
-                width, height,
+                position: { x, y },
+                size: { width, height },
                 rotation: 0,
-                opacity: 1,
-                strokeColor: 'transparent',
-                strokeWidth: 0,
-                strokeStyle: 'solid',
-                sloppiness: 'architect',
+                style: {
+                    opacity: 1,
+                    stroke: 'transparent',
+                    strokeWidth: 0,
+                    strokeStyle: 'solid',
+                    sloppiness: 'architect'
+                },
                 children: selected.map(s => ({
                     ...s,
-                    x: s.x - x,
-                    y: s.y - y,
+                    position: {
+                        x: s.position.x - x,
+                        y: s.position.y - y
+                    }
                 }))
             };
 
@@ -345,16 +405,18 @@ export function useEngineState(initialShapes = [], socket = null) {
                 const cos = Math.cos(rad);
                 const sin = Math.sin(rad);
 
-                const cx = child.x; // relative
-                const cy = child.y; // relative
+                const cx = child.position.x; // relative
+                const cy = child.position.y; // relative
 
-                const absX = group.x + (cx * cos - cy * sin);
-                const absY = group.y + (cx * sin + cy * cos);
+                const absX = group.position.x + (cx * cos - cy * sin);
+                const absY = group.position.y + (cx * sin + cy * cos);
 
                 return {
                     ...child,
-                    x: absX,
-                    y: absY,
+                    position: {
+                        x: absX,
+                        y: absY
+                    },
                     rotation: (child.rotation || 0) + (group.rotation || 0)
                 };
             });
@@ -385,7 +447,7 @@ export function useEngineState(initialShapes = [], socket = null) {
         saveState,
         undo,
         redo,
-        canUndo: historyIndex > 0,
+        canUndo: historyIndex >= 0,
         canRedo: historyIndex < history.length - 1,
 
         // Actions
@@ -397,6 +459,7 @@ export function useEngineState(initialShapes = [], socket = null) {
         sendToBack,
         bringForward,
         sendBackward,
-        emitUpdate
+        emitUpdate,
+        resetHistory
     };
 }
