@@ -20,19 +20,25 @@ export const getPatternCanvas = (color, type) => {
     if (type === "hachure") {
         // Diagonal lines
         ctx.beginPath();
-        ctx.moveTo(0, size);
-        ctx.lineTo(size, 0);
+        // Draw multiple lines for density
+        ctx.moveTo(0, size); ctx.lineTo(size, 0); // Main diagonal
+        ctx.moveTo(0, 0); ctx.lineTo(size / 2, 0); // Top-left corner part
+        ctx.moveTo(0, size / 2); ctx.lineTo(size / 2, 0); // Top-left corner part
+        ctx.moveTo(size / 2, size); ctx.lineTo(size, size / 2); // Bottom-right corner part
+        ctx.moveTo(size, size); ctx.lineTo(size / 2, size); // Bottom-right corner part
         ctx.stroke();
     } else if (type === "cross-hatch") {
         // Cross lines
         ctx.beginPath();
-        ctx.moveTo(0, size);
-        ctx.lineTo(size, 0);
-        ctx.stroke();
+        // Diagonal 1
+        ctx.moveTo(0, size); ctx.lineTo(size, 0);
+        ctx.moveTo(0, size / 2); ctx.lineTo(size / 2, 0);
+        ctx.moveTo(size / 2, size); ctx.lineTo(size, size / 2);
 
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(size, size);
+        // Diagonal 2
+        ctx.moveTo(0, 0); ctx.lineTo(size, size);
+        ctx.moveTo(0, size / 2); ctx.lineTo(size / 2, size);
+        ctx.moveTo(size / 2, 0); ctx.lineTo(size, size / 2);
         ctx.stroke();
     }
 
