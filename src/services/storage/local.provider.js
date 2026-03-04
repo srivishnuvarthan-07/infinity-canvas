@@ -51,7 +51,7 @@ class LocalProvider extends StorageProvider {
         const initialData = {
             id,
             shapes: [],
-            version: 1
+            version: 2
         };
         localStorage.setItem(this.DATA_PREFIX + id, JSON.stringify(initialData));
 
@@ -90,11 +90,16 @@ class LocalProvider extends StorageProvider {
             // If metadata exists but data doesn't, return empty
             const map = this._getBoardsMap();
             if (map[id]) {
-                return { id, shapes: [], version: 1 };
+                return { id, shapes: [], version: 2 };
             }
             throw new Error(`Board data ${id} not found locally`);
         }
-        return JSON.parse(json);
+
+        const data = JSON.parse(json);
+        if (data.version !== 2) {
+            throw new Error("Unsupported document version");
+        }
+        return data;
     }
 
     async saveBoardData(id, data) {
@@ -102,7 +107,7 @@ class LocalProvider extends StorageProvider {
         const storedData = {
             id,
             shapes: data.shapes || [],
-            version: data.version || Date.now()
+            version: 2
         };
         localStorage.setItem(this.DATA_PREFIX + id, JSON.stringify(storedData));
 
