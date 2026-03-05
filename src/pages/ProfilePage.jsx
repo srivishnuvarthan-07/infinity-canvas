@@ -12,13 +12,9 @@ export default function ProfilePage() {
     const { user, checkAuth } = useAuth();
     const [loading, setLoading] = useState(false);
     const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
 
     useEffect(() => {
-        if (user) {
-            setName(user.name);
-            setEmail(user.email);
-        }
+        if (user) setName(user.name);
     }, [user]);
 
     const handleUpdate = async (e) => {
@@ -26,7 +22,7 @@ export default function ProfilePage() {
         setLoading(true);
         try {
             await authService.updateProfile({ name });
-            await checkAuth(); // Refresh user state
+            await checkAuth();
             toast.success("Profile updated");
         } catch (err) {
             toast.error("Failed to update profile");
@@ -81,7 +77,7 @@ export default function ProfilePage() {
                         <div className="space-y-3">
                             <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Email Address</label>
                             <Input
-                                value={email}
+                                value={user.email}
                                 disabled
                                 className="bg-neutral-100/50 border-black/5 text-neutral-500 cursor-not-allowed h-11 rounded-xl shadow-none"
                             />
