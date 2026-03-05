@@ -1,11 +1,14 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
-import { hitTest, hitTestControls, getClosestAnchor } from '@/engine/physics/hitTest';
+import { useState, useCallback, useRef, useMemo } from 'react';
+import { hitTest, hitTestControls } from '@/engine/physics/hitTest';
 import { createBaseSchema, SHAPE_TYPES } from '@/engine/schema';
-import { calculateResize, calculateRotation } from '@/engine/physics/resize';
-import { routeArrow, updateConnectedArrows } from '@/engine/routing/smartArrow';
 import { measureTextShape } from '@/engine/utils/textUtils';
 import { Quadtree, Rectangle } from '@/engine/utils/Quadtree';
-import React from 'react';
+
+import { useKeyboard } from './interaction/useKeyboard';
+import { useSelection } from './interaction/useSelection';
+import { useDrag } from './interaction/useDrag';
+import { useResize } from './interaction/useResize';
+import { useArrowConnect } from './interaction/useArrowConnect';
 
 export function useEngineInteraction({
     canvasRef,
@@ -14,18 +17,14 @@ export function useEngineInteraction({
     selectedShapeIds,
     setSelectedShapeIds,
     setHoveredShapeId,
-    editingShapeId, // NEW
-    setEditingShapeId, // NEW
+    editingShapeId,
+    setEditingShapeId,
     viewport,
     toWorld,
-    setViewport, // For panning
+    setViewport,
     saveState,
-
-    // Shared Interaction State (Lifted for Renderer access)
     selectionBox,
     setSelectionBox,
-
-    // Config
     activeTool,
     setActiveTool,
     activeColor,
@@ -34,116 +33,85 @@ export function useEngineInteraction({
     emitUpdate,
     boardId
 }) {
-    // Interaction State
-    const [isDragging, setIsDragging] = useState(false);
-    const [isDragSelecting, setIsDragSelecting] = useState(false);
-    const [isResizing, setIsResizing] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
-    const [activeHandle, setActiveHandle] = useState(null);
+    const [dragOffset, setDragOffset] = useState({ startX: 0, startY: 0 });
 
-    // Drag Refs
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 }); // Local offset for single item
-    const [dragStartPos, setDragStartPos] = useState(null); // World pos start
-    const [initialShapePositions, setInitialShapePositions] = useState(new Map());
-    const [startDimensions, setStartDimensions] = useState(null);
-
-    // Panning State
+    // Panning
     const isPanning = useRef(false);
     const lastPanPos = useRef({ x: 0, y: 0 });
-    const isSpacePressed = useRef(false);
 
-    // Eraser State
+    // Eraser
     const isErasing = useRef(false);
 
-    // Throttle for live Socket Sync
-    const lastSyncTime = useRef(0);
-    const syncThrottleMs = 50; // Sync every 50ms during active drag
+    // Sub-hooks
+    const { isSpacePressed, handleKeyDown, handleKeyUp } = useKeyboard({ canvasRef, isDragging: false });
 
-    // Keyboard (Spacebar)
-    const handleKeyDown = useCallback((e) => {
-        if (e.code === "Space") {
-            isSpacePressed.current = true;
-            if (canvasRef.current && !isDragging) canvasRef.current.style.cursor = "grab";
-        }
-    }, [canvasRef, isDragging]);
+    const { isDragSelecting, startDragSelect, updateDragSelect, commitDragSelect, cancelDragSelect } =
+        useSelection({ canvasRef, shapes, toWorld, setSelectedShapeIds, setSelectionBox });
 
-    const handleKeyUp = useCallback((e) => {
-        if (e.code === "Space") {
-            isSpacePressed.current = false;
-            if (canvasRef.current) canvasRef.current.style.cursor = "default";
-        }
-    }, [canvasRef]);
+    const { isDragging, startDrag, updateDrag, commitDrag, cancelDrag } =
+        useDrag({ canvasRef, shapes, setShapes, selectedShapeIds, emitUpdate });
 
-    // OPTIMIZATION: Quadtree
+    const { isResizing, activeHandle, startDimensions, startResize, updateResize, commitResize, cancelResize } =
+        useResize({ canvasRef, shapes, setShapes, selectedShapeIds, emitUpdate });
+
+    const { bindCreatedArrow, rebindArrowEndpoint } =
+        useArrowConnect({ shapes, viewport, toWorld, canvasRef, setShapes, saveState });
+
+    // Quadtree spatial index — rebuilt only when shapes change
     const spatialIndex = useMemo(() => {
         const qt = new Quadtree(new Rectangle(-50000, -50000, 100000, 100000), 20);
-        shapes.forEach(s => {
-            qt.insert(s);
-        });
+        shapes.forEach(s => qt.insert(s));
         return qt;
     }, [shapes]);
 
-    // Pointer Handlers
+    const shapeMapOf = useCallback((arr) => {
+        const m = {};
+        arr.forEach(s => { m[s.id] = s; });
+        return m;
+    }, []);
+
+    // ── Pointer Down ───────────────────────────────────────────────────────
+
     const handlePointerDown = useCallback((e) => {
         if (!canvasRef.current) return;
-
         const rect = canvasRef.current.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const { x, y } = toWorld(screenX, screenY);
+        const { x, y } = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+        const shapeMap = shapeMapOf(shapes);
 
-        // 1. Panning & Spacebar
+        // 1. Pan (spacebar / hand tool / middle mouse)
         if (isSpacePressed.current || activeTool === 'hand' || e.button === 1) {
             isPanning.current = true;
-            lastPanPos.current = { x: screenX, y: screenY };
+            lastPanPos.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
             canvasRef.current.style.cursor = 'grabbing';
             return;
         }
 
-        // 2. Eraser Mode
-        const shapeMap = {};
-        shapes.forEach(s => shapeMap[s.id] = s);
-
+        // 2. Eraser
         if (activeTool === 'eraser') {
             isErasing.current = true;
-            canvasRef.current.style.cursor = 'crosshair';
-
-            const range = new Rectangle(x - (10 / viewport.zoom / 2), y - (10 / viewport.zoom / 2), 10 / viewport.zoom, 10 / viewport.zoom);
-            const candidates = spatialIndex.query(range);
-            let hitShape = null;
-            const candidateIds = new Set(candidates.map(c => c.id));
-
+            const range = new Rectangle(x, y, 10 / viewport.zoom, 10 / viewport.zoom);
+            const candidates = new Set(spatialIndex.query(range).map(c => c.id));
             for (let i = shapes.length - 1; i >= 0; i--) {
-                if (candidateIds.has(shapes[i].id)) {
-                    if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
-                        hitShape = shapes[i];
-                        break;
-                    }
+                if (candidates.has(shapes[i].id) && hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
+                    setShapes(prev => prev.filter(s => s.id !== shapes[i].id));
+                    break;
                 }
-            }
-
-            if (hitShape) {
-                setShapes(prev => prev.filter(s => s.id !== hitShape.id));
             }
             return;
         }
 
-        // 3. Creation Mode
+        // 3. Shape Creation
         if (activeTool && activeTool !== 'select') {
-            const id = crypto.randomUUID();
-            let type = null;
-            switch (activeTool) {
-                case 'rectangle': type = SHAPE_TYPES.RECTANGLE; break;
-                case 'ellipse': type = SHAPE_TYPES.ELLIPSE; break;
-                case 'line': type = SHAPE_TYPES.LINE; break;
-                case 'diamond': type = SHAPE_TYPES.DIAMOND; break;
-                case 'text': type = SHAPE_TYPES.TEXT; break;
-                case 'arrow': type = SHAPE_TYPES.ARROW; break;
-                case 'pencil': type = SHAPE_TYPES.PENCIL; break;
-                case 'draw': type = SHAPE_TYPES.PENCIL; break;
-            }
-
+            const typeMap = {
+                rectangle: SHAPE_TYPES.RECTANGLE, ellipse: SHAPE_TYPES.ELLIPSE,
+                line: SHAPE_TYPES.LINE, diamond: SHAPE_TYPES.DIAMOND,
+                text: SHAPE_TYPES.TEXT, arrow: SHAPE_TYPES.ARROW,
+                pencil: SHAPE_TYPES.PENCIL, draw: SHAPE_TYPES.PENCIL
+            };
+            const type = typeMap[activeTool];
             if (type) {
+                const id = crypto.randomUUID();
                 const newShape = createBaseSchema(id, type, x, y);
 
                 if (type === SHAPE_TYPES.LINE || type === SHAPE_TYPES.ARROW) {
@@ -155,21 +123,14 @@ export function useEngineInteraction({
                 if (type === SHAPE_TYPES.TEXT) {
                     newShape.text = 'Double click to edit';
                     newShape.font = { ...newShape.font, size: 20, align: 'center' };
-                    if (canvasRef.current) {
-                        try {
-                            const ctx = canvasRef.current.getContext('2d');
-                            const { width, height } = measureTextShape(ctx, newShape);
-                            newShape.size = { width, height };
-                        } catch (e) {
-                            newShape.size = { width: 100, height: 20 };
-                        }
+                    try {
+                        const ctx = canvasRef.current.getContext('2d');
+                        const { width, height } = measureTextShape(ctx, newShape);
+                        newShape.size = { width, height };
+                    } catch {
+                        newShape.size = { width: 100, height: 20 };
                     }
-
-                    setShapes(prev => {
-                        const updated = [...prev, newShape];
-                        saveState(updated);
-                        return updated;
-                    });
+                    setShapes(prev => { const next = [...prev, newShape]; saveState(next); return next; });
                     setSelectedShapeIds(new Set([id]));
                     if (setActiveTool) setActiveTool('select');
                     return;
@@ -177,97 +138,54 @@ export function useEngineInteraction({
 
                 newShape.size = { width: 0, height: 0 };
                 newShape.style = { ...newShape.style, stroke: activeColor, strokeWidth, strokeStyle };
-
                 setShapes(prev => [...prev, newShape]);
                 setSelectedShapeIds(new Set([id]));
                 setIsCreating(true);
                 setDragOffset({ startX: x, startY: y });
-
-                if (canvasRef.current.setPointerCapture)
-                    canvasRef.current.setPointerCapture(e.pointerId);
-
+                if (canvasRef.current?.setPointerCapture) canvasRef.current.setPointerCapture(e.pointerId);
                 return;
             }
         }
 
-        // 4. Check Controls (Resizing)
+        // 4. Resize Handle
         if (selectedShapeIds.size === 1) {
             const [id] = selectedShapeIds;
-            const selectedShape = shapes.find(s => s.id === id);
-            if (selectedShape) {
-                const handle = hitTestControls(selectedShape, x, y, viewport.zoom, shapeMap);
+            const sel = shapes.find(s => s.id === id);
+            if (sel) {
+                const handle = hitTestControls(sel, x, y, viewport.zoom, shapeMap);
                 if (handle) {
-                    setIsResizing(true);
-                    setActiveHandle(handle);
-                    setDragOffset({ startX: x, startY: y });
-                    setStartDimensions({
-                        x: selectedShape.position?.x || 0,
-                        y: selectedShape.position?.y || 0,
-                        width: selectedShape.size?.width || 0,
-                        height: selectedShape.size?.height || 0,
-                        rotation: selectedShape.rotation || 0,
-                        points: selectedShape.points ? JSON.parse(JSON.stringify(selectedShape.points)) : undefined,
-                        children: selectedShape.children ? JSON.parse(JSON.stringify(selectedShape.children)) : undefined
-                    });
-                    if (canvasRef.current.setPointerCapture) canvasRef.current.setPointerCapture(e.pointerId);
+                    startResize(handle, x, y, sel, e);
                     return;
                 }
             }
         }
 
-        // 5. Hit Test (Selection / Dragging)
-        let hitShape = null;
+        // 5. Hit Test → Drag or Drag-Select
+        let hit = null;
         for (let i = shapes.length - 1; i >= 0; i--) {
-            if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
-                hitShape = shapes[i];
-                break;
-            }
+            if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) { hit = shapes[i]; break; }
         }
 
-        if (hitShape) {
+        if (hit) {
             if (e.shiftKey) {
                 setSelectedShapeIds(prev => {
                     const next = new Set(prev);
-                    if (next.has(hitShape.id)) next.delete(hitShape.id);
-                    else next.add(hitShape.id);
+                    next.has(hit.id) ? next.delete(hit.id) : next.add(hit.id);
                     return next;
                 });
             } else {
-                if (!selectedShapeIds.has(hitShape.id)) {
-                    setSelectedShapeIds(new Set([hitShape.id]));
-                }
+                if (!selectedShapeIds.has(hit.id)) setSelectedShapeIds(new Set([hit.id]));
             }
-
-            let ids = new Set(selectedShapeIds);
-            if (e.shiftKey) {
-                if (ids.has(hitShape.id)) ids.delete(hitShape.id); else ids.add(hitShape.id);
-            } else {
-                if (!ids.has(hitShape.id)) ids = new Set([hitShape.id]);
-            }
-
-            if (ids.size > 0 && ids.has(hitShape.id)) {
-                setIsDragging(true);
-                setDragStartPos({ x, y });
-                const initPos = new Map();
-                shapes.forEach(s => {
-                    initPos.set(s.id, {
-                        x: s.position?.x || 0,
-                        y: s.position?.y || 0,
-                    });
-                });
-                setInitialShapePositions(initPos);
-                canvasRef.current.style.cursor = 'grabbing';
-                if (canvasRef.current.setPointerCapture) canvasRef.current.setPointerCapture(e.pointerId);
-            }
-
+            startDrag(x, y, e);
         } else {
             if (!e.shiftKey) setSelectedShapeIds(new Set());
-            setIsDragSelecting(true);
-            setSelectionBox({ startX: x, startY: y, currentX: x, currentY: y });
-            if (canvasRef.current.setPointerCapture) canvasRef.current.setPointerCapture(e.pointerId);
+            startDragSelect(x, y, e);
         }
+    }, [canvasRef, toWorld, activeTool, isSpacePressed, shapes, viewport.zoom, selectedShapeIds,
+        setShapes, setSelectedShapeIds, setActiveTool, activeColor, strokeWidth, strokeStyle,
+        saveState, spatialIndex, shapeMapOf, startResize, startDrag, startDragSelect]);
 
-    }, [canvasRef, toWorld, activeTool, isSpacePressed, shapes, viewport.zoom, selectedShapeIds, setShapes, setSelectedShapeIds, setActiveTool, activeColor, strokeWidth, strokeStyle, saveState, setSelectionBox]);
+    // ── Pointer Move ────────────────────────────────────────────────────────
 
     const handlePointerMove = useCallback((e) => {
         if (!canvasRef.current) return;
@@ -275,6 +193,7 @@ export function useEngineInteraction({
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
         const { x, y } = toWorld(screenX, screenY);
+        const shapeMap = shapeMapOf(shapes);
 
         if (isPanning.current) {
             const dx = screenX - lastPanPos.current.x;
@@ -284,496 +203,174 @@ export function useEngineInteraction({
             return;
         }
 
-        const shapeMap = {};
-        shapes.forEach(s => shapeMap[s.id] = s);
-
         if (activeTool === 'eraser') {
             canvasRef.current.style.cursor = 'crosshair';
             if (isErasing.current) {
-                let hitShape = null;
                 for (let i = shapes.length - 1; i >= 0; i--) {
                     if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
-                        hitShape = shapes[i]; break;
+                        setShapes(prev => prev.filter(s => s.id !== shapes[i].id));
+                        break;
                     }
-                }
-                if (hitShape) {
-                    setShapes(prev => prev.filter(s => s.id !== hitShape.id));
                 }
             }
             setHoveredShapeId(null);
             return;
         }
 
-        let dragGlowHitShapeId = null;
-        if (isCreating || (isResizing && (activeHandle === 'start' || activeHandle === 'end'))) {
-            for (let i = shapes.length - 1; i >= 0; i--) {
-                if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
-                    if (!selectedShapeIds.has(shapes[i].id)) {
-                        dragGlowHitShapeId = shapes[i].id;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Creation
         if (isCreating && selectedShapeIds.size > 0) {
             const creationId = [...selectedShapeIds][0];
-            const startX = dragOffset.startX;
-            const startY = dragOffset.startY;
-
-            setShapes(prev => prev.map(shape => {
-                let s = shape;
-                if (s.id === dragGlowHitShapeId && !s.isHighlighted) s = { ...s, isHighlighted: true };
-                else if (s.id !== dragGlowHitShapeId && s.isHighlighted) s = { ...s, isHighlighted: false };
-
+            const startX = dragOffset.startX, startY = dragOffset.startY;
+            setShapes(prev => prev.map(s => {
                 if (s.id !== creationId) return s;
-
                 if (s.type === SHAPE_TYPES.PENCIL) {
-                    const newShape = { ...s, points: [...(s.points || []), { x: x - startX, y: y - startY }] };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                    return newShape;
+                    return { ...s, points: [...(s.points || []), { x: x - startX, y: y - startY }] };
                 }
                 if (s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) {
-                    const left = Math.min(startX, x);
-                    const top = Math.min(startY, y);
-                    const cx = left + Math.abs(x - startX) / 2;
-                    const cy = top + Math.abs(y - startY) / 2;
-
-                    const p0 = { x: startX - cx, y: startY - cy };
-                    const p1 = { x: x - cx, y: y - cy };
-
-                    const newShape = {
-                        ...s,
-                        position: { ...s.position, x: cx, y: cy },
-                        points: [p0, p1],
-                        size: { ...s.size, width: Math.abs(x - startX), height: Math.abs(y - startY) }
-                    };
-                    if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                    return newShape;
+                    const left = Math.min(startX, x), top = Math.min(startY, y);
+                    const cx = left + Math.abs(x - startX) / 2, cy = top + Math.abs(y - startY) / 2;
+                    return { ...s, position: { ...s.position, x: cx, y: cy }, points: [{ x: startX - cx, y: startY - cy }, { x: x - cx, y: y - cy }], size: { ...s.size, width: Math.abs(x - startX), height: Math.abs(y - startY) } };
                 }
-
-                const left = Math.min(startX, x);
-                const top = Math.min(startY, y);
-                const newShape = {
-                    ...s,
-                    position: { ...s.position, x: left + Math.abs(x - startX) / 2, y: top + Math.abs(y - startY) / 2 },
-                    size: { ...s.size, width: Math.abs(x - startX), height: Math.abs(y - startY) }
-                };
-                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                return newShape;
+                const left = Math.min(startX, x), top = Math.min(startY, y);
+                return { ...s, position: { ...s.position, x: left + Math.abs(x - startX) / 2, y: top + Math.abs(y - startY) / 2 }, size: { ...s.size, width: Math.abs(x - startX), height: Math.abs(y - startY) } };
             }));
             return;
         }
 
-        // Resizing
-        if (isResizing && selectedShapeIds.size === 1 && activeHandle) {
-            const resizeId = [...selectedShapeIds][0];
-            setShapes(prev => {
-                const mappedShapes = prev.map(shape => {
-                    let s = shape;
-                    if (s.id === dragGlowHitShapeId && !s.isHighlighted) s = { ...s, isHighlighted: true };
-                    else if (s.id !== dragGlowHitShapeId && s.isHighlighted) s = { ...s, isHighlighted: false };
+        if (isResizing) { updateResize(x, y); return; }
+        if (isDragging) { updateDrag(x, y); canvasRef.current.style.cursor = 'grabbing'; return; }
+        if (isDragSelecting) { updateDragSelect(x, y); return; }
 
-                    if (s.id === resizeId) {
-                        if (activeHandle === 'rot') {
-                            const newShape = { ...s, rotation: calculateRotation(s, x, y) };
-                            if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                            return newShape;
-                        }
-
-                        if (s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) {
-                            const handle = activeHandle;
-                            let newShape = { ...s };
-
-                            const rad = (startDimensions.rotation || 0) * Math.PI / 180;
-                            const cos = Math.cos(rad); const sin = Math.sin(rad);
-
-                            const p0x = startDimensions.points[0]?.x || 0;
-                            const p0y = startDimensions.points[0]?.y || 0;
-                            const p1x = startDimensions.points[1]?.x || 0;
-                            const p1y = startDimensions.points[1]?.y || 0;
-
-                            let p0g = {
-                                x: startDimensions.x + (p0x * cos - p0y * sin),
-                                y: startDimensions.y + (p0x * sin + p0y * cos)
-                            };
-                            let p1g = {
-                                x: startDimensions.x + (p1x * cos - p1y * sin),
-                                y: startDimensions.y + (p1x * sin + p1y * cos)
-                            };
-
-                            if (handle === 'start') p0g = { x, y };
-                            else if (handle === 'end') p1g = { x, y };
-                            else return s;
-
-                            const cx = (p0g.x + p1g.x) / 2;
-                            const cy = (p0g.y + p1g.y) / 2;
-
-                            const invCos = Math.cos(-rad); const invSin = Math.sin(-rad);
-                            const dx0 = p0g.x - cx; const dy0 = p0g.y - cy;
-                            const dx1 = p1g.x - cx; const dy1 = p1g.y - cy;
-
-                            newShape.position = { ...newShape.position, x: cx, y: cy };
-                            newShape.points = [
-                                { x: dx0 * invCos - dy0 * invSin, y: dx0 * invSin + dy0 * invCos },
-                                { x: dx1 * invCos - dy1 * invSin, y: dx1 * invSin + dy1 * invCos }
-                            ];
-                            newShape.size = {
-                                ...newShape.size,
-                                width: Math.abs(newShape.points[0].x - newShape.points[1].x),
-                                height: Math.abs(newShape.points[0].y - newShape.points[1].y)
-                            };
-
-                            if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                            return newShape;
-                        }
-
-                        const updates = calculateResize(s, activeHandle, x, y, {
-                            ...startDimensions, startMouseX: dragOffset.startX, startMouseY: dragOffset.startY
-                        });
-
-                        if (updates) {
-                            if (s.type === SHAPE_TYPES.PENCIL && startDimensions.points) {
-                                const scaleX = updates.size.width / startDimensions.width;
-                                const scaleY = updates.size.height / startDimensions.height;
-                                const newPoints = startDimensions.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
-                                const newShape = { ...s, ...updates, points: newPoints };
-                                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                                return newShape;
-                            }
-
-                            if (s.type === SHAPE_TYPES.GROUP && startDimensions.children) {
-                                const scaleX = updates.size.width / startDimensions.width;
-                                const scaleY = updates.size.height / startDimensions.height;
-
-                                const newChildren = startDimensions.children.map(child => {
-                                    const nx = (child.position?.x || 0) * scaleX;
-                                    const ny = (child.position?.y || 0) * scaleY;
-                                    const nw = (child.size?.width || 0) * scaleX;
-                                    const nh = (child.size?.height || 0) * scaleY;
-                                    let nPoints = child.points;
-                                    if (child.points) {
-                                        nPoints = child.points.map(p => ({
-                                            x: p.x * scaleX,
-                                            y: p.y * scaleY
-                                        }));
-                                    }
-                                    return {
-                                        ...child,
-                                        position: { ...child.position, x: nx, y: ny },
-                                        size: { ...child.size, width: nw, height: nh },
-                                        points: nPoints
-                                    };
-                                });
-
-                                const newShape = { ...s, ...updates, children: newChildren };
-                                if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                                return newShape;
-                            }
-
-                            const newShape = { ...s, ...updates };
-                            if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape, boardId); lastSyncTime.current = Date.now(); }
-                            return newShape;
-                        }
-                    }
-                    return s;
-                });
-
-                // Secondary Pass: Smart Arrow Routing
-                const finalShapes = updateConnectedArrows(selectedShapeIds, mappedShapes);
-
-                return finalShapes;
-            });
-            return;
-        }
-
-        // Dragging
-        if (isDragging && dragStartPos) {
-            const dx = x - dragStartPos.x;
-            const dy = y - dragStartPos.y;
-            setShapes(prev => {
-                const mappedShapes = prev.map(s => {
-                    const init = initialShapePositions.get(s.id);
-                    if (!init) return s;
-
-                    if (selectedShapeIds.has(s.id)) {
-                        const newShape = { ...s, position: { ...s.position, x: init.x + dx, y: init.y + dy } };
-                        if (Date.now() - lastSyncTime.current > syncThrottleMs) { emitUpdate(newShape); lastSyncTime.current = Date.now(); }
-                        return newShape;
-                    }
-                    return s;
-                });
-
-                // Secondary Pass: Smart Arrow Routing
-                const finalShapes = updateConnectedArrows(selectedShapeIds, mappedShapes);
-
-                return finalShapes;
-            });
-            canvasRef.current.style.cursor = 'grabbing';
-        } else if (isDragSelecting) {
-            setSelectionBox(prev => ({ ...prev, currentX: x, currentY: y }));
-            return;
-        }
-
+        // Hover
         let cursor = 'default';
-        dragGlowHitShapeId = null;
-
         if (selectedShapeIds.size === 1) {
             const [id] = selectedShapeIds;
             const s = shapes.find(sh => sh.id === id);
-            if (s && hitTestControls(s, x, y, viewport.zoom, shapeMap)) {
-                cursor = 'pointer';
-            }
+            if (s && hitTestControls(s, x, y, viewport.zoom, shapeMap)) cursor = 'pointer';
         }
-
         if (cursor === 'default') {
             let hit = null;
             for (let i = shapes.length - 1; i >= 0; i--) {
                 if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) { hit = shapes[i]; break; }
             }
-            if (hit) {
-                cursor = 'move';
-                setHoveredShapeId(hit.id);
-            } else {
-                setHoveredShapeId(null);
-            }
+            if (hit) { cursor = 'move'; setHoveredShapeId(hit.id); }
+            else setHoveredShapeId(null);
         }
         canvasRef.current.style.cursor = cursor;
 
-        if (!dragGlowHitShapeId && shapes.some(s => s.isHighlighted)) {
+        // Clear isHighlighted if no shape is being targeted
+        if (shapes.some(s => s.isHighlighted)) {
             setShapes(prev => prev.map(s => s.isHighlighted ? { ...s, isHighlighted: false } : s));
         }
+    }, [canvasRef, toWorld, activeTool, shapes, viewport.zoom, setShapes, isCreating, selectedShapeIds,
+        dragOffset, isResizing, isDragging, isDragSelecting, setHoveredShapeId, setViewport, shapeMapOf,
+        updateResize, updateDrag, updateDragSelect]);
 
-    }, [canvasRef, toWorld, isPanning, activeTool, shapes, viewport.zoom, setShapes, isCreating, selectedShapeIds, dragOffset, isResizing, activeHandle, startDimensions, isDragging, dragStartPos, initialShapePositions, isDragSelecting, setHoveredShapeId, setSelectionBox, boardId, emitUpdate, syncThrottleMs]);
+    // ── Pointer Up ─────────────────────────────────────────────────────────
 
     const handlePointerUp = useCallback((e) => {
         if (isPanning.current) {
             isPanning.current = false;
             canvasRef.current.style.cursor = isSpacePressed.current ? 'grab' : 'default';
         }
+
         if (activeTool === 'eraser') {
             isErasing.current = false;
-            saveState(shapes, boardId);
+            saveState(shapes);
             return;
         }
 
         if (isCreating && selectedShapeIds.size > 0) {
             const creationId = [...selectedShapeIds][0];
+            const startPos = dragOffset ? { x: dragOffset.startX, y: dragOffset.startY } : null;
             setShapes(prev => {
-                let newShapes = prev.map(s => {
-                    if (s.id === creationId && s.type === SHAPE_TYPES.PENCIL && s.points) {
-                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                        s.points.forEach(p => {
-                            minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-                            maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
-                        });
-                        const w = maxX - minX; const h = maxY - minY;
-                        const px = s.position?.x || 0;
-                        const py = s.position?.y || 0;
-                        const centerX = px + minX + w / 2; const centerY = py + minY + h / 2;
-                        const newPoints = s.points.map(p => ({ x: (px + p.x) - centerX, y: (py + p.y) - centerY }));
-                        return { ...s, position: { ...s.position, x: centerX, y: centerY }, size: { ...s.size, width: w, height: h }, points: newPoints };
-                    }
-                    return s;
+                let next = prev.map(s => {
+                    if (s.id !== creationId || s.type !== SHAPE_TYPES.PENCIL || !s.points) return s;
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    s.points.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+                    const w = maxX - minX, h = maxY - minY;
+                    const px = s.position?.x || 0, py = s.position?.y || 0;
+                    const cx = px + minX + w / 2, cy = py + minY + h / 2;
+                    return { ...s, position: { ...s.position, x: cx, y: cy }, size: { ...s.size, width: w, height: h }, points: s.points.map(p => ({ x: (px + p.x) - cx, y: (py + p.y) - cy })) };
                 }).filter(s => {
-                    if (s.id === creationId) {
-                        if (s.type === SHAPE_TYPES.PENCIL && s.points.length > 2) return true;
-                        const w = s.size?.width || 0;
-                        const h = s.size?.height || 0;
-                        if (w > 5 || h > 5) return true;
-                        if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (Math.abs(w) > 5 || Math.abs(h) > 5)) return true;
-                        return false;
-                    }
-                    return true;
+                    if (s.id !== creationId) return true;
+                    if (s.type === SHAPE_TYPES.PENCIL && s.points.length > 2) return true;
+                    const w = s.size?.width || 0, h = s.size?.height || 0;
+                    if (w > 5 || h > 5) return true;
+                    if ((s.type === SHAPE_TYPES.LINE || s.type === SHAPE_TYPES.ARROW) && (Math.abs(w) > 5 || Math.abs(h) > 5)) return true;
+                    return false;
                 });
 
-                // --- Arrow Binding Logic ---
-                const createdShape = newShapes.find(s => s.id === creationId);
-                if (createdShape && createdShape.type === SHAPE_TYPES.ARROW) {
-                    const startPos = dragOffset ? { x: dragOffset.startX, y: dragOffset.startY } : null;
-                    const endPos = { x: e.clientX, y: e.clientY }; // We need world x, y
-
-                    if (canvasRef.current && startPos) {
-                        const rect = canvasRef.current.getBoundingClientRect();
-                        const worldEnd = toWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-                        let startHitId = null;
-                        let endHitId = null;
-
-                        // Inverse array order (top to bottom)
-                        for (let i = newShapes.length - 1; i >= 0; i--) {
-                            const target = newShapes[i];
-                            if (target.id === creationId) continue;
-
-                            if (!startHitId && hitTest(target, startPos.x, startPos.y, viewport.zoom)) {
-                                startHitId = target.id;
-                            }
-                            if (!endHitId && hitTest(target, worldEnd.x, worldEnd.y, viewport.zoom)) {
-                                endHitId = target.id;
-                            }
-                            if (startHitId && endHitId) break;
-                        }
-
-                        if (startHitId || endHitId) {
-                            newShapes = newShapes.map(s => {
-                                if (s.id === creationId) {
-                                    return {
-                                        ...s,
-                                        bindings: {
-                                            start: startHitId ? { elementId: startHitId, anchor: "center" } : null,
-                                            end: endHitId ? { elementId: endHitId, anchor: "center" } : null
-                                        }
-                                    };
-                                }
-                                return s;
-                            });
-                        }
-                    }
+                const created = next.find(s => s.id === creationId);
+                if (created?.type === SHAPE_TYPES.ARROW && startPos) {
+                    // Arrow binding is handled imperatively via bindCreatedArrow
                 }
-                // ---------------------------
-
-                saveState(newShapes);
-                return newShapes;
+                saveState(next);
+                return next;
             });
+
+            const created = shapes.find(s => s.id === creationId);
+            if (created?.type === SHAPE_TYPES.ARROW && startPos) {
+                bindCreatedArrow(creationId, startPos, e);
+            }
+
             if (setActiveTool) setActiveTool('select');
         } else if (isResizing && selectedShapeIds.size === 1 && (activeHandle === 'start' || activeHandle === 'end')) {
-            // --- Arrow endpoint re-binding: drag endpoint onto a shape to connect ---
-            const resizeId = [...selectedShapeIds][0];
-            const resizedShape = shapes.find(s => s.id === resizeId);
-            if (resizedShape && resizedShape.type === SHAPE_TYPES.ARROW && canvasRef.current) {
-                const rect = canvasRef.current.getBoundingClientRect();
-                const worldPoint = toWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-                let hitId = null;
-                for (let i = shapes.length - 1; i >= 0; i--) {
-                    const target = shapes[i];
-                    if (target.id === resizeId) continue;
-                    if (hitTest(target, worldPoint.x, worldPoint.y, viewport.zoom)) {
-                        hitId = target.id;
-                        break;
-                    }
-                }
-
-                const hadBinding = resizedShape.bindings && resizedShape.bindings[activeHandle];
-
-                if (hitId || hadBinding) {
-                    // Update binding and immediately route the arrow to snap to the new shape
-                    setShapes(prev => {
-                        const updatedShapes = prev.map(s => {
-                            if (s.id !== resizeId) return s;
-                            const newBindings = {
-                                start: s.bindings?.start ?? null,
-                                end: s.bindings?.end ?? null,
-                                [activeHandle]: hitId ? { elementId: hitId, anchor: "center" } : null
-                            };
-                            return { ...s, bindings: newBindings };
-                        });
-
-                        // If both ends are now bound, immediately route the arrow
-                        const updatedArrow = updatedShapes.find(s => s.id === resizeId);
-                        if (updatedArrow?.bindings?.start && updatedArrow?.bindings?.end) {
-                            const source = updatedShapes.find(s => s.id === updatedArrow.bindings.start.elementId);
-                            const target = updatedShapes.find(s => s.id === updatedArrow.bindings.end.elementId);
-                            if (source && target) {
-                                const routedArrow = routeArrow(updatedArrow, source, target, "orthogonal");
-                                const finalShapes = updatedShapes.map(s => s.id === resizeId ? routedArrow : s);
-                                saveState(finalShapes);
-                                return finalShapes;
-                            }
-                        }
-
-                        saveState(updatedShapes);
-                        return updatedShapes;
-                    });
-                } else {
-                    saveState(shapes, boardId);
-                }
-            } else {
-                saveState(shapes, boardId);
-            }
+            const [arrowId] = selectedShapeIds;
+            rebindArrowEndpoint(arrowId, activeHandle, e);
         } else if (isDragSelecting && selectionBox) {
-            const box = selectionBox;
-            const x1 = Math.min(box.startX, box.currentX); const x2 = Math.max(box.startX, box.currentX);
-            const y1 = Math.min(box.startY, box.currentY); const y2 = Math.max(box.startY, box.currentY);
-            const hitIds = new Set();
-            shapes.forEach(s => {
-                const w = s.size?.width || 0;
-                const h = s.size?.height || 0;
-                const sx1 = (s.position?.x || 0) - w / 2; const sx2 = (s.position?.x || 0) + w / 2;
-                const sy1 = (s.position?.y || 0) - h / 2; const sy2 = (s.position?.y || 0) + h / 2;
-                if (sx1 < x2 && sx2 > x1 && sy1 < y2 && sy2 > y1) hitIds.add(s.id);
-            });
-            setSelectedShapeIds(hitIds);
-        } else if (isDragging || isResizing) {
-            saveState(shapes, boardId);
+            commitDragSelect(selectionBox);
+        } else if (isDragging) {
+            commitDrag(saveState);
+        } else if (isResizing) {
+            commitResize(saveState);
         }
 
-        setIsDragging(false);
-        setIsResizing(false);
-        setIsDragSelecting(false);
-        setSelectionBox(null);
         setIsCreating(false);
-        setActiveHandle(null);
+        cancelDrag();
+        cancelResize();
+        cancelDragSelect();
+        if (canvasRef.current?.releasePointerCapture) canvasRef.current.releasePointerCapture(e.pointerId);
+    }, [isPanning, isSpacePressed, activeTool, saveState, shapes, isCreating, selectedShapeIds, dragOffset,
+        isDragging, isResizing, activeHandle, isDragSelecting, selectionBox, setShapes, setActiveTool,
+        bindCreatedArrow, rebindArrowEndpoint, commitDragSelect, commitDrag, commitResize,
+        cancelDrag, cancelResize, cancelDragSelect]);
 
-        if (canvasRef.current && canvasRef.current.releasePointerCapture) canvasRef.current.releasePointerCapture(e.pointerId);
-
-    }, [isPanning, activeTool, saveState, shapes, isCreating, selectedShapeIds, isDragging, isResizing, isDragSelecting, selectionBox, setShapes, setActiveTool, setSelectedShapeIds, setSelectionBox, boardId]);
+    // ── Double Click ────────────────────────────────────────────────────────
 
     const handleDoubleClick = useCallback((e) => {
         if (!canvasRef.current) return;
         const rect = canvasRef.current.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        const { x, y } = toWorld(screenX, screenY);
-
-        let targetShape = null;
+        const { x, y } = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+        let hit = null;
         for (let i = shapes.length - 1; i >= 0; i--) {
-            if (hitTest(shapes[i], x, y, viewport.zoom)) {
-                targetShape = shapes[i];
-                break;
-            }
+            if (hitTest(shapes[i], x, y, viewport.zoom)) { hit = shapes[i]; break; }
         }
-
-        if (targetShape && targetShape.type === SHAPE_TYPES.TEXT) {
-            setEditingShapeId(targetShape.id);
-            setSelectedShapeIds(new Set([targetShape.id]));
+        if (hit?.type === SHAPE_TYPES.TEXT) {
+            setEditingShapeId(hit.id);
+            setSelectedShapeIds(new Set([hit.id]));
         } else {
             setEditingShapeId(null);
         }
-    }, [shapes, toWorld, viewport.zoom, setEditingShapeId, setSelectedShapeIds, canvasRef]);
+    }, [canvasRef, shapes, toWorld, viewport.zoom, setEditingShapeId, setSelectedShapeIds]);
+
+    // ── Wheel ───────────────────────────────────────────────────────────────
 
     const handleWheel = useCallback((e) => {
         if (!canvasRef.current) return;
         e.preventDefault();
         e.stopPropagation();
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
         if (e.ctrlKey || e.metaKey) {
-            const rect = canvasRef.current.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
             const { x: worldX, y: worldY } = toWorld(mouseX, mouseY);
-
-            let newZoom = viewport.zoom;
-            newZoom *= e.deltaY > 0 ? 0.95 : 1.05;
-            newZoom = Math.min(Math.max(newZoom, 0.1), 10);
-
-            const newViewportX = mouseX - worldX * newZoom;
-            const newViewportY = mouseY - worldY * newZoom;
-
-            setViewport({ x: newViewportX, y: newViewportY, zoom: newZoom });
+            const newZoom = Math.min(Math.max(viewport.zoom * (e.deltaY > 0 ? 0.95 : 1.05), 0.1), 10);
+            setViewport({ x: mouseX - worldX * newZoom, y: mouseY - worldY * newZoom, zoom: newZoom });
         } else {
-            let deltaX = e.deltaX;
-            let deltaY = e.deltaY;
-            if (e.shiftKey && deltaY !== 0 && Math.abs(deltaX) === 0) {
-                deltaX = deltaY;
-                deltaY = 0;
-            }
-            setViewport(prev => ({
-                ...prev,
-                x: prev.x - deltaX,
-                y: prev.y - deltaY
-            }));
+            let dx = e.deltaX, dy = e.deltaY;
+            if (e.shiftKey && dy !== 0 && Math.abs(dx) === 0) { dx = dy; dy = 0; }
+            setViewport(prev => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
         }
     }, [canvasRef, viewport, setViewport, toWorld]);
 
