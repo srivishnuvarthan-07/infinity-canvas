@@ -49,15 +49,13 @@ export function DrawingCanvas({
     onInviteMember,
     onRemoveMember
 }) {
-    console.log("DrawingCanvas Render. Shapes:", initialShapes?.length);
-
     const { user } = useAuth();
     const isOwner = user && user._id === ownerId;
 
+    const activeWorkspaceId = useWorkspaceStore(state => state.activeWorkspaceId);
     const workspaces = useWorkspaceStore(state => state.workspaces);
-    // Determine the workspace name (assume active workspace for now if board doesn't have strict relations loaded)
-    const activeWorkspace = workspaces.find(w => w._id === useWorkspaceStore.getState().activeWorkspaceId);
-    const workspaceName = activeWorkspace ? activeWorkspace.name : null;
+    const activeWorkspace = workspaces.find(w => w._id === activeWorkspaceId);
+    const workspaceName = activeWorkspace?.name ?? null;
 
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
@@ -297,8 +295,6 @@ export function DrawingCanvas({
         };
     }, [customShapes]);
 
-    // ...
-
     const handleDuplicate = () => {
         if (!selectedElement) return;
         const shapesToDuplicate = selectedElement.type === 'activeSelection' ? selectedElement.objects : [selectedElement];
@@ -500,30 +496,24 @@ export function DrawingCanvas({
                 viewport={viewport || { x: 0, y: 0, zoom: 1 }}
             />
 
-            {editingShapeId && customShapes && (
-                <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
-                    {(() => {
-                        const shape = customShapes.find(s => s.id === editingShapeId);
-                        if (shape) {
-                            return (
-                                <div className="pointer-events-auto">
-                                    <div className="pointer-events-auto">
-                                        <TextEditorOverlay
-                                            key={shape.id}
-                                            shape={shape}
-                                            canvasRef={customCanvasRef}
-                                            updateShape={updateCustomShape}
-                                            onBlur={() => setEditingShapeId(null)}
-                                            viewport={viewport}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        }
-                        return null;
-                    })()}
-                </div>
-            )}
+            {editingShapeId && customShapes && (() => {
+                const shape = customShapes.find(s => s.id === editingShapeId);
+                if (!shape) return null;
+                return (
+                    <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                        <div className="pointer-events-auto">
+                            <TextEditorOverlay
+                                key={shape.id}
+                                shape={shape}
+                                canvasRef={customCanvasRef}
+                                updateShape={updateCustomShape}
+                                onBlur={() => setEditingShapeId(null)}
+                                viewport={viewport}
+                            />
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ZOOM CONTROLS (Bottom Right) */}
             <div className="absolute bottom-4 right-4 z-20 pointer-events-auto">

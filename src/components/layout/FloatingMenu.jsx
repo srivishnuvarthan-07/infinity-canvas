@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     Menu, FolderOpen, Save, Download, RotateCcw,
-    Check, Cloud, ChevronRight, LogIn, LogOut, User, HardDrive
+    Cloud, ChevronRight, LogOut, HardDrive
 } from "lucide-react";
 import {
     DropdownMenu,

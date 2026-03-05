@@ -84,12 +84,8 @@ export function TextEditorOverlay({ shape, canvasRef, updateShape, onBlur, viewp
 
     const handleKeyDown = (e) => {
         if (e.key === 'Escape') {
-            onBlur(); // Cancel or Commit? Standard is Commit on blur.
+            onBlur();
         }
-        // Shift+Enter for new line? Default behavior works.
-        // Enter? Depends if we want single line default.
-        // Excalidraw uses Enter for new line.
-        // Ctrl+Enter to stop?
         if (e.key === 'Enter' && e.ctrlKey) {
             handleBlur();
         }

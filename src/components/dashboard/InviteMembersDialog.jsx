@@ -48,18 +48,13 @@ export function InviteMembersDialog({ children }) {
     };
 
     const handleConfirm = () => {
-        // Mock invite logic
-        console.log("Inviting:", emails, "as", selectedRole.value);
         setIsOpen(false);
         setEmails([]);
-        setCurrentEmail("");
+        setCurrentEmail('');
     };
 
-    // Mock existing members
-    const members = [
-        { id: 1, name: "Vishnu V", role: "Owner", avatar: "", initials: "VV" },
-        { id: 2, name: "Arun Kumar", role: "Editor", avatar: "", initials: "AK" },
-    ];
+    // Members list is provided via props in real usage
+    const members = [];
 
     const CurrentRoleIcon = selectedRole.icon;
 
