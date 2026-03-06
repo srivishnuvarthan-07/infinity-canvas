@@ -75,7 +75,6 @@ BoardSchema.pre('save', function (next) {
 BoardSchema.methods.hasAccess = async function (user, action = 'view') {
     // 1. Unauthenticated Guest Check
     if (!user) {
-        console.log(`[Board.hasAccess] No user present for board ${this._id}, action ${action}. linkAccess: ${this.linkAccess}`);
         if (action === 'view') return this.linkAccess === 'view' || this.linkAccess === 'edit';
         if (action === 'edit') return this.linkAccess === 'edit';
         return false;
@@ -83,7 +82,6 @@ BoardSchema.methods.hasAccess = async function (user, action = 'view') {
 
     const userId = user._id ? user._id.toString() : user.id;
     const ownerId = this.owner._id ? this.owner._id.toString() : this.owner.toString();
-    console.log(`[Board.hasAccess] User: ${userId}, Owner: ${ownerId}, Action: ${action}`);
 
     // 2. Owner has full access
     if (ownerId === userId) return true;
@@ -129,7 +127,6 @@ BoardSchema.methods.hasAccess = async function (user, action = 'view') {
         if (boardRole === 'editor') return true;
     }
 
-    console.warn(`Access denied for user ${userId} on board ${this._id} for action ${action}. Visibility: ${this.visibility}, linkAccess: ${this.linkAccess}`);
     return false;
 };
 

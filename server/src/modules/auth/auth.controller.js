@@ -58,20 +58,11 @@ exports.login = async (req, res, next) => {
 // @access  Private
 exports.getMe = async (req, res, next) => {
     try {
-        // console.log("getMe called for user:", req.user ? req.user._id : 'null');
-        const user = await User.findById(req.user.id);
-
-        if (!user) {
-            console.error("getMe: User not found in DB but passed auth middleware");
-            return res.status(404).json({ success: false, error: 'User not found' });
-        }
-
         res.status(200).json({
             success: true,
-            data: user
+            data: req.user
         });
     } catch (err) {
-        console.error("getMe Error:", err);
         next(err);
     }
 };
@@ -113,7 +104,7 @@ const sendTokenResponse = (user, statusCode, res) => {
             success: true,
             token,
             user: {
-                _id: user._id, // Standardize as _id or id? Frontend expects whatever.
+                _id: user._id,
                 name: user.name,
                 email: user.email,
                 role: user.role
