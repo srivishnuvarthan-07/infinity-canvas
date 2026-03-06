@@ -13,9 +13,6 @@ app.use(express.json({ limit: '50mb' })); // Increased limit for large board dat
 // Cookie parser
 app.use(cookieParser());
 
-
-
-
 // Dev logging middleware
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
