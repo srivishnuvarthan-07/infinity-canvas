@@ -37,10 +37,8 @@ const authService = {
         }
     },
 
-    // Update Profile - Not implemented in backend yet
+    // Update Profile - placeholder until backend support is added
     updateProfile: async (updates) => {
-        // throw new Error("Not implemented in backend yet");
-        // Placeholder for future implementation
         return { user: { ...updates } };
     }
 };
