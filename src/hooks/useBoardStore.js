@@ -395,8 +395,7 @@ export const useBoardStore = create((set, get) => ({
     checkMigration: async () => {
         const migrationService = (await import('@/services/storage/migration.service')).default;
         const count = await migrationService.getLocalBoardCount();
-        const has = await migrationService.hasLocalBoards();
-        return { hasLocalBoards: has, count };
+        return { hasLocalBoards: count > 0, count };
     },
 
     moveBoardToCloud: async (boardId) => {
@@ -408,12 +407,8 @@ export const useBoardStore = create((set, get) => ({
 
     migrateLocalBoards: async (onProgress) => {
         const migrationService = (await import('@/services/storage/migration.service')).default;
-        try {
-            await migrationService.migrateAll(onProgress);
-            await get().fetchBoards();
-        } catch (err) {
-            throw err;
-        }
+        await migrationService.migrateAll(onProgress);
+        await get().fetchBoards();
     },
 
     clearLocalBoards: async () => {

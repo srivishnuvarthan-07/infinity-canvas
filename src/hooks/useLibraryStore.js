@@ -43,8 +43,7 @@ export function useLibraryStore() {
                         next[item._id] = {
                             id: item._id,
                             name: item.name,
-                            elements: item.elements, // Map to shapes structure if needed
-                            shapes: item.elements, // Assuming API returns elements as shapes
+                            shapes: item.elements,
                             createdAt: new Date(item.createdAt).getTime(),
                             isCloud: true
                         };
@@ -58,12 +57,6 @@ export function useLibraryStore() {
         sync();
     }, [user, isLoaded]);
 
-    const generateId = () => {
-        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            return crypto.randomUUID();
-        }
-        return Date.now().toString(36) + Math.random().toString(36).substring(2);
-    };
 
     // 3. Persist to IndexedDB
     useEffect(() => {
@@ -110,7 +103,7 @@ export function useLibraryStore() {
             }
         }));
 
-        const tempId = generateId();
+        const tempId = crypto.randomUUID();
         const newItem = {
             id: tempId,
             name,

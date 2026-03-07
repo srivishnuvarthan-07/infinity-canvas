@@ -275,8 +275,6 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     canUndo,
     canRedo,
     handleUndo: undo,
-    handleLoad,
-    insertShapes, // Export this
     handleRedo: redo,
 
     // Actions
@@ -286,7 +284,7 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     handleAddImage,
     handleSaveAs,
     handleLoad,
-    insertShapes, // Export this
+    insertShapes,
 
     // Selection
     selectedElement,

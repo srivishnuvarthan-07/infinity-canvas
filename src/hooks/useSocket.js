@@ -44,13 +44,11 @@ export function useSocket() {
         const socket = socketRef.current;
 
         socket.on('connect', () => {
-            console.log("Socket Connected:", socket.id, "Joining board:", boardId);
             setIsConnected(true);
             socket.emit('join-board', { boardId, user });
         });
 
         socket.on('disconnect', () => {
-            console.log("Socket Disconnected");
             setIsConnected(false);
             setRemoteUsers({});
             setRemoteCursors({});
