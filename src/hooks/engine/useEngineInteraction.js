@@ -313,7 +313,7 @@ export function useEngineInteraction({
                 bindCreatedArrow(creationId, startPos, e);
             }
 
-            if (setActiveTool) setActiveTool('select');
+            if (setActiveTool && activeTool !== 'pencil' && activeTool !== 'draw') setActiveTool('select');
         } else if (isResizing && selectedShapeIds.size === 1 && (activeHandle === 'start' || activeHandle === 'end')) {
             const [arrowId] = selectedShapeIds;
             rebindArrowEndpoint(arrowId, activeHandle, e);

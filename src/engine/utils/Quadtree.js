@@ -59,9 +59,7 @@ export class Quadtree {
     }
 
     insert(shape) {
-        // Shape uses V2 nested schema, but might be legacy. Handle uniformly via geometry layer.
         const bounds = getBounds(shape);
-        // Quadtree Rectangle expects center x, y and width, height
         const x = bounds.minX + bounds.width / 2;
         const y = bounds.minY + bounds.height / 2;
         const w = bounds.width;
@@ -85,10 +83,10 @@ export class Quadtree {
         if (this.southwest.insert(shape)) return true;
         if (this.southeast.insert(shape)) return true;
 
-        // Should not happen?
-        // Actually for overlapping shapes it might trickle down.
-        // For simplicity, we just push to children.
-        return false;
+        // Shape spans multiple quadrant boundaries (e.g. elbow arrows with large bounding boxes).
+        // Store it in the current node rather than silently dropping it.
+        this.shapes.push(shape);
+        return true;
     }
 
     query(range, found) {
@@ -99,7 +97,6 @@ export class Quadtree {
         }
 
         for (let shape of this.shapes) {
-            // Check intersection (AABB) using geometry layer
             const bounds = getBounds(shape);
             const x = bounds.minX + bounds.width / 2;
             const y = bounds.minY + bounds.height / 2;

@@ -40,7 +40,7 @@ export async function exportToPng(shapes, filename = 'canvas-export.png') {
             minX = Math.min(minX, sx - maxDim / 2);
             minY = Math.min(minY, sy - maxDim / 2);
             maxX = Math.max(maxX, sx + maxDim / 2);
-            maxY = Math.max(maxY + maxDim / 2, sy + maxDim / 2);
+            maxY = Math.max(maxY, sy + maxDim / 2);
         }
 
     });
