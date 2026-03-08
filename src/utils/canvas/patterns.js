@@ -45,20 +45,3 @@ export const getPatternCanvas = (color, type) => {
     return patternSource;
 };
 
-/**
- * Generates a Fabric Pattern for the given color and type.
- * @param {string} color - The color of the pattern lines.
- * @param {string} type - 'hachure' | 'cross-hatch'.
- * @returns {Pattern | string} - A Fabric Pattern object or the color string if solid.
- */
-export const getPattern = (color, type) => {
-    if (type === "solid") return color;
-
-    const patternSource = getPatternCanvas(color, type);
-    if (!patternSource) return color;
-
-    return new Pattern({
-        source: patternSource,
-        repeat: "repeat",
-    });
-};
