@@ -5,7 +5,7 @@ import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
 import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 
-export function AIPromptBar({ onInsertShapes }) {
+export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
@@ -23,14 +23,22 @@ export function AIPromptBar({ onInsertShapes }) {
         setIsGenerating(true);
         try {
             const aiService = getAIService(apiKey);
-            const intent = await aiService.generateGraphJSON(prompt);
+
+            // Step 1: Expand Prompt
+            toast.info('Planning diagram structure...', { id: 'ai-gen' });
+            const expandedPrompt = await aiService.expandPrompt(prompt);
+
+            // Step 2: Generate JSON
+            toast.loading('Generating shapes...', { id: 'ai-gen' });
+            const intent = await aiService.generateGraphJSON(expandedPrompt);
 
             if (intent.intent_type === 'non_visual') {
-                toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
-            } else if (intent.intent_type === 'visual') {
+                toast.dismiss('ai-gen');
+                toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.', { duration: 5000 });
+            } else if (intent.intent_type === 'diagram') {
                 const validation = validateGraph(intent.graph);
                 if (!validation.success) {
-                    toast.error('AI returned an invalid diagram format. Please try again.');
+                    toast.error('AI returned an invalid diagram format. Please try again.', { id: 'ai-gen' });
                     console.error("Zod Validation Error:", validation.error);
                     return;
                 }
@@ -38,16 +46,23 @@ export function AIPromptBar({ onInsertShapes }) {
                 const newShapes = generateDiagramShapes(intent);
                 if (newShapes && newShapes.length > 0) {
                     onInsertShapes(newShapes);
-                    toast.success('Diagram generated!');
+                    if (onAddToLibrary) {
+                        try {
+                            onAddToLibrary(newShapes, "AI Diagram");
+                        } catch (e) {
+                            console.error("Failed to auto-save AI diagram to library", e);
+                        }
+                    }
+                    toast.success('Diagram generated and saved to library!', { id: 'ai-gen' });
                     setPrompt('');
                     setIsOpen(false);
                 } else {
-                    toast.error('Could not layout the diagram.');
+                    toast.error('Could not layout the diagram.', { id: 'ai-gen' });
                 }
             }
         } catch (error) {
             console.error(error);
-            toast.error('Failed to generate diagram: ' + error.message);
+            toast.error('Failed to generate diagram: ' + error.message, { id: 'ai-gen' });
         } finally {
             setIsGenerating(false);
         }
@@ -57,16 +72,16 @@ export function AIPromptBar({ onInsertShapes }) {
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="absolute bottom-6 left-6 flex items-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 z-50 pointer-events-auto"
+                className="absolute bottom-20 left-4 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 z-50 pointer-events-auto"
             >
-                <Sparkles className="w-5 h-5" />
-                <span className="font-medium mr-1">Generate Diagram</span>
+                <Sparkles className="w-4 h-4" />
+                <span className="font-medium text-sm">Generate Diagram</span>
             </button>
         );
     }
 
     return (
-        <div className="absolute bottom-6 left-6 w-full max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-200 z-50 pointer-events-auto">
+        <div className="absolute bottom-20 left-4 w-full max-w-xl animate-in fade-in slide-in-from-bottom-4 duration-200 z-50 pointer-events-auto">
             <form
                 onSubmit={handleGenerate}
                 className="flex items-center gap-2 bg-white dark:bg-neutral-900 border rounded-full shadow-2xl p-2 pl-6 pr-2"

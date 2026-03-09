@@ -4,24 +4,25 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
+
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
+import Workspace from "./pages/Workspace";
+import NotFound from "./pages/NotFound";
+import LoginPage from "./pages/auth/LoginPage";
+import SignupPage from "./pages/auth/SignupPage";
+import ProfilePage from "./pages/ProfilePage";
+
 import OverviewView from "./components/dashboard/views/OverviewView";
 import AllBoardsView from "./components/dashboard/views/AllBoardsView";
 import TeamView from "./components/dashboard/views/TeamView";
 import LibraryView from "./components/dashboard/views/LibraryView";
 import SettingsView from "./components/dashboard/views/SettingsView";
 import SharedBoardsView from "./components/dashboard/views/SharedBoardsView";
-import Workspace from "./pages/Workspace";
-import NotFound from "./pages/NotFound";
-
-const queryClient = new QueryClient();
-
-import LoginPage from "./pages/auth/LoginPage";
-import SignupPage from "./pages/auth/SignupPage";
-import ProfilePage from "./pages/ProfilePage";
 
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+
+const queryClient = new QueryClient();
 
 const RequireAuth = ({ children }) => {
     const { user, loading } = useAuth();

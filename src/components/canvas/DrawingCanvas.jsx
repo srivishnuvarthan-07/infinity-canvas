@@ -170,26 +170,69 @@ export function DrawingCanvas({
                     const dropX = (clientX - (viewport?.x || 0)) / (viewport?.zoom || 1);
                     const dropY = (clientY - (viewport?.y || 0)) / (viewport?.zoom || 1);
 
-                    // Clone and Offset Shapes
-                    const newShapes = item.shapes.map(s => {
+                    // 1. Map old IDs to new IDs
+                    const idMap = new Map();
+                    item.shapes.forEach(s => idMap.set(s.id, crypto.randomUUID()));
+
+                    // 2. Clone deeply, updating nested IDs and bindings
+                    const clonedShapes = item.shapes.map(s => {
                         return {
                             ...s,
-                            id: crypto.randomUUID(),
-                            // Position relative to drop point
-                            // Item shapes are normalized to center (0,0)
-                            // So just add drop position
-                            position: {
-                                x: dropX + (s.position?.x || 0),
-                                y: dropY + (s.position?.y || 0)
-                            },
-                            style: {
-                                ...s.style,
-                                opacity: s.style?.opacity ?? 1
-                            }
+                            id: idMap.get(s.id),
+                            children: s.children ? s.children.map(c => {
+                                // Excalidraw doesn't nest, but handles legacy cases where children might be IDs or objects
+                                return typeof c === 'object' ? { ...c, id: idMap.get(c.id) || c.id } : (idMap.get(c) || c);
+                            }) : undefined,
+                            bindings: s.bindings ? {
+                                start: s.bindings.start ? { ...s.bindings.start, elementId: idMap.get(s.bindings.start.elementId) || s.bindings.start.elementId } : null,
+                                end: s.bindings.end ? { ...s.bindings.end, elementId: idMap.get(s.bindings.end.elementId) || s.bindings.end.elementId } : null,
+                            } : undefined
                         };
                     });
 
-                    insertShapes(newShapes);
+                    // 3. Find root shapes
+                    const childSet = new Set();
+                    clonedShapes.forEach(s => {
+                        if (s.children && Array.isArray(s.children)) {
+                            s.children.forEach(c => {
+                                const cId = typeof c === 'object' ? c.id : c;
+                                childSet.add(cId);
+                            });
+                        }
+                    });
+                    const rootShapes = clonedShapes.filter(s => !childSet.has(s.id));
+
+                    let finalShapes = [];
+
+                    if (rootShapes.length > 1) {
+                        // Wrap all roots into one parent group at drop point.
+                        const groupId = crypto.randomUUID();
+                        finalShapes.push({
+                            id: groupId,
+                            type: 'group',
+                            position: { x: dropX, y: dropY },
+                            size: { width: item.width || 100, height: item.height || 100 },
+                            rotation: 0,
+                            scale: { x: 1, y: 1 },
+                            children: rootShapes, // InfinityCanvas requires FULL objects, not just IDs!
+                            locked: false,
+                            visible: true,
+                            style: { opacity: 1, stroke: 'transparent', strokeWidth: 0, strokeStyle: 'solid' },
+                            revision: { number: 1, timestamp: Date.now() }
+                        });
+                    } else {
+                        // If it's just a single root, no group wrapper is made.
+                        // We must translate it (and all its root stuff) to the drop point.
+                        rootShapes.forEach(rs => {
+                            rs.position = {
+                                x: dropX + (rs.position?.x || 0),
+                                y: dropY + (rs.position?.y || 0)
+                            };
+                            finalShapes.push(rs);
+                        });
+                    }
+
+                    insertShapes(finalShapes);
                 }
             }
         } catch (err) {
@@ -445,7 +488,7 @@ export function DrawingCanvas({
             </div>
 
             {/* BOTTOM LEFT: AI PROMPT BAR */}
-            <AIPromptBar onInsertShapes={insertShapes} />
+            <AIPromptBar onInsertShapes={insertShapes} onAddToLibrary={onAddToLibrary} />
 
             {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
             {!disablePropertyPanel && selectedElement && (
@@ -551,8 +594,8 @@ export function DrawingCanvas({
                 </div>
             </div>
 
-            {/* COMMAND HINT (Next to buttons) */}
-            <div className="flex items-center px-2 py-1 bg-white/50 backdrop-blur-sm rounded-md border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-10">
+            {/* COMMAND HINT (Bottom left, right of undo/redo) */}
+            <div className="absolute bottom-4 left-24 z-20 pointer-events-auto flex items-center px-2 py-1 bg-white/50 backdrop-blur-sm rounded-md border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-10">
                 ⌘K
             </div>
 
