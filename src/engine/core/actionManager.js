@@ -4,6 +4,8 @@
  * Pure functions — operate on shapes arrays, return new arrays.
  */
 
+import { getBounds } from '../geometry/geometry';
+
 /**
  * Groups the specified shapes into a single group shape.
  * @param {Object[]} shapes - Full shapes array
@@ -18,17 +20,16 @@ export function groupShapes(shapes, selectedIds) {
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     selected.forEach(s => {
-        const hw = s.size.width / 2;
-        const hh = s.size.height / 2;
-        minX = Math.min(minX, s.position.x - hw);
-        minY = Math.min(minY, s.position.y - hh);
-        maxX = Math.max(maxX, s.position.x + hw);
-        maxY = Math.max(maxY, s.position.y + hh);
+        const bounds = getBounds(s);
+        minX = Math.min(minX, bounds.minX);
+        minY = Math.min(minY, bounds.minY);
+        maxX = Math.max(maxX, bounds.maxX);
+        maxY = Math.max(maxY, bounds.maxY);
     });
     minX -= 10; minY -= 10; maxX += 10; maxY += 10;
 
-    const width = maxX - minX;
-    const height = maxY - minY;
+    const width = maxX === -Infinity ? 0 : maxX - minX;
+    const height = maxY === -Infinity ? 0 : maxY - minY;
     const cx = minX + width / 2;
     const cy = minY + height / 2;
 

@@ -13,6 +13,11 @@ export const SHAPE_TYPES = {
     PENCIL: 'pencil',
     GROUP: 'group',
     IMAGE: 'image',
+    CYLINDER: 'cylinder',
+    PARALLELOGRAM: 'parallelogram',
+    HEXAGON: 'hexagon',
+    DOCUMENT: 'document',
+    PATH: 'path',
 };
 
 /**

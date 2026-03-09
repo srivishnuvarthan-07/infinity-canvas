@@ -21,9 +21,13 @@ const ARROW_ROUGHNESS = 1.2;        // Slightly less rough for lines
 // Soft pastel fills per node type — chosen to be light enough that dark text
 // stays readable but rich enough to immediately distinguish shape roles.
 const NODE_FILLS = {
-    rectangle: '#fffde7',  // Warm cream / yellow
-    ellipse: '#e3f2fd',  // Sky blue
-    diamond: '#f3e5f5',  // Soft lavender
+    rectangle: '#e0f2fe',  // Vibrant pastel blue
+    ellipse: '#fef08a',  // Vibrant pastel yellow
+    diamond: '#e9d5ff',  // Vibrant pastel purple
+    cylinder: '#bbf7d0', // Vibrant pastel green
+    parallelogram: '#fed7aa', // Vibrant pastel orange
+    hexagon: '#fbcfe8',  // Vibrant pastel pink
+    document: '#fecaca', // Vibrant pastel red
 };
 
 /**
@@ -69,31 +73,27 @@ const defaultTextProps = {
     }
 };
 
-// Base node shape defaults (filled in createNode with per-type color)
-const defaultNodeProps = {
-    ...defaultShapeProps,
-    type: 'rectangle',
-    size: { width: 160, height: 70 },
-    style: {
-        ...defaultShapeProps.style,
-        fill: NODE_FILLS.rectangle,
-    }
-};
-
 /**
  * Creates a grouped node (shape + text label) at absolute center (x, y).
  */
-function createNode(id, text, x, y, type = 'rectangle', width = 160, height = 70) {
+function createNodeShape(id, text, x, y, type = 'rectangle', width = 160, height = 70) {
     const groupId = crypto.randomUUID();
     const nodeId = id || crypto.randomUUID();
     const textId = crypto.randomUUID();
 
+    const fillColor = NODE_FILLS[type] || NODE_FILLS.rectangle;
+
     const nodeShape = {
-        ...defaultNodeProps,
+        ...defaultShapeProps,
         id: nodeId,
         type,
         position: { x: 0, y: 0 }, // Relative to group center
         size: { width, height },
+        style: {
+            ...defaultShapeProps.style,
+            fill: fillColor,
+            seed: stableIntHash(nodeId)
+        }
     };
 
     const textShape = {
@@ -101,7 +101,7 @@ function createNode(id, text, x, y, type = 'rectangle', width = 160, height = 70
         id: textId,
         text,
         position: { x: 0, y: 0 }, // Relative to group center
-        size: { width: width - 10, height: 20 },
+        size: { width: width - 20, height: 20 },
         font: {
             ...defaultTextProps.font,
             size: 13
@@ -120,298 +120,430 @@ function createNode(id, text, x, y, type = 'rectangle', width = 160, height = 70
             strokeWidth: 0,
         },
         children: [nodeShape, textShape],
+        rawId: id // Important for Edge routing lookup
+    };
+
+    return groupShape;
+}
+
+function createGroupContainerShape(id, text, x, y, width, height, depth = 1) {
+    const groupId = crypto.randomUUID();
+    const bgId = crypto.randomUUID();
+
+    // Assign progressively darker faint background colors based on nesting depth
+    const depthColors = ['#f8fafc', '#f1f5f9', '#e2e8f0', '#cbd5e1'];
+    const bgColor = depthColors[Math.min(depth - 1, depthColors.length - 1)];
+
+    const bgShape = {
+        ...defaultShapeProps,
+        id: bgId,
+        type: 'rectangle',
+        position: { x: 0, y: 0 },
+        size: { width, height },
+        style: {
+            ...defaultShapeProps.style,
+            fill: bgColor,
+            opacity: 1, // Solid tier
+            strokeWidth: 2,
+            strokeStyle: 'solid',
+            roughness: ROUGHNESS * 0.8, // Slightly cleaner borders for groups
+            seed: stableIntHash(bgId)
+        }
+    };
+
+    const children = [bgShape];
+
+    if (text) {
+        // Position group label in a styling header block at top-left
+        const textShape = {
+            ...defaultTextProps,
+            id: crypto.randomUUID(),
+            text,
+            position: { x: -width / 2 + 10, y: -height / 2 + 10 },
+            size: { width: width - 20, height: 24 },
+            font: {
+                ...defaultTextProps.font,
+                size: 16,
+                weight: '700',
+                align: 'left'
+            },
+            style: {
+                ...defaultTextProps.style,
+                fill: '#0f172a' // Dark slate for header
+            }
+        };
+        children.push(textShape);
+
+        // Add a subtle separator line under the header
+        const lineShape = {
+            ...defaultShapeProps,
+            id: crypto.randomUUID(),
+            type: 'line',
+            position: { x: 0, y: -height / 2 + 36 },
+            points: [{ x: -width / 2, y: 0 }, { x: width / 2, y: 0 }],
+            style: {
+                ...defaultShapeProps.style,
+                stroke: '#cbd5e1',
+                strokeWidth: 1,
+                roughness: 0.5
+            }
+        };
+        children.push(lineShape);
+    }
+
+    const groupShape = {
+        ...defaultShapeProps,
+        id: groupId,
+        type: 'group',
+        position: { x, y },
+        size: { width, height },
+        style: {
+            ...defaultShapeProps.style,
+            stroke: 'transparent',
+            strokeWidth: 0,
+        },
+        children,
         rawId: id
     };
 
     return groupShape;
 }
 
-/**
- * Computes orthogonal (elbow) waypoints between two absolute positions.
- *
- * For TB layout (vertical flow):
- *   start → drop to mid-Y → slide horizontally → climb to end
- * For LR layout (horizontal flow):
- *   start → slide to mid-X → drop vertically → slide to end
- *
- * All points are stored RELATIVE to the center (midpoint) of the bounding box
- * so they match the canvas arrow center-origin schema.
- *
- * When source and target are already axis-aligned we skip the extra bend and
- * keep the path straight (avoids a zero-length segment artefact).
- */
-function computeElbowPoints(startX, startY, endX, endY, dir = 'TB') {
-    const THRESHOLD = 8; // px — below this we treat as "already aligned"
 
-    let rawPts;
-
-    if (dir === 'LR') {
-        if (Math.abs(startY - endY) < THRESHOLD) {
-            // Already on same horizontal line — straight
-            rawPts = [
-                { x: startX, y: startY },
-                { x: endX, y: endY }
-            ];
-        } else {
-            const midX = (startX + endX) / 2;
-            rawPts = [
-                { x: startX, y: startY },
-                { x: midX, y: startY },
-                { x: midX, y: endY },
-                { x: endX, y: endY }
-            ];
-        }
-    } else {
-        // TB (default)
-        if (Math.abs(startX - endX) < THRESHOLD) {
-            // Already on same vertical line — straight
-            rawPts = [
-                { x: startX, y: startY },
-                { x: endX, y: endY }
-            ];
-        } else {
-            const midY = startY + (endY - startY) / 2;
-            rawPts = [
-                { x: startX, y: startY },
-                { x: startX, y: midY },
-                { x: endX, y: midY },
-                { x: endX, y: endY }
-            ];
-        }
-    }
-
-    return rawPts;
-}
-
-/**
- * Creates a smart-elbow arrow from absolute world coordinates.
- *
- * The canvas arrow schema is center-origin: `position` is the midpoint of the
- * bounding box, and every point in `points[]` is an offset from that midpoint.
- */
-function createArrow(startX, startY, endX, endY, label = '', dir = 'TB') {
-    const edgeId = crypto.randomUUID();
-
-    const rawPts = computeElbowPoints(startX, startY, endX, endY, dir);
-
-    // Compute bounding box of all raw path points
-    let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
-    rawPts.forEach(p => {
-        bMinX = Math.min(bMinX, p.x);
-        bMinY = Math.min(bMinY, p.y);
-        bMaxX = Math.max(bMaxX, p.x);
-        bMaxY = Math.max(bMaxY, p.y);
-    });
-
-    // Center-origin for the arrow shape
-    const cx = (bMinX + bMaxX) / 2;
-    const cy = (bMinY + bMaxY) / 2;
-
-    // Convert all raw points to center-relative offsets
-    const relPoints = rawPts.map(p => ({ x: p.x - cx, y: p.y - cy }));
-
-    const arrowShape = {
-        ...defaultShapeProps,
-        id: edgeId,
-        type: 'arrow',
-        position: { x: cx, y: cy },
-        points: relPoints,
-        size: {
-            width: Math.max(1, bMaxX - bMinX),
-            height: Math.max(1, bMaxY - bMinY)
-        },
-        zIndex: -1,
-        arrow: {
-            startHead: 'none',
-            endHead: 'triangle'
-        }
-    };
-
-    const shapes = [arrowShape];
-
-    if (label) {
-        const textId = crypto.randomUUID();
-        // Place label just above the midpoint of the path
-        const midPtIdx = Math.floor(rawPts.length / 2);
-        const labelPt = rawPts[midPtIdx];
-        shapes.push({
-            ...defaultTextProps,
-            id: textId,
-            text: label,
-            position: { x: labelPt.x, y: labelPt.y - 14 },
-            size: { width: 120, height: 18 },
-            font: { ...defaultTextProps.font, size: 11, align: 'center' },
-            style: { ...defaultTextProps.style, fill: '#555555' }
-        });
-    }
-
-    return shapes;
-}
-
-// Canonical node sizes — MUST match in both Dagre population AND rendering.
+// Canonical node sizes
 const NODE_SIZES = {
     rectangle: { w: 160, h: 70 },
     ellipse: { w: 130, h: 80 },
     diamond: { w: 160, h: 90 },
+    cylinder: { w: 140, h: 90 },
+    parallelogram: { w: 170, h: 70 },
+    hexagon: { w: 160, h: 80 },
+    document: { w: 160, h: 80 },
 };
 
-/**
- * Computes balanced Dagre spacing based on graph size.
- * Scales inversely so small graphs breathe and large graphs stay legible.
- * @param {number} nodeCount
- * @param {string} direction 'TB' | 'LR'
- * @returns {{ nodesep: number, ranksep: number }}
- */
 function computeSpacing(nodeCount, direction) {
-    // Nodes per rank estimate: TB is wider, LR is taller
-    const nodesep = Math.max(40, Math.round(120 - nodeCount * 3.5));
-    const ranksep = Math.max(80, Math.round(160 - nodeCount * 3));
+    // Increased spacing for a more breathable, premium layout
+    const nodesep = Math.max(60, Math.round(150 - nodeCount * 3));
+    const ranksep = Math.max(120, Math.round(200 - nodeCount * 4));
     return { nodesep, ranksep };
+}
+
+// ── Recursive Layout Math ────────────────────────────────────────────────
+
+function buildParentMap(nodes, parentId = null, map = new Map()) {
+    nodes.forEach(n => {
+        map.set(n.id, parentId);
+        if (n.type === 'group' && n.nodes) {
+            buildParentMap(n.nodes, n.id, map);
+        }
+    });
+    return map;
+}
+
+function getAncestorAtLevel(nodeId, levelNodes, parentMap) {
+    const levelIds = new Set(levelNodes.map(n => n.id));
+    let curr = nodeId;
+    while (curr) {
+        if (levelIds.has(curr)) return curr;
+        curr = parentMap.get(curr);
+    }
+    return null;
+}
+
+const GROUP_PADDING = 60;
+
+function layoutGraphRecursive(levelNodes, allEdges, parentMap, rankdir = 'TB', depth = 1) {
+    const g = new dagre.graphlib.Graph();
+    const spacing = computeSpacing(levelNodes.length, rankdir);
+
+    g.setGraph({
+        rankdir,
+        nodesep: spacing.nodesep,
+        ranksep: spacing.ranksep,
+        edgesep: 20,
+        marginx: GROUP_PADDING,
+        marginy: GROUP_PADDING
+    });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    const childResults = new Map();
+
+    // 1. Register nodes
+    levelNodes.forEach(node => {
+        if (node.type === 'group' && node.nodes && node.nodes.length > 0) {
+            const res = layoutGraphRecursive(node.nodes, allEdges, parentMap, node.direction || rankdir, depth + 1);
+            childResults.set(node.id, res);
+            g.setNode(node.id, {
+                label: node.label || '',
+                width: res.width,
+                height: res.height,
+                type: 'group'
+            });
+        } else {
+            const sz = NODE_SIZES[node.type] || NODE_SIZES.rectangle;
+            g.setNode(node.id, {
+                label: node.label || '',
+                width: sz.w,
+                height: sz.h,
+                type: node.type
+            });
+        }
+    });
+
+    // 2. Register edges
+    allEdges.forEach(edge => {
+        const ancFrom = getAncestorAtLevel(edge.from, levelNodes, parentMap);
+        const ancTo = getAncestorAtLevel(edge.to, levelNodes, parentMap);
+        if (ancFrom && ancTo && ancFrom !== ancTo) {
+            g.setEdge(ancFrom, ancTo, { label: edge.label || '' });
+        }
+    });
+
+    // 3. Layout
+    dagre.layout(g);
+
+    // 4. Extract sizes and paths
+    const layouts = [];
+    const edgePaths = [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    levelNodes.forEach(node => {
+        const dNode = g.node(node.id);
+        if (!dNode) return;
+
+        layouts.push({
+            id: node.id,
+            type: node.type,
+            label: node.label || '',
+            w: dNode.width,
+            h: dNode.height,
+            x: dNode.x,
+            y: dNode.y,
+            childrenRes: childResults.get(node.id)
+        });
+
+        const hw = dNode.width / 2;
+        const hh = dNode.height / 2;
+        minX = Math.min(minX, dNode.x - hw);
+        minY = Math.min(minY, dNode.y - hh);
+        maxX = Math.max(maxX, dNode.x + hw);
+        maxY = Math.max(maxY, dNode.y + hh);
+    });
+
+    allEdges.forEach((edge, i) => {
+        const ancFrom = getAncestorAtLevel(edge.from, levelNodes, parentMap);
+        const ancTo = getAncestorAtLevel(edge.to, levelNodes, parentMap);
+        if (ancFrom && ancTo && ancFrom !== ancTo) {
+            const dEdge = g.edge(ancFrom, ancTo);
+            if (dEdge && dEdge.points) {
+                edgePaths.push({
+                    from: edge.from,
+                    to: edge.to,
+                    points: dEdge.points,
+                    label: edge.label || '',
+                    index: i
+                });
+            }
+        }
+    });
+
+    const width = maxX === -Infinity ? 100 : (maxX - minX + GROUP_PADDING * 2);
+    const height = maxY === -Infinity ? 100 : (maxY - minY + GROUP_PADDING * 2);
+    const cx = maxX === -Infinity ? 0 : (maxX + minX) / 2;
+    const cy = maxY === -Infinity ? 0 : (maxY + minY) / 2;
+
+    return { layouts, edgePaths, width, height, cx, cy };
 }
 
 /**
  * Transforms a validated AI Graph JSON intent into Infinity Canvas shapes.
- *
- * Pipeline:
- *   AI Graph JSON → Dagre layout (positions) → Canvas shapes → Auto-center
  */
 export function generateDiagramShapes(intent) {
     if (intent.intent_type === 'non_visual' || !intent.graph) {
         return [];
     }
 
-    const { nodes, edges } = intent.graph;
+    // --- EXISTING: Diagram Output Handling ---
+    const nodes = intent.graph.nodes || [];
+    const edges = intent.graph.edges || [];
     const rankdir = intent.graph.direction || 'TB';
-    const spacing = computeSpacing(nodes.length, rankdir);
 
-    // ── 1. Configure Dagre ──────────────────────────────────────────────────
-    const g = new dagre.graphlib.Graph();
-    g.setGraph({
-        rankdir,
-        nodesep: spacing.nodesep,
-        ranksep: spacing.ranksep,
-        edgesep: 20,
-        marginx: 60,
-        marginy: 60
-    });
-    g.setDefaultEdgeLabel(() => ({}));
+    if (!nodes || nodes.length === 0) return [];
 
-    // ── 2. Register nodes ───────────────────────────────────────────────────
-    nodes.forEach(node => {
-        const sz = NODE_SIZES[node.type] || NODE_SIZES.rectangle;
-        g.setNode(node.id, {
-            label: node.label,
-            width: sz.w,
-            height: sz.h,
-            type: node.type
-        });
-    });
+    const parentMap = buildParentMap(nodes);
 
-    // ── 3. Register edges ───────────────────────────────────────────────────
-    edges.forEach(edge => {
-        g.setEdge(edge.from, edge.to, { label: edge.label || '' });
-    });
-
-    // ── 4. Run layout ───────────────────────────────────────────────────────
+    let rootResult;
     try {
-        dagre.layout(g);
+        rootResult = layoutGraphRecursive(nodes, edges, parentMap, rankdir);
     } catch (e) {
-        console.error('Dagre Layout Error:', e);
+        console.error('Dagre Recursive Layout Error:', e);
         return [];
     }
 
-    // ── 5. Build shapes ─────────────────────────────────────────────────────
     const shapes = [];
+    const nodeDataMap = new Map(); // Absolute rawId -> {x, y, w, h, groupShape}
+    const allDagreEdges = []; // Collect all edge paths recursively to draw arrows correctly
 
-    /**
-     * nodeDataMap: nodeId → { x, y, w, h, groupShape }
-     * Stores the FINAL (post-jitter) center plus the group shape reference.
-     * groupShape is required for routeArrow's edge-anchor computation.
-     */
-    const nodeDataMap = new Map();
+    function extractShapes(layouts, edgePaths, parentX, parentY) {
+        layouts.forEach(l => {
+            const absX = parentX + l.x;
+            const absY = parentY + l.y;
 
-    // --- Render nodes ---
-    g.nodes().forEach(v => {
-        const node = g.node(v);
-        if (!node || node.x === undefined) return;
+            if (l.type === 'group' && l.childrenRes) {
+                const groupContainer = createGroupContainerShape(l.id, l.label, absX, absY, l.w, l.h);
+                shapes.push(groupContainer);
+                nodeDataMap.set(l.id, { x: absX, y: absY, w: l.w, h: l.h, groupShape: groupContainer });
 
-        const sz = NODE_SIZES[node.type] || NODE_SIZES.rectangle;
+                // Map child centers: relative to subgroup center (l.childrenRes.cx, cy)
+                extractShapes(
+                    l.childrenRes.layouts,
+                    l.childrenRes.edgePaths,
+                    absX - l.childrenRes.cx,
+                    absY - l.childrenRes.cy
+                );
+            } else {
+                const nodeShape = createNodeShape(l.id, l.label, absX, absY, l.type, l.w, l.h);
+                shapes.push(nodeShape);
+                nodeDataMap.set(l.id, { x: absX, y: absY, w: l.w, h: l.h, groupShape: nodeShape });
+            }
+        });
 
-        // No jitter or rotation — getBounds() and getEdgeAnchor() assume axis-aligned
-        // shapes. Any rotation or positional jitter would misalign arrow anchor points.
-        const px = node.x;
-        const py = node.y;
+        if (edgePaths) {
+            edgePaths.forEach(ep => {
+                allDagreEdges.push({
+                    ...ep,
+                    // Translate local dagre coordinates to absolute global space
+                    points: ep.points.map(p => ({ x: p.x + parentX, y: p.y + parentY }))
+                });
+            });
+        }
+    }
 
-        // Pick pastel fill by node type
-        const fillColor = NODE_FILLS[node.type] || NODE_FILLS.rectangle;
+    // Start with parent absolute center at (0, 0) for the root graph center
+    extractShapes(rootResult.layouts, rootResult.edgePaths, -rootResult.cx, -rootResult.cy);
 
-        const groupShape = createNode(v, node.label, px, py, node.type, sz.w, sz.h);
-        // Apply per-node stable seed so roughness is consistent on re-renders
-        groupShape.children[0].style.fill = fillColor;
-        groupShape.children[0].style.seed = stableIntHash(v);
+    // ── Pre-compute Anchor Staggering ────────────────────────────────────────
+    // For edges landing on the exact same face of a node, stagger them slightly
+    const anchorUsage = new Map(); // "nodeId:anchorType" -> array of edge IDs
 
-        shapes.push(groupShape);
-        nodeDataMap.set(v, { x: px, y: py, w: sz.w, h: sz.h, groupShape });
-    });
-
-    // --- Render edges ---
-    // (dir is determined by Dagre but we always use orthogonal via routeArrow)
-
-    g.edges().forEach(e => {
-        const edge = g.edge(e);
-        const srcData = nodeDataMap.get(e.v);
-        const tgtData = nodeDataMap.get(e.w);
+    edges.forEach((edge, i) => {
+        const srcData = nodeDataMap.get(edge.from);
+        const tgtData = nodeDataMap.get(edge.to);
         if (!srcData || !tgtData) return;
 
-        // Build a stub arrow, then immediately route it via routeArrow so it
-        // snaps to the proper edge anchors of each group shape.
-        const stubArrow = {
-            ...{
+        // Very basic mock detect to find anchor face
+        const dx = tgtData.x - srcData.x;
+        const dy = tgtData.y - srcData.y;
+        const srcAnchor = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "bottom" : "top");
+        const tgtAnchor = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "left" : "right") : (dy > 0 ? "top" : "bottom");
+
+        const srcKey = `${edge.from}:${srcAnchor}`;
+        const tgtKey = `${edge.to}:${tgtAnchor}`;
+
+        if (!anchorUsage.has(srcKey)) anchorUsage.set(srcKey, []);
+        if (!anchorUsage.has(tgtKey)) anchorUsage.set(tgtKey, []);
+
+        anchorUsage.get(srcKey).push(`src-${i}`);
+        anchorUsage.get(tgtKey).push(`tgt-${i}`);
+    });
+
+    const ARROW_STAGGER_PX = 15;
+
+    // ── Route Edges ──────────────────────────────────────────────────────────
+    edges.forEach((edge, i) => {
+        const srcData = nodeDataMap.get(edge.from);
+        const tgtData = nodeDataMap.get(edge.to);
+        if (!srcData || !tgtData) return;
+
+        // Determine stagger offsets based on connection index
+        const dx = tgtData.x - srcData.x;
+        const dy = tgtData.y - srcData.y;
+        const srcAnchor = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "bottom" : "top");
+        const tgtAnchor = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "left" : "right") : (dy > 0 ? "top" : "bottom");
+
+        const srcKey = `${edge.from}:${srcAnchor}`;
+        const tgtKey = `${edge.to}:${tgtAnchor}`;
+
+        const srcArr = anchorUsage.get(srcKey) || [];
+        const tgtArr = anchorUsage.get(tgtKey) || [];
+
+        const srcIndex = srcArr.indexOf(`src-${i}`);
+        const tgtIndex = tgtArr.indexOf(`tgt-${i}`);
+
+        // Center the stagger around 0
+        const srcOffset = srcArr.length > 1 ? (srcIndex - (srcArr.length - 1) / 2) * ARROW_STAGGER_PX : 0;
+        const tgtOffset = tgtArr.length > 1 ? (tgtIndex - (tgtArr.length - 1) / 2) * ARROW_STAGGER_PX : 0;
+
+        // For Horizontal anchors (left/right) stagger Y. For Vertical anchors (top/bottom) stagger X.
+        const srcMod = { x: (srcAnchor === 'top' || srcAnchor === 'bottom') ? srcOffset : 0, y: (srcAnchor === 'left' || srcAnchor === 'right') ? srcOffset : 0 };
+        const tgtMod = { x: (tgtAnchor === 'top' || tgtAnchor === 'bottom') ? tgtOffset : 0, y: (tgtAnchor === 'left' || tgtAnchor === 'right') ? tgtOffset : 0 };
+
+        // Attempt to find Dagre's detailed edge path
+        const dagreEdge = allDagreEdges.find(de => de.index === i);
+
+        let relativePoints;
+        const startPt = { x: srcData.x + srcMod.x, y: srcData.y + srcMod.y };
+        const endPt = { x: tgtData.x + tgtMod.x, y: tgtData.y + tgtMod.y };
+
+        if (dagreEdge && dagreEdge.points && dagreEdge.points.length >= 2) {
+            // Convert absolute Dagre points to coordinates relative to start point
+            // Dagre calculates control points for edges, creating a smart path avoiding nodes
+            const rawPts = dagreEdge.points;
+
+            // To ensure it connects visually to the edges, overwrite the first and last
+            // Dagre points with our exact staggered anchor points
+            const snappedPts = [...rawPts];
+            snappedPts[0] = startPt;
+            snappedPts[snappedPts.length - 1] = endPt;
+
+            relativePoints = snappedPts.map(p => ({
+                x: p.x - startPt.x,
+                y: p.y - startPt.y
+            }));
+
+        } else {
+            // Fallback to basic smartArrow orthogonal routing if dagre path isn't found
+            const stubArrow = {
                 id: crypto.randomUUID(),
                 type: 'arrow',
-                position: { x: srcData.x, y: srcData.y },
-                points: [{ x: 0, y: 0 }, { x: 0, y: 0 }],
-                size: { width: 1, height: 1 },
-                zIndex: -1,
-                rotation: 0,
-                scale: { x: 1, y: 1 },
-                locked: false,
-                visible: true,
-                style: {
-                    stroke: '#555555',
-                    fill: 'transparent',
-                    strokeWidth: 2,
-                    opacity: 1,
-                    renderMode: 'vector',
-                    roughness: 0,
-                    seed: Math.floor(Math.random() * 1000000),
-                    fillStyle: 'solid'
-                },
-                revision: { number: 1, timestamp: Date.now() }
+                position: startPt,
+                points: [{ x: 0, y: 0 }, { x: endPt.x - startPt.x, y: endPt.y - startPt.y }],
+                size: { width: 1, height: 1 }
+            };
+            const tempRouted = routeArrow(stubArrow, srcData.groupShape, tgtData.groupShape, 'orthogonal');
+            relativePoints = tempRouted.points;
+        }
+
+        const routedArrow = {
+            id: crypto.randomUUID(),
+            type: 'arrow',
+            position: startPt,
+            points: relativePoints,
+            size: { width: 1, height: 1 },
+            zIndex: -1,
+            rotation: 0,
+            scale: { x: 1, y: 1 },
+            locked: false,
+            visible: true,
+            style: {
+                stroke: HAND_STROKE,
+                fill: 'transparent',
+                strokeWidth: 2.5,
+                opacity: 1,
+                renderMode: 'vector',
+                roughness: ARROW_ROUGHNESS * 1.5,
+                seed: stableIntHash(edge.from + '->' + edge.to)
             },
+            revision: { number: 1, timestamp: Date.now() },
             arrow: { startHead: 'none', endHead: 'triangle' },
-            // Binding: point to group IDs so drag tracking picks them up
             bindings: {
                 start: { elementId: srcData.groupShape.id, anchor: 'center' },
                 end: { elementId: tgtData.groupShape.id, anchor: 'center' }
             }
         };
-
-        // routeArrow uses computeEdgeConnection which reads .position and .size
-        // from the group shapes — giving us real edge-to-edge anchor points.
-        const routedArrow = routeArrow(stubArrow, srcData.groupShape, tgtData.groupShape, 'orthogonal');
-        // Apply hand-drawn roughness to the arrow line
-        routedArrow.style = {
-            ...routedArrow.style,
-            roughness: ARROW_ROUGHNESS,
-            stroke: HAND_STROKE,
-            strokeWidth: 2,
-            seed: stableIntHash(e.v + '->' + e.w)
-        };
-
         shapes.push(routedArrow);
 
-        // Edge label: float at the midpoint of the routed path, above the line
+        // Edge label
         if (edge.label) {
             const pts = routedArrow.points;
             const midPt = pts[Math.floor(pts.length / 2)];
@@ -428,28 +560,6 @@ export function generateDiagramShapes(intent) {
             });
         }
     });
-
-    // ── 6. Auto-center around (0, 0) ────────────────────────────────────────
-    // Only use group nodes for the bounding box — arrows will naturally follow
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    shapes.forEach(s => {
-        if (s.type !== 'group') return;
-        const hw = s.size.width / 2;
-        const hh = s.size.height / 2;
-        minX = Math.min(minX, s.position.x - hw);
-        minY = Math.min(minY, s.position.y - hh);
-        maxX = Math.max(maxX, s.position.x + hw);
-        maxY = Math.max(maxY, s.position.y + hh);
-    });
-
-    if (minX !== Infinity) {
-        const cx = (minX + maxX) / 2;
-        const cy = (minY + maxY) / 2;
-        shapes.forEach(s => {
-            s.position.x -= cx;
-            s.position.y -= cy;
-        });
-    }
 
     return shapes;
 }
