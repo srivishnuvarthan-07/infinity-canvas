@@ -1,21 +1,7 @@
-import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Square,
-  PenTool,
-  Smile,
-  Hash,
-  Grid3X3,
-  MoreHorizontal,
-  Minus,
-  Ban,
-  Activity,
-  Ruler
-} from "lucide-react";
-
-const COLORS = ["#000000", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
+import { Square, PenTool, Smile, Hash, Grid3X3, MoreHorizontal, Minus } from "lucide-react";
+import { ColorPicker } from "./ColorPicker";
 
 export function ShapeStylePanel({ element, updateElement }) {
   // Derive state from element
@@ -51,49 +37,20 @@ export function ShapeStylePanel({ element, updateElement }) {
             className="py-1"
           />
 
-          <div className="flex gap-2 items-center mt-2">
-            <input
-              type="color"
-              className="h-8 w-8 rounded cursor-pointer p-0 border-0 outline-none"
-              value={strokeColor}
-              onChange={(e) => updateElement({ style: { ...element.style, stroke: e.target.value } })}
-              title="Stroke Color"
-            />
-            <input
-              type="text"
-              className="h-8 text-sm px-2 w-20 border rounded font-mono text-neutral-600 outline-none focus:border-indigo-500"
-              value={strokeColor}
-              onChange={(e) => updateElement({ style: { ...element.style, stroke: e.target.value } })}
-              placeholder="#000000"
-              maxLength={7}
-            />
-          </div>
+          <ColorPicker
+            value={strokeColor}
+            onChange={(c) => updateElement({ style: { ...element.style, stroke: c } })}
+          />
         </div>
 
         {/* Fill Color */}
         <div className="space-y-3 pt-2">
-          <div className="flex justify-between items-center">
-            <span className="text-[13px] font-medium text-neutral-600">Fill</span>
-          </div>
-
-          <div className="flex gap-2 flex-wrap mt-2">
-            <button
-              className={`h-7 w-7 rounded-full shadow-sm border border-black/5 flex items-center justify-center transition-all outline-none ${element.style?.fill === "transparent" ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110 bg-neutral-100' : 'bg-white hover:scale-105'}`}
-              onClick={() => updateElement({ style: { ...element.style, fill: "transparent" } })}
-              title="Transparent"
-            >
-              <Ban className="h-3.5 w-3.5 text-red-500" />
-            </button>
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                className={`h-7 w-7 rounded-full shadow-sm border border-black/5 transition-all outline-none ${element.style?.fill === color ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110' : 'hover:scale-105'}`}
-                style={{ backgroundColor: color }}
-                onClick={() => updateElement({ style: { ...element.style, fill: color } })}
-                title={color}
-              />
-            ))}
-          </div>
+          <span className="text-[13px] font-medium text-neutral-600">Fill</span>
+          <ColorPicker
+            value={element.style?.fill || "transparent"}
+            onChange={(c) => updateElement({ style: { ...element.style, fill: c } })}
+            allowTransparent
+          />
         </div>
 
         {/* Opacity */}

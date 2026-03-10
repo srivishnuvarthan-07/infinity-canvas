@@ -27,7 +27,7 @@ export function LibraryAIPrompt({ onGenerateSuccess }) {
 
             if (intent.intent_type === 'non_visual') {
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
-            } else if (intent.intent_type === 'visual') {
+            } else if (intent.intent_type === 'diagram') {
                 const validation = validateGraph(intent.graph);
                 if (!validation.success) {
                     toast.error('AI returned an invalid diagram format. Please try again.');
