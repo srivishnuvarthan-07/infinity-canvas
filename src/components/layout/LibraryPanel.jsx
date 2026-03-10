@@ -1,8 +1,12 @@
-import { Trash2, Grid, Box } from "lucide-react";
+import { useRef } from "react";
+import { Trash2, Grid, Box, UploadCloud } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { convertExcalidrawLibrary } from "@/utils/excalidrawConverter";
 
 import { LibraryAIPrompt } from "./LibraryAIPrompt";
+import { LibraryItemPreview } from "./LibraryItemPreview";
 
 export function LibraryPanel({ items, onDeleteItem, onAddItem }) {
     const sortedItems = Object.values(items).sort((a, b) => b.createdAt - a.createdAt);
@@ -19,13 +23,65 @@ export function LibraryPanel({ items, onDeleteItem, onAddItem }) {
         // Transparent drag image? Or browser default is fine.
     };
 
+    const fileInputRef = useRef(null);
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const jsonStr = event.target.result;
+                const convertedItems = convertExcalidrawLibrary(jsonStr);
+
+                if (convertedItems.length === 0) {
+                    toast.error("No compatible shapes found in library file.");
+                    return;
+                }
+
+                // Add all converted items
+                for (const item of convertedItems) {
+                    await onAddItem(item.shapes, item.name);
+                }
+
+                toast.success(`Imported ${convertedItems.length} items from Excalidraw!`);
+            } catch (err) {
+                console.error("Excalidraw parse failed:", err);
+                toast.error(`Import Failed: ${err.message || "Invalid file format"}`);
+            }
+        };
+        reader.readAsText(file);
+
+        // Reset input so the same file can be uploaded again if needed
+        e.target.value = null;
+    };
+
     return (
         <div className="w-full h-full flex flex-col bg-transparent">
-            <div className="p-4 border-b border-neutral-200">
+            <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
                     <Grid className="w-4 h-4" />
                     Library
                 </h2>
+
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept=".json,.excalidrawlib"
+                    onChange={handleFileUpload}
+                />
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs flex items-center gap-1.5 text-neutral-500 hover:text-neutral-900"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Import Excalidraw Library (.excalidrawlib)"
+                >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    Import
+                </Button>
             </div>
 
             {/* AI Generation Form */}
@@ -46,8 +102,9 @@ export function LibraryPanel({ items, onDeleteItem, onAddItem }) {
                             draggable
                             onDragStart={(e) => handleDragStart(e, item)}
                         >
-                            {/* Preview Placeholder (Real preview would need canvas rendering) */}
-                            <Box className="w-8 h-8 text-neutral-300 mb-2 group-hover:text-blue-500 transition-colors" />
+                            <div className="w-full aspect-square mb-1 relative overflow-hidden rounded">
+                                <LibraryItemPreview shapes={item.shapes} />
+                            </div>
 
                             <span className="text-[10px] text-neutral-600 font-medium truncate w-full text-center px-1">
                                 {item.name}
