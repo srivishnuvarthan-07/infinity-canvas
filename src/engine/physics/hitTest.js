@@ -168,6 +168,11 @@ export function hitTest(shape, x, y, zoom = 1, shapeMap = {}) {
     // 2. Shape Specific Checks
     switch (shape.type) {
         case SHAPE_TYPES.RECTANGLE:
+        case SHAPE_TYPES.CYLINDER:
+        case SHAPE_TYPES.PARALLELOGRAM:
+        case SHAPE_TYPES.HEXAGON:
+        case SHAPE_TYPES.DOCUMENT:
+        case SHAPE_TYPES.PATH:
             return Math.abs(rx) <= (width / 2) + padding &&
                 Math.abs(ry) <= (height / 2) + padding;
 
