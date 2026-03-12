@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/storage/db';
 import libraryService from '@/services/library.service';
 import { useAuth } from '@/hooks/useAuth';
+import { getBounds } from '@/engine/geometry/geometry';
+import { CanvasRenderer } from '@/engine/render/CanvasRenderer';
 
 const STORAGE_KEY = 'infinity_library';
 
@@ -44,6 +46,7 @@ export function useLibraryStore() {
                             id: item._id,
                             name: item.name,
                             shapes: item.elements,
+                            preview: item.preview || '',
                             createdAt: new Date(item.createdAt).getTime(),
                             isCloud: true
                         };
@@ -80,28 +83,53 @@ export function useLibraryStore() {
         // Re-implementing normalization logic to be safe since I'm replacing the block
 
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        shapes.forEach(s => {
-            // simplified bounds check
-            const hw = (s.size.width * s.scale.x) / 2;
-            const hh = (s.size.height * s.scale.y) / 2;
-            minX = Math.min(minX, s.position.x - hw);
-            minY = Math.min(minY, s.position.y - hh);
-            maxX = Math.max(maxX, s.position.x + hw);
-            maxY = Math.max(maxY, s.position.y + hh);
+        shapes.forEach(shape => {
+            const bounds = getBounds(shape);
+            if (bounds.minX < minX) minX = bounds.minX;
+            if (bounds.minY < minY) minY = bounds.minY;
+            if (bounds.maxX > maxX) maxX = bounds.maxX;
+            if (bounds.maxY > maxY) maxY = bounds.maxY;
         });
 
-        const width = maxX - minX;
-        const height = maxY - minY;
+        const width = maxX === -Infinity ? 0 : maxX - minX;
+        const height = maxY === -Infinity ? 0 : maxY - minY;
         const centerX = minX + width / 2;
         const centerY = minY + height / 2;
 
         const normalizedShapes = shapes.map(s => ({
             ...s,
             position: {
-                x: s.position.x - centerX,
-                y: s.position.y - centerY
+                x: (s.position?.x || 0) - centerX,
+                y: (s.position?.y || 0) - centerY
             }
         }));
+
+        let preview = '';
+        if (width > 0 && height > 0) {
+            try {
+                const THUMBNAIL_SIZE = 100;
+                const PADDING_FACTOR = 0.85;
+                const canvas = document.createElement('canvas');
+                canvas.width = THUMBNAIL_SIZE;
+                canvas.height = THUMBNAIL_SIZE;
+
+                const renderer = new CanvasRenderer(canvas);
+                renderer.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
+
+                const scaleX = (THUMBNAIL_SIZE * PADDING_FACTOR) / width;
+                const scaleY = (THUMBNAIL_SIZE * PADDING_FACTOR) / height;
+                const zoom = Math.min(scaleX, scaleY);
+
+                // Render normalized shapes perfectly centered
+                const viewportX = THUMBNAIL_SIZE / 2;
+                const viewportY = THUMBNAIL_SIZE / 2;
+
+                renderer.render(normalizedShapes, {}, { x: viewportX, y: viewportY, zoom }, { clear: true, drawShapes: true });
+                preview = canvas.toDataURL('image/png');
+            } catch (err) {
+                console.error("Failed to generate base64 preview for library item", err);
+            }
+        }
 
         const tempId = crypto.randomUUID();
         const newItem = {
@@ -110,7 +138,8 @@ export function useLibraryStore() {
             createdAt: Date.now(),
             shapes: normalizedShapes,
             width,
-            height
+            height,
+            preview
         };
 
         setItems(prev => ({
@@ -123,7 +152,8 @@ export function useLibraryStore() {
             try {
                 const res = await libraryService.createLibraryItem({
                     name,
-                    elements: normalizedShapes
+                    elements: normalizedShapes,
+                    preview
                 });
 
                 // Replace temp ID with cloud ID
