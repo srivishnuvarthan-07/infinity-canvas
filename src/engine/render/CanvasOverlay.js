@@ -112,10 +112,11 @@ export function drawGlow(ctx, shape) {
         ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
         ctx.fill();
     } else if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
-        const pStart = (shape.points?.length > 0) ? shape.points[0] : { x: 0, y: 0 };
-        const pEnd = (shape.points?.length > 1) ? shape.points[shape.points.length - 1] : { x: getShapeWidth(shape), y: 0 };
-        ctx.moveTo(pStart.x, pStart.y);
-        ctx.lineTo(pEnd.x, pEnd.y);
+        const pts = (shape.points?.length >= 2) ? shape.points : [{ x: 0, y: 0 }, { x: getShapeWidth(shape), y: 0 }];
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+        }
         ctx.stroke();
     } else if (shape.type === SHAPE_TYPES.PENCIL) {
         if (shape.points?.length > 0) {
@@ -166,13 +167,17 @@ export function drawControls(ctx, shape) {
 
     // Line / Arrow — show endpoint handles only
     if (shape.type === SHAPE_TYPES.LINE || shape.type === SHAPE_TYPES.ARROW) {
-        const pStart = (shape.points?.length > 0) ? shape.points[0] : { x: 0, y: 0 };
-        const pEnd = (shape.points?.length > 1) ? shape.points[1] : { x: getShapeWidth(shape), y: 0 };
+        const pts = (shape.points?.length >= 2)
+            ? shape.points
+            : [{ x: 0, y: 0 }, { x: getShapeWidth(shape), y: 0 }];
+        const pStart = pts[0];
+        const pEnd = pts[pts.length - 1]; // ← always the true endpoint, not points[1]
 
+        // Trace all segments so the selection overlay follows the full elbow route
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
-        ctx.moveTo(pStart.x, pStart.y);
-        ctx.lineTo(pEnd.x, pEnd.y);
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
         ctx.stroke();
 
         ctx.strokeStyle = SELECTION_COLOR;
