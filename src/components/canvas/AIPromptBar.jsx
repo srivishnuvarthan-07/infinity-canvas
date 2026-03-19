@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sparkles, Loader2, Send } from 'lucide-react';
 import { getAIService } from '@/services/ai.service';
 import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
+import { generateDSAShapes } from '@/engine/ai/dsa.generator';
 import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 
@@ -24,17 +25,27 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
         try {
             const aiService = getAIService(apiKey);
 
-            // Step 1: Expand Prompt
-            toast.info('Planning diagram structure...', { id: 'ai-gen' });
-            const expandedPrompt = await aiService.expandPrompt(prompt);
-
-            // Step 2: Generate JSON
-            toast.loading('Generating shapes...', { id: 'ai-gen' });
-            const intent = await aiService.generateGraphJSON(expandedPrompt);
+            // Step 1: Generate JSON directly (expandPrompt is called internally)
+            toast.loading('Analysing prompt...', { id: 'ai-gen' });
+            const intent = await aiService.generateGraphJSON(prompt);
 
             if (intent.intent_type === 'non_visual') {
                 toast.dismiss('ai-gen');
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.', { duration: 5000 });
+            } else if (intent.intent_type === 'dsa') {
+                // ── DSA Visualization path ─────────────────────────────────
+                const newShapes = generateDSAShapes(intent);
+                if (newShapes && newShapes.length > 0) {
+                    onInsertShapes(newShapes);
+                    if (onAddToLibrary) {
+                        try { onAddToLibrary(newShapes, 'AI DSA Diagram'); } catch (e) { /* silent */ }
+                    }
+                    toast.success('DSA visualization generated!', { id: 'ai-gen' });
+                    setPrompt('');
+                    setIsOpen(false);
+                } else {
+                    toast.error('Could not render the DSA structure.', { id: 'ai-gen' });
+                }
             } else if (intent.intent_type === 'diagram') {
                 const validation = validateGraph(intent.graph);
                 if (!validation.success) {
@@ -91,7 +102,7 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
                     type="text"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe a diagram (e.g. 'Binary tree with 10 5 15')"
+                    placeholder="Describe a diagram or DSA problem (e.g. 'Binary tree 10 5 15' or 'Bubble sort on 5 3 8 1')"
                     className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-foreground placeholder:text-muted-foreground min-w-0"
                     disabled={isGenerating}
                     autoFocus

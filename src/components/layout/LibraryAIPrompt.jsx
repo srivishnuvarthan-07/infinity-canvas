@@ -5,7 +5,7 @@ import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
 import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 
-export function LibraryAIPrompt({ onGenerateSuccess }) {
+export function LibraryAIPrompt({ onGenerateSuccess, coreItems = [] }) {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -23,7 +23,8 @@ export function LibraryAIPrompt({ onGenerateSuccess }) {
         setIsGenerating(true);
         try {
             const aiService = getAIService(apiKey);
-            const intent = await aiService.generateGraphJSON(prompt);
+            const coreKeywords = coreItems.map(item => item.aiKeyword).filter(Boolean);
+            const intent = await aiService.generateGraphJSON(prompt, coreKeywords);
 
             if (intent.intent_type === 'non_visual') {
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
@@ -35,7 +36,7 @@ export function LibraryAIPrompt({ onGenerateSuccess }) {
                     return;
                 }
 
-                const newShapes = generateDiagramShapes(intent);
+                const newShapes = generateDiagramShapes(intent, coreItems);
                 if (newShapes && newShapes.length > 0) {
                     if (onGenerateSuccess) {
                         await onGenerateSuccess(newShapes, `AI Diagram`);

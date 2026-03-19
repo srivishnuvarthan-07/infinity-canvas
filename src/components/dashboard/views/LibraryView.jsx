@@ -6,7 +6,7 @@ import { LibraryPanel } from '@/components/layout/LibraryPanel';
 import { useLibraryStore } from '@/hooks/useLibraryStore';
 
 export default function LibraryView() {
-    const { items, removeItem, addItem } = useLibraryStore();
+    const { items, removeItem, addItem, promoteToCore, demoteFromCore, coreItems, normalItems } = useLibraryStore();
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -32,6 +32,10 @@ export default function LibraryView() {
                         items={items}
                         onDeleteItem={removeItem}
                         onAddItem={addItem}
+                        promoteToCore={promoteToCore}
+                        demoteFromCore={demoteFromCore}
+                        coreItems={coreItems}
+                        normalItems={normalItems}
                     />
                 </div>
             </main>
