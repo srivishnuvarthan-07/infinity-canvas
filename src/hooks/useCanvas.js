@@ -12,7 +12,7 @@ import { SHAPE_TYPES } from "@/engine/schema";
  * Simplified hook that serves as the bridge between the UI components 
  * and the Custom Rendering Engine.
  */
-export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
+export function useCanvas({ initialShapes = [], socket, boardId, readonly = false } = {}) {
   /* ===================== REFS ===================== */
   const containerRef = useRef(null);
 
@@ -65,7 +65,8 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     activeColor,
     strokeWidth,
     strokeStyle,
-    boardId
+    boardId,
+    readonly
   });
 
   // Auto-Start Engine

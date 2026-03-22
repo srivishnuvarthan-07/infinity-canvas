@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import storageFactory from '@/services/storage/storage.factory';
-import { useWorkspaceStore } from '@/hooks/useWorkspaceStore';
+// import { useWorkspaceStore } from '@/hooks/useWorkspaceStore';
 
 export const useBoardStore = create((set, get) => ({
     // --- Board Lists ---
@@ -74,19 +74,9 @@ export const useBoardStore = create((set, get) => ({
         set({ cloudStatus: 'loading' });
         try {
             const provider = storageFactory.getProvider('cloud');
-
-            // Pass the workspace ID if available so we filter boards
-            const { activeWorkspaceId } = useWorkspaceStore.getState();
             let list = await provider.getBoards();
 
             // Client-side fallback filtering if the backend doesn't filter perfectly yet
-            // Or we just rely on backend. For now, since boards don't strictly have workspaceId yet in all old data, we just fetch all and filter client side if needed, or pass it to provider.
-            // Let's rely on the provider returning what's ours.
-
-            if (activeWorkspaceId) {
-                // Temporary client-side filter until DB is fully migrated
-                list = list.filter(b => b.workspaceId === activeWorkspaceId || (!b.workspaceId && activeWorkspaceId === useWorkspaceStore.getState().workspaces[0]?._id));
-            }
 
             set({ cloudBoards: list, cloudStatus: 'ok' });
         } catch (err) {
@@ -226,8 +216,7 @@ export const useBoardStore = create((set, get) => ({
 
             let newBoard;
             if (targetMode === 'cloud') {
-                const { activeWorkspaceId } = useWorkspaceStore.getState();
-                newBoard = await provider.createBoard(resolvedName, { workspaceId: activeWorkspaceId });
+                newBoard = await provider.createBoard(resolvedName);
             } else {
                 newBoard = await provider.createBoard(resolvedName);
             }

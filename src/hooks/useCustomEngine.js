@@ -15,7 +15,8 @@ export function useCustomEngine({
     strokeWidth,
     strokeStyle,
     sloppiness,
-    boardId
+    boardId,
+    readonly = false
 } = {}) {
     // 0. Refs & Lifted State
     const canvasRef = useRef(null);
@@ -47,7 +48,7 @@ export function useCustomEngine({
         emitUpdate,
         resetHistory,
         clearCanvas
-    } = useEngineState(initialShapes, socket);
+    } = useEngineState(initialShapes, socket, boardId);
 
     // 2. Viewport Management (Zoom, Pan, Coordinates)
     const {
@@ -82,6 +83,8 @@ export function useCustomEngine({
         setViewport,
         toWorld,
         saveState,
+        undo,
+        redo,
 
         // Lifted State
         selectionBox,
@@ -94,7 +97,8 @@ export function useCustomEngine({
         strokeWidth,
         strokeStyle,
         emitUpdate,
-        boardId
+        boardId,
+        readonly
     });
 
     // 3. Renderer (Canvas Lifecycle)
