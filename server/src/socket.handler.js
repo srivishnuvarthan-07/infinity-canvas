@@ -1,4 +1,3 @@
-const Action = require('./models/Action');
 const Board = require('./models/Board');
 
 const sessionData = new Map();
