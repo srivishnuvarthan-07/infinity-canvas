@@ -47,7 +47,7 @@ export function useDrag({ canvasRef, shapes, setShapes, selectedShapeIds, emitUp
     }, [dragStartPos, initialShapePositions, selectedShapeIds, setShapes, emitUpdate]);
 
     const commitDrag = useCallback((saveState) => {
-        saveState(shapes);
+        saveState(); // Uses latest Ref-based state
         setIsDragging(false);
         setDragStartPos(null);
         setInitialShapePositions(new Map());

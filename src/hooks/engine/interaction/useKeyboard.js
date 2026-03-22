@@ -2,29 +2,39 @@ import { useCallback, useRef } from 'react';
 
 /**
  * useKeyboard
- * Manages spacebar pan-mode tracking for the canvas.
- * Returns handleKeyDown / handleKeyUp to bind on the canvas container.
+ * Manages canvas-specific keyboard shortcuts (Undo, Redo, Space-pan).
  */
-export function useKeyboard({ canvasRef, isDragging }) {
+export function useKeyboard({ canvasRef, isDragging, undo, redo }) {
     const isSpacePressed = useRef(false);
 
     const handleKeyDown = useCallback((e) => {
-        if (e.code === 'Space') {
+        // 1. Space Pan
+        if (e.code === 'Space' && !isDragging) {
             isSpacePressed.current = true;
-            if (canvasRef.current && !isDragging) {
-                canvasRef.current.style.cursor = 'grab';
-            }
+            if (canvasRef.current) canvasRef.current.style.cursor = 'grab';
         }
-    }, [canvasRef, isDragging]);
+
+        // 2. Undo / Redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+        const isMod = e.ctrlKey || e.metaKey;
+        if (isMod && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) redo?.();
+            else undo?.();
+        }
+        if (isMod && e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            redo?.();
+        }
+    }, [canvasRef, isDragging, undo, redo]);
 
     const handleKeyUp = useCallback((e) => {
         if (e.code === 'Space') {
             isSpacePressed.current = false;
-            if (canvasRef.current) {
+            if (canvasRef.current && !isDragging) {
                 canvasRef.current.style.cursor = 'default';
             }
         }
-    }, [canvasRef]);
+    }, [canvasRef, isDragging]);
 
     return { isSpacePressed, handleKeyDown, handleKeyUp };
 }

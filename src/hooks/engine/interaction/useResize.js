@@ -117,7 +117,7 @@ export function useResize({ canvasRef, shapes, setShapes, selectedShapeIds, emit
     }, [activeHandle, selectedShapeIds, startDimensions, dragOffset, setShapes, emitUpdate]);
 
     const commitResize = useCallback((saveState) => {
-        saveState(shapes);
+        saveState(); // Uses latest Ref-based state
         setIsResizing(false);
         setActiveHandle(null);
         setStartDimensions(null);
