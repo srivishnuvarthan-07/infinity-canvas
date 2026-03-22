@@ -86,7 +86,7 @@ export function useSocket() {
                 }
                 return {
                     ...prev,
-                    [userId]: { color, displayName, selectedIds }
+                    [userId]: { userId, color, displayName, selectedIds }
                 };
             });
         });

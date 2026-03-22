@@ -8,16 +8,21 @@ import { CanvasRenderer } from '@/engine/render/CanvasRenderer';
 const STORAGE_KEY = 'infinity_library';
 
 export function useLibraryStore() {
-    const [items, setItems] = useState({});
-    const [isLoaded, setIsLoaded] = useState(false);
-
     const { user } = useAuth();
+    const [items, setItems] = useState({});
+    const [communityItems, setCommunityItems] = useState([]);
+    const [isLoaded, setIsLoaded] = useState(false);
+    
+    // Dynamic storage key based on user ID
+    const currentStorageKey = `infinity_library_${user?._id || 'guest'}`;
 
-    // 1. Load from IndexedDB
+    // 1. Load from IndexedDB whenever the storage key changes
     useEffect(() => {
         const load = async () => {
+            setIsLoaded(false);
+            setItems({}); // Clear previous user's items
             try {
-                const data = await db.get(STORAGE_KEY);
+                const data = await db.get(currentStorageKey);
                 if (data) {
                     setItems(data);
                 }
@@ -27,7 +32,7 @@ export function useLibraryStore() {
             setIsLoaded(true);
         };
         load();
-    }, []);
+    }, [currentStorageKey]);
 
     // 2. Cloud Sync
     useEffect(() => {
@@ -60,21 +65,52 @@ export function useLibraryStore() {
         sync();
     }, [user, isLoaded]);
 
+    // 2.5 Fetch Community Items
+    const fetchCommunityItems = useCallback(async () => {
+        try {
+            const data = await libraryService.getPublicLibraryItems();
+            const publicItems = data.data.map(item => ({
+                id: item._id,
+                name: item.name,
+                shapes: item.elements,
+                preview: item.preview || '',
+                createdAt: new Date(item.createdAt).getTime(),
+                isCloud: true,
+                isPublic: true,
+                userId: item.user?._id || item.user,
+                userName: item.user?.name || 'Community Member'
+            }));
+            setCommunityItems(publicItems);
+        } catch (err) {
+            console.error("Failed to fetch community items", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!isLoaded) return;
+        fetchCommunityItems();
+    }, [isLoaded, fetchCommunityItems]);
+
 
     // 3. Persist to IndexedDB
     useEffect(() => {
-        if (!isLoaded) return;
+        if (!isLoaded || !currentStorageKey) return;
         const save = async () => {
             try {
-                await db.set(STORAGE_KEY, items);
+                await db.set(currentStorageKey, items);
             } catch (err) {
                 console.error('Failed to save library:', err);
             }
         };
         save();
-    }, [items, isLoaded]);
+    }, [items, isLoaded, currentStorageKey]);
 
     const addItem = useCallback(async (shapes, name = 'Untitled Group') => {
+        if (!user) {
+            console.warn("Guests cannot add items to the library.");
+            return;
+        }
+
         if (!shapes || shapes.length === 0) {
             return;
         }
@@ -195,11 +231,58 @@ export function useLibraryStore() {
         setItems({});
     }, []);
 
+    const updateItemDetails = useCallback(async (id, updates) => {
+        const item = items[id];
+        if (!item) return;
+
+        setItems(prev => {
+            const next = { ...prev };
+            next[id] = { ...item, ...updates };
+            return next;
+        });
+
+        if (user && item.isCloud) {
+            try {
+                await libraryService.updateLibraryItem(id, updates);
+            } catch (err) {
+                console.error("Failed to update library item on cloud", err);
+            }
+        }
+    }, [items, user]);
+
+    const publishToCommunity = useCallback(async (id) => {
+        const item = items[id];
+        if (!item || !user) return;
+
+        try {
+            await libraryService.updateLibraryItem(id, { isPublic: true });
+            
+            // Update local state
+            setItems(prev => ({
+                ...prev,
+                [id]: { ...prev[id], isPublic: true }
+            }));
+            
+            // Refresh community list
+            fetchCommunityItems();
+        } catch (err) {
+            console.error("Failed to publish item", err);
+            throw err;
+        }
+    }, [items, user, fetchCommunityItems]);
+
+    const libraryItems = Object.values(items).sort((a, b) => b.createdAt - a.createdAt);
+
     return {
         items,
         isLoaded,
         addItem,
         removeItem,
-        clearLibrary
+        clearLibrary,
+        updateItemDetails,
+        libraryItems,
+        communityItems,
+        publishToCommunity,
+        refreshCommunity: fetchCommunityItems
     };
 }
