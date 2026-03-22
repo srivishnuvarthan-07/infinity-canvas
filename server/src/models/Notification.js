@@ -23,10 +23,6 @@ const NotificationSchema = new mongoose.Schema({
         type: mongoose.Schema.ObjectId,
         ref: 'Board'
     },
-    workspaceId: {
-        type: mongoose.Schema.ObjectId,
-        ref: 'Workspace'
-    },
     read: {
         type: Boolean,
         default: false
