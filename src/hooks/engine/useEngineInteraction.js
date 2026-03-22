@@ -23,6 +23,8 @@ export function useEngineInteraction({
     toWorld,
     setViewport,
     saveState,
+    undo,
+    redo,
     selectionBox,
     setSelectionBox,
     activeTool,
@@ -31,7 +33,8 @@ export function useEngineInteraction({
     strokeWidth,
     strokeStyle,
     emitUpdate,
-    boardId
+    boardId,
+    readonly = false
 }) {
     const [isCreating, setIsCreating] = useState(false);
     const [dragOffset, setDragOffset] = useState({ startX: 0, startY: 0 });
@@ -44,7 +47,12 @@ export function useEngineInteraction({
     const isErasing = useRef(false);
 
     // Sub-hooks
-    const { isSpacePressed, handleKeyDown, handleKeyUp } = useKeyboard({ canvasRef, isDragging: false });
+    const { isSpacePressed, handleKeyDown, handleKeyUp } = useKeyboard({ 
+        canvasRef, 
+        isDragging: false,
+        undo,
+        redo
+    });
 
     const { isDragSelecting, startDragSelect, updateDragSelect, commitDragSelect, cancelDragSelect } =
         useSelection({ canvasRef, shapes, toWorld, setSelectedShapeIds, setSelectionBox });
@@ -79,8 +87,8 @@ export function useEngineInteraction({
         const { x, y } = toWorld(e.clientX - rect.left, e.clientY - rect.top);
         const shapeMap = shapeMapOf(shapes);
 
-        // 1. Pan (spacebar / hand tool / middle mouse)
-        if (isSpacePressed.current || activeTool === 'hand' || e.button === 1) {
+        // 1. Pan (spacebar / hand tool / middle mouse / readonly mode)
+        if (isSpacePressed.current || activeTool === 'hand' || e.button === 1 || readonly) {
             isPanning.current = true;
             lastPanPos.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
             canvasRef.current.style.cursor = 'grabbing';
@@ -275,7 +283,7 @@ export function useEngineInteraction({
 
         if (activeTool === 'eraser') {
             isErasing.current = false;
-            saveState(shapes);
+            saveState(); // Uses Ref-based latest shapes
             return;
         }
 
@@ -320,7 +328,7 @@ export function useEngineInteraction({
         } else if (isDragSelecting && selectionBox) {
             commitDragSelect(selectionBox);
         } else if (isDragging) {
-            commitDrag(saveState);
+            commitDrag(saveState); 
         } else if (isResizing) {
             commitResize(saveState);
         }
@@ -341,6 +349,8 @@ export function useEngineInteraction({
         if (!canvasRef.current) return;
         const rect = canvasRef.current.getBoundingClientRect();
         const { x, y } = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+        if (readonly) return;
+        
         let hit = null;
         for (let i = shapes.length - 1; i >= 0; i--) {
             if (hitTest(shapes[i], x, y, viewport.zoom)) { hit = shapes[i]; break; }
@@ -351,7 +361,7 @@ export function useEngineInteraction({
         } else {
             setEditingShapeId(null);
         }
-    }, [canvasRef, shapes, toWorld, viewport.zoom, setEditingShapeId, setSelectedShapeIds]);
+    }, [canvasRef, shapes, toWorld, viewport.zoom, setEditingShapeId, setSelectedShapeIds, readonly]);
 
     // ── Wheel ───────────────────────────────────────────────────────────────
 

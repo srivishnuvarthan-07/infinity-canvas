@@ -54,6 +54,11 @@ export function useEngineRenderer({
         const engine = new CanvasEngine(canvasRef.current);
         engineRef.current = engine;
 
+        // Force dirty on resize
+        engine.onResize = () => {
+            isDirtyRef.current = true;
+        };
+
         // Helper: is an arrow bound to any currently-selected shape?
         const isBoundToSelected = (s) => {
             if (s.type !== 'arrow' || !s.bindings) return false;
@@ -143,6 +148,7 @@ export function useEngineRenderer({
     }, []);
 
     const start = useCallback(() => {
+        isDirtyRef.current = true; // Force repaint on start
         engineRef.current?.start();
     }, []);
 
