@@ -1,4 +1,5 @@
 import { getPatternCanvas } from "../../../utils/canvas/patterns";
+import { getShapeSeed, applyLineDash } from "./shapeUtils";
 
 export function drawRect(ctx, shape, roughOps = null) {
     const w = shape.size?.width || 0;
@@ -52,15 +53,7 @@ export function drawRect(ctx, shape, roughOps = null) {
         ctx.fillStyle = 'transparent';
     }
 
-    // Handle Dashed/Dotted
-    const strokeStyleState = shape.style?.strokeStyle || 'solid';
-    if (strokeStyleState === 'dashed') {
-        ctx.setLineDash([strokeWidth * 3, strokeWidth * 3]);
-    } else if (strokeStyleState === 'dotted') {
-        ctx.setLineDash([strokeWidth, strokeWidth * 2]);
-    } else {
-        ctx.setLineDash([]);
-    }
+    applyLineDash(ctx, shape.style?.strokeStyle || 'solid', strokeWidth);
 
     // Draw (centered at 0,0 because of renderer translate)
     if (fillState && fillState !== 'transparent') {
@@ -69,12 +62,3 @@ export function drawRect(ctx, shape, roughOps = null) {
     ctx.strokeRect(-w / 2, -h / 2, w, h);
 }
 
-// Simple hash for seed
-function getShapeSeed(shape) {
-    // If shape has an id, hash it. roughjs takes integer seed.
-    let h = 0xdeadbeef;
-    const str = shape.id || '0';
-    for (let i = 0; i < str.length; i++)
-        h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-    return ((h ^ h >>> 16) >>> 0);
-}

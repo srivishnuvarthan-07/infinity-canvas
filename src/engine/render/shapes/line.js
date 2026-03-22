@@ -1,3 +1,5 @@
+import { getShapeSeed, applyLineDash } from "./shapeUtils";
+
 export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
     const pts = (shape.points && shape.points.length > 1) ? shape.points : [{ x: 0, y: 0 }, { x: shape.size?.width || 0, y: 0 }];
 
@@ -17,6 +19,14 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
                 bowing: isCartoonist ? 2 : 1,
                 seed: shape.style?.seed || getShapeSeed(shape)
             };
+
+            if (shape.isClosed && pts.length >= 3) {
+                const polyOpts = {
+                    ...options,
+                    fill: shape.style?.fill !== 'transparent' ? shape.style?.fill : undefined,
+                };
+                return [gen.polygon(pts.map(p => [p.x, p.y]), polyOpts)];
+            }
 
             // Draw each segment of the polyline
             const lines = [];
@@ -54,14 +64,7 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    const strokeStyleState = shape.style?.strokeStyle || 'solid';
-    if (strokeStyleState === 'dashed') {
-        ctx.setLineDash([strokeWidth * 3, strokeWidth * 3]);
-    } else if (strokeStyleState === 'dotted') {
-        ctx.setLineDash([strokeWidth, strokeWidth * 2]);
-    } else {
-        ctx.setLineDash([]);
-    }
+    applyLineDash(ctx, shape.style?.strokeStyle || 'solid', strokeWidth);
 
     // Draw full polyline through all points
     ctx.beginPath();
@@ -69,6 +72,15 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
     for (let i = 1; i < pts.length; i++) {
         ctx.lineTo(pts[i].x, pts[i].y);
     }
+
+    if (shape.isClosed) {
+        ctx.closePath();
+        if (shape.style?.fill && shape.style.fill !== 'transparent') {
+            ctx.fillStyle = shape.style.fill;
+            ctx.fill();
+        }
+    }
+
     ctx.stroke();
 
     if (isArrow) {
@@ -95,10 +107,3 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
     }
 }
 
-function getShapeSeed(shape) {
-    let h = 0xdeadbeef;
-    const str = shape.id || '0';
-    for (let i = 0; i < str.length; i++)
-        h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-    return ((h ^ h >>> 16) >>> 0);
-}

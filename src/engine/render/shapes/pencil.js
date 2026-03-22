@@ -27,6 +27,15 @@ export function drawPencil(ctx, shape) {
             const p = shape.points[i];
             ctx.lineTo(p.x, p.y);
         }
+
+        if (shape.isClosed) {
+            ctx.closePath();
+            if (shape.style?.fill && shape.style.fill !== 'transparent') {
+                ctx.fillStyle = shape.style.fill;
+                ctx.fill();
+            }
+        }
+
         ctx.stroke();
         return;
     }
@@ -58,18 +67,3 @@ export function drawPencil(ctx, shape) {
     ctx.fill();
 }
 
-function getSvgPathFromStroke(stroke) {
-    if (!stroke.length) return "";
-
-    const d = stroke.reduce(
-        (acc, [x0, y0], i, arr) => {
-            const [x1, y1] = arr[(i + 1) % arr.length];
-            acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-            return acc;
-        },
-        ["M", ...stroke[0], "Q"]
-    );
-
-    d.push("Z");
-    return d.join(" ");
-}

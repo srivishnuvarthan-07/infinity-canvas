@@ -1,4 +1,5 @@
 import { getPatternCanvas } from "../../../utils/canvas/patterns";
+import { getShapeSeed, applyLineDash } from "./shapeUtils";
 
 export function drawEllipse(ctx, shape, roughOps = null) {
     const w = shape.size?.width || 0;
@@ -54,14 +55,7 @@ export function drawEllipse(ctx, shape, roughOps = null) {
         ctx.fillStyle = 'transparent';
     }
 
-    const strokeStyleState = shape.style?.strokeStyle || 'solid';
-    if (strokeStyleState === 'dashed') {
-        ctx.setLineDash([strokeWidth * 3, strokeWidth * 3]);
-    } else if (strokeStyleState === 'dotted') {
-        ctx.setLineDash([strokeWidth, strokeWidth * 2]);
-    } else {
-        ctx.setLineDash([]);
-    }
+    applyLineDash(ctx, shape.style?.strokeStyle || 'solid', strokeWidth);
 
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, 2 * Math.PI);
@@ -72,10 +66,3 @@ export function drawEllipse(ctx, shape, roughOps = null) {
     ctx.stroke();
 }
 
-function getShapeSeed(shape) {
-    let h = 0xdeadbeef;
-    const str = shape.id || '0';
-    for (let i = 0; i < str.length; i++)
-        h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-    return ((h ^ h >>> 16) >>> 0);
-}

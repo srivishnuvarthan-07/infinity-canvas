@@ -1,4 +1,5 @@
 import { getPatternCanvas } from "../../../utils/canvas/patterns";
+import { getShapeSeed, applyLineDash } from "./shapeUtils";
 
 export function drawDiamond(ctx, shape, roughOps = null) {
     const w = shape.size?.width || 0;
@@ -57,15 +58,7 @@ export function drawDiamond(ctx, shape, roughOps = null) {
         ctx.fillStyle = 'transparent';
     }
 
-    // Handle Dashed/Dotted
-    const strokeStyleState = shape.style?.strokeStyle || 'solid';
-    if (strokeStyleState === 'dashed') {
-        ctx.setLineDash([strokeWidth * 3, strokeWidth * 3]);
-    } else if (strokeStyleState === 'dotted') {
-        ctx.setLineDash([strokeWidth, strokeWidth * 2]);
-    } else {
-        ctx.setLineDash([]);
-    }
+    applyLineDash(ctx, shape.style?.strokeStyle || 'solid', strokeWidth);
 
     // Draw Diamond Path
     ctx.beginPath();
@@ -81,10 +74,3 @@ export function drawDiamond(ctx, shape, roughOps = null) {
     ctx.stroke();
 }
 
-function getShapeSeed(shape) {
-    let h = 0xdeadbeef;
-    const str = shape.id || '0';
-    for (let i = 0; i < str.length; i++)
-        h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-    return ((h ^ h >>> 16) >>> 0);
-}
