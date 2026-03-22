@@ -20,6 +20,7 @@ export class CanvasEngine {
 
         this._frameId = null;
         this._resizeObserver = null;
+        this.onResize = null; // Callback for when canvas dimensions change
 
         // State refs — set externally before starting loop
         this.getShapes = () => [];
@@ -29,12 +30,13 @@ export class CanvasEngine {
 
     /**
      * Wire up the data providers used each frame.
-     * @param {{ getShapes, getViewport, getOverlayState }} providers
+     * @param {{ getShapes, getViewport, getOverlayState, onResize }} providers
      */
-    connect({ getShapes, getViewport, getOverlayState }) {
+    connect({ getShapes, getViewport, getOverlayState, onResize }) {
         this.getShapes = getShapes;
         this.getViewport = getViewport;
         this.getOverlayState = getOverlayState;
+        if (onResize) this.onResize = onResize;
     }
 
     /**
@@ -46,6 +48,7 @@ export class CanvasEngine {
             const w = container.clientWidth || window.innerWidth;
             const h = container.clientHeight || window.innerHeight;
             this.resize(w, h);
+            if (this.onResize) this.onResize(w, h);
         });
         this._resizeObserver.observe(container);
         // Initial size
@@ -60,14 +63,9 @@ export class CanvasEngine {
      * @param {number} height
      */
     resize(width, height) {
+        // Use the renderer's built-in resize which handles DPR scaling
         this.renderer.resize(width, height);
-
-        const dpr = window.devicePixelRatio || 1;
-        this.offscreen.width = width * dpr;
-        this.offscreen.height = height * dpr;
-        this.offscreen.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
-        this.staticRenderer.width = width;
-        this.staticRenderer.height = height;
+        this.staticRenderer.resize(width, height);
     }
 
     /**

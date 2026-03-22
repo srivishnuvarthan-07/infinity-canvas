@@ -134,20 +134,3 @@ export function sendBackward(shapes, id) {
     [next[index], next[index - 1]] = [next[index - 1], next[index]];
     return next;
 }
-
-/**
- * Duplicates selected shapes at a slight offset.
- * @param {Object[]} shapes
- * @param {Set<string>} selectedIds
- * @param {{ dx?: number, dy?: number }} options
- * @returns {{ shapes: Object[], newIds: string[] }}
- */
-export function duplicateShapes(shapes, selectedIds, { dx = 20, dy = 20 } = {}) {
-    const selected = shapes.filter(s => selectedIds.has(s.id));
-    const clones = selected.map(s => ({
-        ...s,
-        id: crypto.randomUUID(),
-        position: { x: s.position.x + dx, y: s.position.y + dy }
-    }));
-    return { shapes: [...shapes, ...clones], newIds: clones.map(c => c.id) };
-}

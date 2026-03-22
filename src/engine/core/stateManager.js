@@ -5,27 +5,6 @@
  */
 
 /**
- * Adds a shape to the list (returns new array).
- * @param {Object[]} shapes
- * @param {Object} shape
- * @returns {Object[]}
- */
-export function addShape(shapes, shape) {
-    return [...shapes, shape];
-}
-
-/**
- * Removes shapes by id (returns new array).
- * @param {Object[]} shapes
- * @param {string|string[]} ids
- * @returns {Object[]}
- */
-export function removeShapes(shapes, ids) {
-    const idSet = new Set(Array.isArray(ids) ? ids : [ids]);
-    return shapes.filter(s => !idSet.has(s.id));
-}
-
-/**
  * Deep-merges updates into all shapes matching the given ids.
  * Handles nested position, size, scale, style, font sub-objects.
  * @param {Object[]} shapes
@@ -51,16 +30,6 @@ export function updateShapes(shapes, ids, updates) {
             }
         };
     });
-}
-
-/**
- * Replaces a single shape by id (returns new array).
- * @param {Object[]} shapes
- * @param {Object} updated
- * @returns {Object[]}
- */
-export function replaceShape(shapes, updated) {
-    return shapes.map(s => s.id === updated.id ? updated : s);
 }
 
 /**
