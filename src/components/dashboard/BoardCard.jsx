@@ -20,32 +20,39 @@ export function BoardCard({ board, onRename, onDelete, onMoveToCloud }) {
 
     return (
         <div
-            className="group relative flex flex-col spatial-card cursor-pointer overflow-hidden h-full"
+            className="group relative flex flex-col bg-white border-[0.5px] border-black/5 rounded-[12px] overflow-hidden cursor-pointer hover:-translate-y-[3px] hover:border-black/10 transition-all duration-200 ease-out h-[auto]"
             onClick={() => navigate(`/board/${board.id}`)}
         >
             {/* Thumbnail Area */}
-            <div className="aspect-[16/10] w-full bg-[#f8f8f8] flex items-center justify-center overflow-hidden relative">
+            <div className="h-[100px] w-full bg-[#FAFAFA] flex items-center justify-center overflow-hidden relative">
                 {board.thumbnail ? (
                     <>
-                        <img src={board.thumbnail} alt={board.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
+                        <img src={board.thumbnail} alt={board.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/5 to-transparent pointer-events-none" />
                     </>
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-neutral-50/50 transition-transform duration-500 group-hover:scale-105">
-                        <span className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Start creating...</span>
+                    <div className="absolute inset-0">
+                        <svg className="absolute inset-0 h-full w-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <pattern id="dotGrid" width="12" height="12" patternUnits="userSpaceOnUse">
+                                    <circle cx="2" cy="2" r="1.5" fill="#000" />
+                                </pattern>
+                            </defs>
+                            <rect width="100%" height="100%" fill="url(#dotGrid)" />
+                        </svg>
                     </div>
                 )}
 
                 {/* Storage Type Badge */}
-                <div className="absolute top-3 right-3 z-10 transition-transform duration-300">
+                <div className="absolute top-[8px] right-[8px] z-10">
                     {board.isLocal ? (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md border border-black/5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] text-neutral-600 text-[10px] font-semibold tracking-wide">
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                        <span className="flex items-center gap-[4px] px-[8px] py-[2px] rounded-[99px] bg-[#FAEEDA] text-[#854F0B] text-[10px] font-medium shadow-sm">
+                            <span className="h-[5px] w-[5px] rounded-full bg-[#854F0B]"></span>
                             Local
                         </span>
                     ) : (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur-md border border-black/5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] text-neutral-600 text-[10px] font-semibold tracking-wide">
-                            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                        <span className="flex items-center gap-[4px] px-[8px] py-[2px] rounded-[99px] bg-[#E6F1FB] text-[#185FA5] text-[10px] font-medium shadow-sm">
+                            <span className="h-[5px] w-[5px] rounded-full bg-[#185FA5]"></span>
                             Cloud
                         </span>
                     )}
@@ -95,12 +102,12 @@ export function BoardCard({ board, onRename, onDelete, onMoveToCloud }) {
             </div>
 
             {/* Footer Info */}
-            <div className="p-4 flex flex-col gap-1.5 border-t border-black/5 bg-white shrink-0">
-                <h3 className="font-semibold text-neutral-800 tracking-tight truncate pr-2 group-hover:text-indigo-600 transition-colors text-sm">
+            <div className="p-[12px_14px] flex flex-col border-t-[0.5px] border-black/5 bg-white shrink-0">
+                <h3 className="font-medium text-[13px] text-neutral-900 tracking-tight truncate pr-2 group-hover:text-indigo-600 transition-colors">
                     {board.name}
                 </h3>
-                <div className="flex items-center text-xs text-neutral-500 gap-1.5 font-medium">
-                    <Clock className="h-3 w-3 text-neutral-400" />
+                <div className="flex items-center text-[11px] text-neutral-500 gap-[4px] mt-[3px]">
+                    <Clock className="h-[10px] w-[10px] text-neutral-400" />
                     <span>
                         {board.updatedAt
                             ? formatDistanceToNow(new Date(board.updatedAt), { addSuffix: true })

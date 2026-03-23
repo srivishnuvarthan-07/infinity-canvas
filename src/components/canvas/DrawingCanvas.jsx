@@ -12,12 +12,12 @@ import { CursorOverlay } from "./CursorOverlay";
 import { SelectionOverlay } from "./SelectionOverlay";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ShareModal } from "./ShareModal";
+import { ShareDialog } from "./ShareDialog";
 
 import { FloatingMenu } from "@/components/layout/FloatingMenu";
 import { AIPromptBar } from "@/components/canvas/AIPromptBar";
 import { useAuth } from "@/hooks/useAuth";
-import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
+// import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
 import { toast } from "sonner";
 
 
@@ -50,12 +50,14 @@ export function DrawingCanvas({
     onRemoveMember
 }) {
     const { user } = useAuth();
-    const isOwner = user && user._id === ownerId;
+    const actualIsOwner = isLocal || (user && user?._id === ownerId);
+    const isLoggedIn = !!user;
+    const canEdit = actualIsOwner || linkAccess === 'edit';
 
-    const activeWorkspaceId = useWorkspaceStore(state => state.activeWorkspaceId);
-    const workspaces = useWorkspaceStore(state => state.workspaces);
-    const activeWorkspace = workspaces.find(w => w._id === activeWorkspaceId);
-    const workspaceName = activeWorkspace?.name ?? null;
+    // const activeWorkspaceId = useWorkspaceStore(state => state.activeWorkspaceId);
+    // const workspaces = useWorkspaceStore(state => state.workspaces);
+    // const activeWorkspace = workspaces.find(w => w._id === activeWorkspaceId);
+    // const workspaceName = activeWorkspace?.name ?? null;
 
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
@@ -100,7 +102,7 @@ export function DrawingCanvas({
         canvasHandlers,
         insertShapes,
         deleteSelected
-    } = useCanvas({ initialShapes, socket, boardId });
+    } = useCanvas({ initialShapes, socket, boardId, readonly: !canEdit });
 
     // Propagate state changes
     useEffect(() => {
@@ -156,10 +158,19 @@ export function DrawingCanvas({
         if (!data) return;
 
         try {
-            const { type, itemId } = JSON.parse(data);
-            if (type === 'LIBRARY_ITEM' && itemId && libraryItems) {
-                const item = libraryItems[itemId];
-                if (item) {
+            const parsed = JSON.parse(data);
+            const { type, itemId } = parsed;
+            
+            // Prefer the sent 'item' object, fallback to lookup in libraryItems (original behavior)
+            let item = parsed.item;
+            if (!item && type === 'LIBRARY_ITEM' && itemId && libraryItems) {
+                // libraryItems might be an array or object depending on source
+                item = Array.isArray(libraryItems) 
+                    ? libraryItems.find(i => i.id === itemId)
+                    : libraryItems[itemId];
+            }
+
+            if (item) {
                     // Calculate Drop Position (Center of Item at Mouse)
                     const rect = containerRef.current.getBoundingClientRect();
                     const clientX = e.clientX - rect.left;
@@ -234,7 +245,6 @@ export function DrawingCanvas({
 
                     insertShapes(finalShapes);
                 }
-            }
         } catch (err) {
             console.error('Drop failed:', err);
         }
@@ -445,53 +455,50 @@ export function DrawingCanvas({
                     </div>
                 </div>
 
-                {/* Share Button (Hidden for Local) */}
                 {!isLocal && (
-                    <div title={isOwner ? "Share & Collaborate" : "View Access Info"}>
+                    <div title={actualIsOwner ? "Share" : "Board Access"}>
                         <Button
-                            className={`h-9 px-4 shadow-sm rounded-full font-medium transition-all ${isOwner ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'} flex items-center gap-2`}
+                            className={`h-9 px-4 shadow-sm rounded-full font-medium transition-all ${actualIsOwner ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'} flex items-center gap-2`}
                             onClick={() => setIsShareModalOpen(true)}
                         >
-                            {isLive && <div className={`w-2 h-2 rounded-full animate-pulse ${isOwner ? 'bg-white/40' : 'bg-green-500'}`}></div>}
-                            {isOwner ? "Share" : (isLive ? "Live Session" : "Share")}
+                            {isLive && <div className={`w-2 h-2 rounded-full animate-pulse ${actualIsOwner ? 'bg-white/40' : 'bg-green-500'}`}></div>}
+                            Share
                         </Button>
                     </div>
                 )}
             </div>
 
-            <ShareModal
+            <ShareDialog
                 isOpen={isShareModalOpen}
                 onClose={() => setIsShareModalOpen(false)}
-                boardId={boardId}
                 boardName={boardName || "Untitled"}
-                linkAccess={linkAccess}
-                visibility={visibility}
                 isLive={isLive}
                 onToggleLive={onToggleLive}
+                linkAccess={linkAccess}
                 onUpdateAccess={onUpdateAccess}
-                members={members}
-                onInviteMember={onInviteMember}
-                onRemoveMember={onRemoveMember}
-                ownerId={ownerId}
-                activeUsersCount={socket?.myIdentity ? Object.keys(socket?.remoteUsers || {}).length + 1 : 0}
-                workspaceName={workspaceName}
-                isOwner={isOwner}
+                activeUsers={
+                    socket?.myIdentity ? [socket.myIdentity, ...Object.values(socket.remoteUsers || {})] : []
+                }
+                isOwner={actualIsOwner}
+                isLoggedIn={isLoggedIn}
             />
 
             {/* BOTTOM CENTER: FLOATING TOOLBAR */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
-                <Toolbar
-                    activeTool={activeTool}
-                    onToolChange={setActiveTool}
-                    orientation="horizontal"
-                />
-            </div>
+            {canEdit && (
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+                    <Toolbar
+                        activeTool={activeTool}
+                        onToolChange={setActiveTool}
+                        orientation="horizontal"
+                    />
+                </div>
+            )}
 
             {/* BOTTOM LEFT: AI PROMPT BAR */}
-            <AIPromptBar onInsertShapes={insertShapes} onAddToLibrary={onAddToLibrary} />
+            {canEdit && <AIPromptBar onInsertShapes={insertShapes} onAddToLibrary={onAddToLibrary} />}
 
             {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
-            {!disablePropertyPanel && selectedElement && (
+            {!disablePropertyPanel && canEdit && selectedElement && (
                 <div className="absolute top-20 right-4 z-20 w-72 pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide">
                     <Sidebar
                         selectedElement={selectedElement}
@@ -569,33 +576,35 @@ export function DrawingCanvas({
             </div>
 
             {/* UNDO / REDO CONTROLS (Bottom Left) */}
-            <div className="absolute bottom-4 left-4 z-20 flex gap-2 pointer-events-auto">
-                <div className="bg-white/90 backdrop-blur-sm border border-neutral-200 shadow-sm rounded-lg flex items-center p-1 gap-1">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-neutral-100"
-                        onClick={handleUndo}
-                        disabled={!canUndo}
-                        title="Undo (Ctrl+Z)"
-                    >
-                        <Undo className="w-4 h-4 text-neutral-700" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-neutral-100"
-                        onClick={handleRedo}
-                        disabled={!canRedo}
-                        title="Redo (Ctrl+Y)"
-                    >
-                        <Redo className="w-4 h-4 text-neutral-700" />
-                    </Button>
+            {canEdit && (
+                <div className="absolute bottom-6 left-6 z-40 flex gap-2 pointer-events-auto">
+                    <div className="bg-white/95 backdrop-blur-md border border-neutral-200/60 shadow-lg rounded-xl flex items-center p-1.5 gap-1.5">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 hover:bg-neutral-100/80 rounded-lg transition-all active:scale-90"
+                            onClick={handleUndo}
+                            disabled={!canUndo}
+                            title="Undo (Ctrl+Z)"
+                        >
+                            <Undo className="w-5 h-5 text-neutral-700" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 hover:bg-neutral-100/80 rounded-lg transition-all active:scale-90"
+                            onClick={handleRedo}
+                            disabled={!canRedo}
+                            title="Redo (Ctrl+Y)"
+                        >
+                            <Redo className="w-5 h-5 text-neutral-700" />
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* COMMAND HINT (Bottom left, right of undo/redo) */}
-            <div className="absolute bottom-4 left-24 z-20 pointer-events-auto flex items-center px-2 py-1 bg-white/50 backdrop-blur-sm rounded-md border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-10">
+            <div className="absolute bottom-6 left-32 z-40 pointer-events-auto flex items-center px-4 py-1 bg-white/70 backdrop-blur-md rounded-xl border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-11 shadow-sm">
                 ⌘K
             </div>
 

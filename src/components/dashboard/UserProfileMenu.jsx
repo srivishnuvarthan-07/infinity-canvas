@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
-import { User, Settings, CreditCard, Keyboard, LogOut, ChevronDown } from "lucide-react";
+import { User, Settings, Keyboard, LogOut, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export function UserProfileMenu() {
@@ -44,94 +44,47 @@ export function UserProfileMenu() {
             </DropdownMenuTrigger>
 
             <DropdownMenuContent
-                align="end"
-                className="w-64 p-2 bg-neutral-900/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl animate-in fade-in zoom-in-95 duration-200"
+                align="start"
+                className="w-56 p-1 bg-white border border-black/5 shadow-lg rounded-xl animate-in fade-in zoom-in-95 duration-100"
                 sideOffset={8}
             >
-                <div className="flex items-center gap-3 p-2 mb-1 rounded-xl bg-white/5 border border-white/5">
-                    <Avatar className="h-10 w-10 border border-white/10 shadow-sm">
-                        <AvatarImage src={user?.avatar} />
-                        <AvatarFallback className="bg-neutral-800 text-neutral-400 font-bold text-sm">
-                            {initials}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col overflow-hidden">
-                        <span className="font-semibold text-sm text-white truncate flex items-center gap-2">
-                            {displayName}
-                            {isGuest ? (
-                                <span className="text-[10px] bg-neutral-700 text-neutral-300 px-1.5 py-0.5 rounded border border-white/10">LOCAL</span>
-                            ) : (
-                                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">CLOUD</span>
-                            )}
-                        </span>
-                        <span className="text-xs text-neutral-400 truncate font-mono">
-                            {displayEmail}
-                        </span>
-                    </div>
+                <div className="p-1 space-y-0.5">
+                    <DropdownMenuItem
+                        onClick={() => navigate('/profile')}
+                        className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-neutral-700 rounded-lg hover:bg-neutral-50 cursor-pointer outline-none transition-colors"
+                    >
+                        <User className="w-4 h-4 text-neutral-400" />
+                        My profile
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                        onClick={() => navigate('/dashboard/settings')}
+                        className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-neutral-700 rounded-lg hover:bg-neutral-50 cursor-pointer outline-none transition-colors"
+                    >
+                        <Settings className="w-4 h-4 text-neutral-400" />
+                        Settings
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                        onClick={() => {/* Open shortcuts modal logic */}}
+                        className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-neutral-700 rounded-lg hover:bg-neutral-50 cursor-pointer outline-none transition-colors"
+                    >
+                        <Keyboard className="w-4 h-4 text-neutral-400" />
+                        Keyboard shortcuts
+                    </DropdownMenuItem>
                 </div>
 
-                <DropdownMenuSeparator className="bg-white/10 my-1" />
+                <DropdownMenuSeparator className="h-[0.5px] bg-black/5 my-0.5 mx-1.5" />
 
-                {/* Menu Items */}
-                {isGuest ? (
-                    <div className="space-y-0.5">
-                        <DropdownMenuItem
-                            onClick={() => navigate('/login')}
-                            className="cursor-pointer rounded-lg text-sm font-medium text-indigo-400 focus:bg-indigo-500/20 focus:text-indigo-300 transition-colors gap-2 p-2"
-                        >
-                            <User className="w-4 h-4" />
-                            Log In
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onClick={() => navigate('/signup')}
-                            className="cursor-pointer rounded-lg text-sm font-medium text-neutral-300 focus:bg-white/10 focus:text-white transition-colors gap-2 p-2"
-                        >
-                            <User className="w-4 h-4" />
-                            Sign Up
-                        </DropdownMenuItem>
-                    </div>
-                ) : (
-                    <div className="space-y-0.5">
-                        <DropdownMenuItem
-                            onClick={() => navigate('/profile')}
-                            className="cursor-pointer rounded-lg text-sm font-medium text-neutral-300 focus:bg-indigo-500/20 focus:text-indigo-300 transition-colors gap-2 p-2"
-                        >
-                            <User className="w-4 h-4 text-neutral-400" />
-                            My Profile
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                            onClick={() => navigate('/profile')}
-                            className="cursor-pointer rounded-lg text-sm font-medium text-neutral-300 focus:bg-indigo-500/20 focus:text-indigo-300 transition-colors gap-2 p-2"
-                        >
-                            <Settings className="w-4 h-4 text-neutral-400" />
-                            Account Settings
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem className="cursor-pointer rounded-lg text-sm font-medium text-neutral-700 focus:bg-primary/5 focus:text-primary transition-colors gap-2 p-2">
-                            <Settings className="w-4 h-4 text-neutral-400" />
-                            Workspace Settings
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem className="cursor-pointer rounded-lg text-sm font-medium text-neutral-700 focus:bg-primary/5 focus:text-primary transition-colors gap-2 p-2">
-                            <Keyboard className="w-4 h-4 text-neutral-400" />
-                            Keyboard Shortcuts
-                        </DropdownMenuItem>
-                    </div>
-                )}
-
-                <DropdownMenuSeparator className="bg-neutral-200/50 my-1" />
-
-                {!isGuest && (
+                <div className="p-1.5">
                     <DropdownMenuItem
-                        className="cursor-pointer rounded-lg text-sm font-medium text-red-600 focus:bg-red-50 focus:text-red-700 transition-colors gap-2 p-2"
+                        className="flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-[#A32D2D] rounded-lg hover:bg-[#FCEBEB] cursor-pointer outline-none transition-colors group/logout"
                         onClick={handleLogout}
                     >
-                        <LogOut className="w-4 h-4" />
-                        Log Out
+                        <LogOut className="w-4 h-4 text-[#E24B4A]" />
+                        Sign out
                     </DropdownMenuItem>
-                )}
-
+                </div>
             </DropdownMenuContent>
         </DropdownMenu>
     );
