@@ -1,4 +1,4 @@
-import { FreeHandStylePanel } from "./FreeHandStylePanel";
+import { FreeHandStylePanel } from "./FreehandStylePanel";
 import { ShapeStylePanel } from "./ShapeStylePanel";
 import { TextStylePanel } from "./TextStylePanel";
 import { ArrangementPanel } from "./ArrangementPanel";
