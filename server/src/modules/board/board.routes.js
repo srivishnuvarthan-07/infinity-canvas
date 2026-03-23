@@ -8,20 +8,26 @@ const {
     getBoardData,
     updateBoardData,
     addBoardMember,
-    removeBoardMember
+    removeBoardMember,
+    deleteAllBoards,
+    exportBoards
 } = require('./board.controller');
 
-const router = express.Router({ mergeParams: true }); // Enable params from parent router
+const router = express.Router({ mergeParams: true });
 
 const { protect, getPermissiveUser } = require('../../middleware/auth');
 
-// router.use(protect); // Removed global protect to allow guest access
+// Health check for this router
+router.get('/ping', (req, res) => res.json({ status: 'board-router-ok' }));
 
-// Routes for /api/boards (and /api/workspaces/:workspaceId/boards)
+// IMPORTANT: Define specific routes BEFORE parameterized routes
+router.get('/export', protect, exportBoards);
+
 router
     .route('/')
     .get(protect, getBoards)
-    .post(protect, createBoard);
+    .post(protect, createBoard)
+    .delete(protect, deleteAllBoards);
 
 router
     .route('/:id')
@@ -29,13 +35,11 @@ router
     .put(getPermissiveUser, updateBoard)
     .delete(protect, deleteBoard);
 
-// Board Data Routes
 router
     .route('/:id/data')
     .get(getPermissiveUser, getBoardData)
     .put(getPermissiveUser, updateBoardData);
 
-// Member Management
 router.post('/:id/members', protect, addBoardMember);
 router.delete('/:id/members/:userId', protect, removeBoardMember);
 

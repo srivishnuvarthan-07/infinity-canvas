@@ -44,6 +44,8 @@ app.use('/api/users', require('./modules/user/user.routes'));
 app.use('/api/notifications', require('./modules/notification/notification.routes'));
 app.use('/api/boards', require('./modules/board/board.routes'));
 app.use('/api/library', require('./modules/library/library.routes'));
+app.use('/api/profile', require('./routes/profile'));
+app.use('/api/ai', require('./routes/ai'));
 
 // Error Handler
 app.use(require('./middleware/error'));

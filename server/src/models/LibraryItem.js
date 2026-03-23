@@ -26,6 +26,11 @@ const LibraryItemSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    source: {
+        type: String,
+        enum: ['AI', 'Custom'],
+        default: 'Custom'
+    },
     user: {
         type: mongoose.Schema.ObjectId,
         ref: 'User',

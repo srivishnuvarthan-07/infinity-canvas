@@ -31,6 +31,11 @@ exports.protect = async (req, res, next) => {
             return res.status(401).json({ success: false, error: 'User not found' });
         }
 
+        // Check if token version matches (for 'logout all devices' functionality)
+        if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== req.user.tokenVersion) {
+            return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
+        }
+
         next();
     } catch (err) {
         return res.status(401).json({ success: false, error: 'Not authorized to access this route' });

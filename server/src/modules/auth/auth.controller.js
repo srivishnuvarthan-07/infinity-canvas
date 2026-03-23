@@ -82,6 +82,29 @@ exports.logout = async (req, res, next) => {
     });
 };
 
+// @desc    Log user out from all devices
+// @route   POST /api/auth/logout-all
+// @access  Private
+exports.logoutAll = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.tokenVersion += 1;
+        await user.save();
+
+        res.cookie('token', 'none', {
+            expires: new Date(Date.now() + 10 * 1000),
+            httpOnly: true
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Logged out of all devices successfully'
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 // Get token from model, create cookie and send response
 const sendTokenResponse = (user, statusCode, res) => {
     const token = user.getSignedJwtToken();
@@ -107,7 +130,9 @@ const sendTokenResponse = (user, statusCode, res) => {
                 _id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                avatarColor: user.avatarColor,
+                defaultStorage: user.defaultStorage
             }
         });
 };

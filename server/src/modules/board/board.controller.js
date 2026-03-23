@@ -351,3 +351,51 @@ exports.removeBoardMember = async (req, res, next) => {
         next(err);
     }
 };
+
+// @desc    Delete all boards for a user
+// @route   DELETE /api/boards
+// @access  Private
+exports.deleteAllBoards = async (req, res, next) => {
+    try {
+        const boards = await Board.find({ owner: req.user.id });
+        const boardIds = boards.map(b => b._id);
+
+        // Delete all associated board data
+        await BoardData.deleteMany({ boardId: { $in: boardIds } });
+
+        // Delete all boards
+        await Board.deleteMany({ owner: req.user.id });
+
+        res.status(200).json({
+            success: true,
+            message: 'All boards deleted successfully'
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// @desc    Export all user boards data
+// @route   GET /api/boards/export
+// @access  Private
+exports.exportBoards = async (req, res, next) => {
+    try {
+        const boards = await Board.find({ owner: req.user.id });
+        const exportData = [];
+
+        for (const board of boards) {
+            const boardData = await BoardData.findOne({ boardId: board._id });
+            exportData.push({
+                metadata: board,
+                data: boardData ? boardData.data : { shapes: [] }
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: exportData
+        });
+    } catch (err) {
+        next(err);
+    }
+};
