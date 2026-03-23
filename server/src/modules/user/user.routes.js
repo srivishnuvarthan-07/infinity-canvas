@@ -1,12 +1,11 @@
 const express = require('express');
-const { searchUsers } = require('./user.controller');
+const { searchUsers, deleteMe } = require('./user.controller');
 
 const router = express.Router();
 
 const { protect } = require('../../middleware/auth');
 
-router.use(protect);
-
-router.get('/search', searchUsers);
+router.get('/search', protect, searchUsers);
+router.delete('/me', protect, deleteMe);
 
 module.exports = router;

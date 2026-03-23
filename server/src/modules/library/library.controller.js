@@ -41,17 +41,15 @@ exports.getPublicLibraryItems = async (req, res, next) => {
 // @access  Private
 exports.createLibraryItem = async (req, res, next) => {
     try {
-        req.body.user = req.user.id;
-
-        // frontend might send 'shapes' but model expects 'elements'
-        // Let's handle mapping if needed, or assume frontend is smart.
-        // If frontend sends { shapes: [...] }, we need to map to { elements: [...] } OR update schema.
-        // Let's create it directly from body for now, assuming frontend matches or we adapt here.
+        // Handle mapping if frontend sends 'shapes'
         if (req.body.shapes && !req.body.elements) {
             req.body.elements = req.body.shapes;
         }
 
-        const item = await LibraryItem.create(req.body);
+        const item = await LibraryItem.create({
+            ...req.body,
+            user: req.user.id
+        });
 
         res.status(201).json({
             success: true,
