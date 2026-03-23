@@ -1,33 +1,73 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Save, Loader2, User, Trash2 } from 'lucide-react';
+import { ArrowLeft, Star, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import authService from '@/services/auth.service';
+import { AIKeySection } from '@/components/profile/AIKeySection';
+import { DangerZone } from '@/components/profile/DangerZone';
+
+const COLORS = [
+    { id: 'purple', hex: '#7F77DD' },
+    { id: 'green', hex: '#1D9E75' },
+    { id: 'coral', hex: '#D85A30' },
+    { id: 'blue', hex: '#378ADD' },
+    { id: 'amber', hex: '#BA7517' },
+    { id: 'pink', hex: '#D4537E' },
+    { id: 'dark', hex: '#444441' }
+];
 
 export default function ProfilePage() {
     const { user, checkAuth } = useAuth();
+    const [activeTab, setActiveTab] = useState('profile');
     const [loading, setLoading] = useState(false);
+    const [savedState, setSavedState] = useState(false);
+
+    // Form State
     const [name, setName] = useState('');
+    const [avatarColor, setAvatarColor] = useState('#7F77DD');
+    const [defaultStorage, setDefaultStorage] = useState('cloud');
 
     useEffect(() => {
-        if (user) setName(user.name);
+        if (user) {
+            setName(user.name || '');
+            setAvatarColor(user.avatarColor || '#7F77DD');
+            setDefaultStorage(user.defaultStorage || 'cloud');
+        }
     }, [user]);
 
-    const handleUpdate = async (e) => {
-        e.preventDefault();
+    const handleSaveName = async () => {
         setLoading(true);
         try {
             await authService.updateProfile({ name });
             await checkAuth();
-            toast.success("Profile updated");
+            setSavedState(true);
+            setTimeout(() => setSavedState(false), 2000);
         } catch (err) {
-            toast.error("Failed to update profile");
+            toast.error("Failed to save name");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleColorPick = async (hex) => {
+        setAvatarColor(hex);
+        try {
+            await authService.updateProfile({ avatarColor: hex });
+            await checkAuth();
+        } catch (err) {
+            toast.error("Failed to save avatar color");
+        }
+    };
+
+    const handleStorageChange = async (val) => {
+        setDefaultStorage(val);
+        try {
+            await authService.updateProfile({ defaultStorage: val });
+            await checkAuth();
+        } catch (err) {
+            toast.error("Failed to save default storage");
         }
     };
 
@@ -36,76 +76,206 @@ export default function ProfilePage() {
     return (
         <div className="min-h-screen w-full dashboard-bg text-neutral-800 font-sans selection:bg-indigo-500/30">
             {/* Header */}
-            <div className="h-20 border-b border-black/5 flex items-center px-8 bg-[#F6F5F3]/80 backdrop-blur-md sticky top-0 z-10">
+            <div className="h-16 border-b border-black/5 flex items-center px-8 bg-[#F6F5F3]/80 backdrop-blur-md sticky top-0 z-10">
                 <Link to="/dashboard" className="flex items-center gap-2 text-sm font-medium text-neutral-500 hover:text-neutral-900 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
-                    Back to Dashboard
+                    Back
                 </Link>
             </div>
 
             <main className="max-w-2xl mx-auto py-12 px-6">
-                <h1 className="text-2xl font-bold text-neutral-900 mb-8 tracking-tight">Account Settings</h1>
+                
+                {/* Tab Switcher */}
+                <div className="flex gap-2 mb-8">
+                    <button 
+                        onClick={() => setActiveTab('profile')}
+                        className={`px-4 py-1.5 rounded-full text-[13px] font-medium transition-colors ${activeTab === 'profile' ? 'bg-neutral-900 text-white' : 'bg-transparent border border-black/10 text-neutral-500 hover:text-neutral-900'}`}
+                    >
+                        My profile
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('settings')}
+                        className={`px-4 py-1.5 rounded-full text-[13px] font-medium transition-colors ${activeTab === 'settings' ? 'bg-neutral-900 text-white' : 'bg-transparent border border-black/10 text-neutral-500 hover:text-neutral-900'}`}
+                    >
+                        Profile settings
+                    </button>
+                </div>
 
-                {/* Profile Card */}
-                <div className="spatial-card p-10 mb-8">
-                    <div className="flex items-center gap-6 mb-8 pb-8 border-b border-black/5">
-                        <Avatar className="w-20 h-20 shadow-sm border border-black/5">
-                            <AvatarImage src={user.avatar} />
-                            <AvatarFallback className="bg-indigo-50 text-indigo-600 text-2xl font-bold">
-                                {user.name?.[0]}
-                            </AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <h2 className="text-xl font-bold text-neutral-900">{user.name}</h2>
-                            <p className="text-neutral-500 text-sm mt-0.5">{user.email}</p>
-                            <span className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold tracking-wide uppercase border border-indigo-100 shadow-sm">
-                                <User className="w-3 h-3" />
-                                Pro Plan
+                {activeTab === 'profile' && (
+                    <div className="bg-white border border-black/5 rounded-xl shadow-sm overflow-hidden mb-8">
+                        {/* Hero Section */}
+                        <div className="flex items-center p-6 border-b border-black/5">
+                            <div 
+                                className="w-12 h-12 rounded-full flex items-center justify-center text-white text-[16px] font-medium shrink-0 relative group cursor-pointer"
+                                style={{ backgroundColor: avatarColor }}
+                                onClick={() => setActiveTab('settings')}
+                            >
+                                {user.name?.[0]?.toUpperCase()}
+                                <div className="absolute inset-0 bg-black/35 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <Pencil className="w-3.5 h-3.5 text-white" />
+                                </div>
+                            </div>
+                            <div className="flex-1 ml-4">
+                                <h2 className="text-[15px] font-medium text-neutral-900">{user.name}</h2>
+                                <p className="text-[12px] text-neutral-500 mt-0.5">{user.email}</p>
+                                <div className="inline-flex items-center gap-1 mt-1.5 px-2.5 py-0.5 rounded-full bg-[#EEEDFE] border border-[#CECBF6] text-[#3C3489]">
+                                    <Star className="w-2.5 h-2.5 fill-[#534AB7] text-[#534AB7]" />
+                                    <span className="text-[10px] font-medium">Pro plan</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setActiveTab('settings')}
+                                className="px-3 py-1.5 border border-black/10 rounded-md text-[11px] font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                            >
+                                Edit profile
+                            </button>
+                        </div>
+
+                        {/* Stats Row */}
+                        <div className="grid grid-cols-3 border-b border-black/5">
+                            <div className="p-4 border-r border-black/5">
+                                <div className="text-[18px] font-medium text-neutral-900">12</div>
+                                <div className="text-[11px] text-neutral-500 mt-0.5">Boards</div>
+                            </div>
+                            <div className="p-4 border-r border-black/5">
+                                <div className="text-[18px] font-medium text-neutral-900">34</div>
+                                <div className="text-[11px] text-neutral-500 mt-0.5">AI diagrams</div>
+                            </div>
+                            <div className="p-4">
+                                <div className="text-[18px] font-medium text-neutral-900">18</div>
+                                <div className="text-[11px] text-neutral-500 mt-0.5">Library shapes</div>
+                            </div>
+                        </div>
+
+                        {/* Info Rows */}
+                        <div className="flex justify-between items-center px-6 py-3.5 border-b border-black/5">
+                            <span className="text-[12px] text-neutral-500">Full name</span>
+                            <span className="text-[12px] font-medium text-neutral-900">{user.name}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-6 py-3.5 border-b border-black/5">
+                            <span className="text-[12px] text-neutral-500">Email</span>
+                            <span className="text-[12px] font-medium text-neutral-900">{user.email}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-6 py-3.5 border-b border-black/5">
+                            <span className="text-[12px] text-neutral-500">Plan</span>
+                            <span className="text-[12px] font-medium text-neutral-900">Pro</span>
+                        </div>
+                        <div className="flex justify-between items-center px-6 py-3.5 border-b border-black/5">
+                            <span className="text-[12px] text-neutral-500">Member since</span>
+                            <span className="text-[12px] font-normal text-neutral-500">March 2026</span>
+                        </div>
+                        <div className="flex justify-between items-center px-6 py-3.5 border-b border-black/5">
+                            <span className="text-[12px] text-neutral-500">Default storage</span>
+                            <span className="text-[12px] font-normal text-neutral-500 capitalize">{user.defaultStorage}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-6 py-3.5">
+                            <span className="text-[12px] text-neutral-500">AI provider</span>
+                            <span className="text-[12px] font-normal text-neutral-500">
+                                {user.aiConfig?.defaultProvider === 'groq' ? 'Groq' : 
+                                 user.aiConfig?.defaultProvider === 'openai' ? 'OpenAI' :
+                                 user.aiConfig?.defaultProvider === 'anthropic' ? 'Anthropic' : 'Gemini'}
+                                {' '}({user.aiConfig?.freeUsage?.count || 0} used)
                             </span>
                         </div>
                     </div>
+                )}
 
-                    <form onSubmit={handleUpdate} className="space-y-6 max-w-md">
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Full Name</label>
-                            <Input
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="bg-neutral-50 border-black/5 text-neutral-900 focus:bg-white focus:border-indigo-500/30 focus:ring-4 focus:ring-indigo-500/10 h-11 rounded-xl transition-all shadow-sm"
-                            />
+                {activeTab === 'settings' && (
+                    <>
+                    <div className="bg-white border border-black/5 rounded-xl shadow-sm overflow-hidden mb-8">
+                        {/* Hero Preview */}
+                        <div className="flex items-center p-6 border-b border-black/5 bg-neutral-50/50">
+                            <div 
+                                className="w-12 h-12 rounded-full flex items-center justify-center text-white text-[16px] font-medium shrink-0 relative group"
+                                style={{ backgroundColor: avatarColor }}
+                            >
+                                {(name || '?')[0]?.toUpperCase()}
+                                <div className="absolute inset-0 bg-black/35 rounded-full opacity-0 flex items-center justify-center transition-opacity">
+                                    {/* No click action needed as they are already editing */}
+                                </div>
+                            </div>
+                            <div className="flex-1 ml-4">
+                                <h2 className="text-[15px] font-medium text-neutral-900">{name || 'Your Name'}</h2>
+                                <p className="text-[12px] text-neutral-500 mt-0.5">{user.email}</p>
+                                <div className="inline-flex items-center gap-1 mt-1.5 px-2.5 py-0.5 rounded-full bg-[#EEEDFE] border border-[#CECBF6] text-[#3C3489]">
+                                    <Star className="w-2.5 h-2.5 fill-[#534AB7] text-[#534AB7]" />
+                                    <span className="text-[10px] font-medium">Pro plan</span>
+                                </div>
+                            </div>
                         </div>
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Email Address</label>
-                            <Input
+
+                        {/* Avatar Color Picker */}
+                        <div className="p-6 border-b border-black/5">
+                            <label className="block text-[11px] font-medium text-neutral-500 mb-3">Avatar color</label>
+                            <div className="flex gap-2">
+                                {COLORS.map(c => (
+                                    <button
+                                        key={c.id}
+                                        onClick={() => handleColorPick(c.hex)}
+                                        className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${avatarColor === c.hex ? 'ring-2 ring-offset-2 ring-neutral-900' : ''}`}
+                                        style={{ backgroundColor: c.hex }}
+                                        aria-label={`Select ${c.id} color`}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Full Name Field */}
+                        <div className="p-6 border-b border-black/5">
+                            <label className="block text-[11px] font-medium text-neutral-500 tracking-[0.04em] mb-2">Full name</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className="flex-1 bg-neutral-50 border border-black/5 text-[13px] text-neutral-900 rounded-lg px-3 py-2 focus:outline-none focus:bg-white focus:border-[#7F77DD] focus:ring-1 focus:ring-[#7F77DD] transition-all"
+                                />
+                                <button
+                                    onClick={handleSaveName}
+                                    disabled={loading || name === user.name}
+                                    className={`shrink-0 text-[12px] font-medium rounded-lg px-4 py-2 transition-colors ${
+                                        savedState 
+                                        ? 'bg-[#EAF3DE] border border-[#C0DD97] text-[#3B6D11]' 
+                                        : 'bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed'
+                                    }`}
+                                >
+                                    {savedState ? 'Saved' : 'Save'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Email Address Field */}
+                        <div className="p-6 border-b border-black/5">
+                            <label className="block text-[11px] font-medium text-neutral-500 mb-2">Email address</label>
+                            <input
+                                type="text"
                                 value={user.email}
                                 disabled
-                                className="bg-neutral-100/50 border-black/5 text-neutral-500 cursor-not-allowed h-11 rounded-xl shadow-none"
+                                className="w-full bg-neutral-50 border border-black/5 text-[13px] text-neutral-900 rounded-lg px-3 py-2 opacity-50 cursor-not-allowed"
                             />
-                            <p className="text-[11px] font-medium text-neutral-400">Email cannot be changed locally.</p>
+                            <p className="text-[11px] text-neutral-500 mt-1.5">Email can be changed in account settings.</p>
                         </div>
 
-                        <Button
-                            type="submit"
-                            disabled={loading}
-                            className="bg-neutral-900 text-white hover:bg-neutral-800 mt-4 rounded-xl h-10 px-5 shadow-sm font-medium"
-                        >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                            Save Changes
-                        </Button>
-                    </form>
-                </div>
-
-                {/* Danger Zone */}
-                <div className="spatial-card p-10 border border-red-500/10 bg-red-50/50">
-                    <h3 className="text-red-600 font-semibold mb-2">Danger Zone</h3>
-                    <p className="text-red-500/80 text-sm mb-6 font-medium">
-                        Once you delete your account, there is no going back. Please be certain.
-                    </p>
-                    <Button variant="destructive" className="bg-red-50 text-red-600 hover:bg-red-100 shadow-none border border-red-100 rounded-xl h-10 px-5 font-medium">
-                        <Trash2 className="w-4 h-4 mr-2 text-red-500" />
-                        Delete Account
-                    </Button>
-                </div>
+                        {/* Default Storage Field */}
+                        <div className="p-6">
+                            <label className="block text-[11px] font-medium text-neutral-500 mb-2">Default new board storage</label>
+                            <select
+                                value={defaultStorage}
+                                onChange={(e) => handleStorageChange(e.target.value)}
+                                className="w-full bg-neutral-50 border border-black/5 text-[13px] text-neutral-900 rounded-lg px-3 py-2 focus:outline-none focus:bg-white focus:border-[#7F77DD] focus:ring-1 focus:ring-[#7F77DD] cursor-pointer appearance-none transition-all"
+                            >
+                                <option value="cloud">Cloud — sync across devices</option>
+                                <option value="local">Local — store in this browser</option>
+                            </select>
+                            <p className="text-[11px] text-neutral-500 mt-1.5">Where new boards are saved when you click New board.</p>
+                        </div>
+                    </div>
+                    
+                    {/* Extra Settings Component Sections */}
+                    <AIKeySection />
+                    <DangerZone />
+                    </>
+                )}
             </main>
         </div>
     );
