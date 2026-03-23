@@ -126,8 +126,8 @@ class CloudProvider extends StorageProvider {
             const response = await api.get(`/boards/${id}/data`);
             const data = response.data.data;
             const version = data.data?.version ?? data.version ?? 1;
-            if (version !== 2) {
-                throw new Error("Unsupported document version");
+            if (version !== 1 && version !== 2) {
+                throw new Error("Unsupported document version: " + version);
             }
 
             return {

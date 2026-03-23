@@ -37,9 +37,10 @@ const authService = {
         }
     },
 
-    // Update Profile - placeholder until backend support is added
+    // Update Profile
     updateProfile: async (updates) => {
-        return { user: { ...updates } };
+        const response = await api.put('/profile/update', updates);
+        return response.data;
     }
 };
 

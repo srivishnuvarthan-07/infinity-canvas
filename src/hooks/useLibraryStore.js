@@ -53,7 +53,8 @@ export function useLibraryStore() {
                             shapes: item.elements,
                             preview: item.preview || '',
                             createdAt: new Date(item.createdAt).getTime(),
-                            isCloud: true
+                            isCloud: true,
+                            source: item.source || 'Custom'
                         };
                     });
                     return next;
@@ -78,7 +79,8 @@ export function useLibraryStore() {
                 isCloud: true,
                 isPublic: true,
                 userId: item.user?._id || item.user,
-                userName: item.user?.name || 'Community Member'
+                userName: item.user?.name || 'Community Member',
+                source: item.source || 'Custom'
             }));
             setCommunityItems(publicItems);
         } catch (err) {
@@ -105,7 +107,7 @@ export function useLibraryStore() {
         save();
     }, [items, isLoaded, currentStorageKey]);
 
-    const addItem = useCallback(async (shapes, name = 'Untitled Group') => {
+    const addItem = useCallback(async (shapes, name = 'Untitled Group', source = 'Custom') => {
         if (!user) {
             console.warn("Guests cannot add items to the library.");
             return;
@@ -175,7 +177,8 @@ export function useLibraryStore() {
             shapes: normalizedShapes,
             width,
             height,
-            preview
+            preview,
+            source
         };
 
         setItems(prev => ({
@@ -189,7 +192,8 @@ export function useLibraryStore() {
                 const res = await libraryService.createLibraryItem({
                     name,
                     elements: normalizedShapes,
-                    preview
+                    preview,
+                    source
                 });
 
                 // Replace temp ID with cloud ID
