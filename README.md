@@ -14,6 +14,24 @@
 - **Grouping/Ungrouping**: Select multiple shapes to group them together for scaled resizing and movement.
 - **Text**: Interactive text boxes with precise bounding box calculations and in-place editing.
 
+### AI-Powered Diagram Generation ✨
+- **Intelligent Creation**: Generate various types of complex diagrams directly from text prompts, including:
+  - **Flowcharts**: Map out processes, workflows, and logic.
+  - **Mind Maps**: Brainstorm and organize hierarchical ideas.
+  - **ERDs (Entity-Relationship Diagrams)**: Design database schemas and data architectures.
+  - **DSA (Data Structures & Algorithms)**: Illustrate trees, graphs, arrays, and algorithms.
+  - **Comparison Diagrams**: Visually evaluate pros/cons, features, or architectural differences.
+- **Hand-Drawn Aesthetic**: AI diagrams adopt an organic, hand-drawn look with curated pastel palettes, custom roughness, and handwriting fonts.
+- **Hierarchical Structures**: Automatic organization into nested group elements ("Tiers") with distinct headers and styled backgrounds.
+- **Smart Connectivity**: Advanced arrow routing with staggered anchor points preventing overlap, backed by a refactored and optimized 2-point line system.
+- **Fully Interactive**: All AI-generated elements are fully integrated canvas components—freely editable, movable, and resizable.
+
+### Asset Library & Extensibility 📚
+- **Rich Library Panel**: Quickly access predefined "Featured Shapes" and your personal "My Library".
+- **Excalidraw Compatibility**: Seamlessly import existing `.excalidrawlib` files. The robust importer natively handles coordinate translation, complex groupings, and legacy draw types.
+- **Component Architecture**: Deep integration separating "Core" components for AI generation from standard "Normal" components.
+- **Community Sharing**: Discover, use, and share community-created assets from the public library ecosystem.
+
 ### Real-Time Collaboration (Live Rooms) 🌐
 - **Multiplayer Synchronized Drawing**: Draw and see others draw in real-time with ultra-low latency via Socket.IO.
 - **Live Cursors & Presence**: See what others are doing with live pointers, user-specific colors, and names.
@@ -63,6 +81,7 @@
 - **Real-Time Engine**: Socket.IO
 - **Authentication**: JWT, bcryptjs, cookie-parser, and secure HTTP-only configurations.
 - **Security**: Helmet, MongoDB Sanitize, rate limiting, and CORS.
+- **AI Integration**: Integration with Google GenAI for intelligent text-to-diagram generation.
 
 ## 📦 Getting Started
 
