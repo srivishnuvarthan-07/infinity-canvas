@@ -3,7 +3,7 @@ import { z } from "zod";
 export const BaseNodeSchema = z.object({
     id: z.string().min(1),
     label: z.string().optional(),
-    type: z.enum(["rectangle", "ellipse", "diamond", "cylinder", "parallelogram", "hexagon", "document", "group"]).default("rectangle"),
+    type: z.string().default("rectangle"),
     direction: z.enum(['TB', 'LR']).optional(),
 });
 

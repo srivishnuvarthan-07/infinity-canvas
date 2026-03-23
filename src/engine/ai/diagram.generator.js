@@ -14,9 +14,9 @@ function stableIntHash(str) {
 
 // ── Hand-drawn style constants ──────────────────────────────────────────────
 const HAND_FONT = 'Caveat';       // Google handwriting font loaded in index.html
-const HAND_STROKE = '#2d2d2d';      // Warm dark (not pure black)
+const HAND_STROKE = '#000000';      // Pure black for better visibility
 const ROUGHNESS = 1.8;            // Shape sketch roughness (0 = clean, 3 = wild)
-const ARROW_ROUGHNESS = 1.2;        // Slightly less rough for lines
+const ARROW_ROUGHNESS = 0.4;        // Keep arrows clean — high roughness doubles long lines
 
 // Soft pastel fills per node type — chosen to be light enough that dark text
 // stays readable but rich enough to immediately distinguish shape roles.
@@ -210,21 +210,22 @@ function createGroupContainerShape(id, text, x, y, width, height, depth = 1) {
 }
 
 
-// Canonical node sizes
+// Canonical node sizes — sized generously to accommodate Caveat handwriting font
 const NODE_SIZES = {
-    rectangle: { w: 160, h: 70 },
-    ellipse: { w: 130, h: 80 },
-    diamond: { w: 160, h: 90 },
-    cylinder: { w: 140, h: 90 },
-    parallelogram: { w: 170, h: 70 },
-    hexagon: { w: 160, h: 80 },
-    document: { w: 160, h: 80 },
+    rectangle:    { w: 190, h: 80  },
+    ellipse:      { w: 160, h: 90  },
+    diamond:      { w: 190, h: 110 },
+    cylinder:     { w: 160, h: 100 },
+    parallelogram:{ w: 200, h: 80  },
+    hexagon:      { w: 190, h: 95  },
+    document:     { w: 190, h: 95  },
 };
 
-function computeSpacing(nodeCount, direction) {
-    // Increased spacing for a more breathable, premium layout
-    const nodesep = Math.max(60, Math.round(150 - nodeCount * 3));
-    const ranksep = Math.max(120, Math.round(200 - nodeCount * 4));
+function computeSpacing(nodeCount) {
+    // More nodes need MORE breathing room, not less.
+    // ranksep = vertical gap between ranks; nodesep = horizontal gap between siblings.
+    const nodesep = Math.min(80 + nodeCount * 2, 160);
+    const ranksep = Math.min(120 + nodeCount * 4, 260);
     return { nodesep, ranksep };
 }
 
@@ -250,7 +251,7 @@ function getAncestorAtLevel(nodeId, levelNodes, parentMap) {
     return null;
 }
 
-const GROUP_PADDING = 60;
+const GROUP_PADDING = 100;
 
 function layoutGraphRecursive(levelNodes, allEdges, parentMap, rankdir = 'TB', depth = 1) {
     const g = new dagre.graphlib.Graph();
@@ -402,6 +403,7 @@ export function generateDiagramShapes(intent) {
                     absY - l.childrenRes.cy
                 );
             } else {
+                // Standard built-in shape creation (rectangle, diamond, etc.)
                 const nodeShape = createNodeShape(l.id, l.label, absX, absY, l.type, l.w, l.h);
                 shapes.push(nodeShape);
                 nodeDataMap.set(l.id, { x: absX, y: absY, w: l.w, h: l.h, groupShape: nodeShape });
@@ -481,28 +483,51 @@ export function generateDiagramShapes(intent) {
         // Attempt to find Dagre's detailed edge path
         const dagreEdge = allDagreEdges.find(de => de.index === i);
 
-        let relativePoints;
+        /**
+         * Route decision:
+         *   - If source and target are roughly aligned (within 40px on either axis),
+         *     use a STRAIGHT arrow — looks clean for direct TB/LR flows.
+         *   - If the Dagre path is essentially straight (only 2-3 colinear pts), simplify.
+         *   - Otherwise use the elbow (orthogonal) route from smartArrow.
+         */
+        const absDx = Math.abs(tgtData.x - srcData.x);
+        const absDy = Math.abs(tgtData.y - srcData.y);
+        const isAligned = absDx < 40 || absDy < 40; // nearly same column or row
+
         const startPt = { x: srcData.x + srcMod.x, y: srcData.y + srcMod.y };
         const endPt = { x: tgtData.x + tgtMod.x, y: tgtData.y + tgtMod.y };
+        let relativePoints;
 
-        if (dagreEdge && dagreEdge.points && dagreEdge.points.length >= 2) {
-            // Convert absolute Dagre points to coordinates relative to start point
-            // Dagre calculates control points for edges, creating a smart path avoiding nodes
+        if (isAligned) {
+            // Straight line — cleanest look for aligned nodes
+            relativePoints = [
+                { x: 0, y: 0 },
+                { x: endPt.x - startPt.x, y: endPt.y - startPt.y }
+            ];
+        } else if (dagreEdge && dagreEdge.points && dagreEdge.points.length >= 2) {
+            // Check if Dagre points are essentially colinear → collapse to straight
             const rawPts = dagreEdge.points;
+            const isColinear = rawPts.every(p =>
+                Math.abs(p.x - rawPts[0].x) < 10 || Math.abs(p.y - rawPts[0].y) < 10
+            );
 
-            // To ensure it connects visually to the edges, overwrite the first and last
-            // Dagre points with our exact staggered anchor points
-            const snappedPts = [...rawPts];
-            snappedPts[0] = startPt;
-            snappedPts[snappedPts.length - 1] = endPt;
-
-            relativePoints = snappedPts.map(p => ({
-                x: p.x - startPt.x,
-                y: p.y - startPt.y
-            }));
-
+            if (isColinear) {
+                relativePoints = [
+                    { x: 0, y: 0 },
+                    { x: endPt.x - startPt.x, y: endPt.y - startPt.y }
+                ];
+            } else {
+                // True elbow: use Dagre waypoints, snapped to our staggered anchors
+                const snappedPts = [...rawPts];
+                snappedPts[0] = startPt;
+                snappedPts[snappedPts.length - 1] = endPt;
+                relativePoints = snappedPts.map(p => ({
+                    x: p.x - startPt.x,
+                    y: p.y - startPt.y
+                }));
+            }
         } else {
-            // Fallback to basic smartArrow orthogonal routing if dagre path isn't found
+            // Fallback to smartArrow orthogonal routing
             const stubArrow = {
                 id: crypto.randomUUID(),
                 type: 'arrow',
@@ -531,7 +556,7 @@ export function generateDiagramShapes(intent) {
                 strokeWidth: 2.5,
                 opacity: 1,
                 renderMode: 'vector',
-                roughness: ARROW_ROUGHNESS * 1.5,
+                roughness: ARROW_ROUGHNESS,
                 seed: stableIntHash(edge.from + '->' + edge.to)
             },
             revision: { number: 1, timestamp: Date.now() },
