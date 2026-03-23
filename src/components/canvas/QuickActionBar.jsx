@@ -1,4 +1,4 @@
-import { Trash2, Copy, Lock, Unlock, ArrowUp, ArrowDown, Palette } from "lucide-react";
+import { Trash2, Copy, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HexColorPicker } from "react-colorful";
@@ -14,18 +14,10 @@ export function QuickActionBar({
 }) {
     if (!selectedElement || !viewport) return null;
 
-    // Calculate position
-    // We want it centered above the element
-    // element.x/y is top-left in canvas coords
+    const screenX = ((selectedElement.position?.x || 0) - viewport.x) * viewport.zoom;
+    const screenY = ((selectedElement.position?.y || 0) - viewport.y) * viewport.zoom;
+    const screenWidth = (selectedElement.size?.width || 0) * viewport.zoom;
 
-    // Canvas to Screen
-    const screenX = (selectedElement.x - viewport.x) * viewport.zoom;
-    const screenY = (selectedElement.y - viewport.y) * viewport.zoom;
-    const screenWidth = selectedElement.width * viewport.zoom;
-    // const screenHeight = selectedElement.height * viewport.zoom;
-
-    // Position: Center X, Above Y
-    // Offset by -50px for toolbar height?
     const style = {
         position: 'absolute',
         top: `${screenY - 60}px`,
@@ -33,9 +25,6 @@ export function QuickActionBar({
         transform: 'translateX(-50%)',
         zIndex: 50
     };
-
-    // If off-screen top, flip to bottom?
-    // Simplified for now.
 
     return (
         <div
@@ -49,14 +38,14 @@ export function QuickActionBar({
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded hover:bg-neutral-100">
                         <div
                             className="w-4 h-4 rounded-full border border-neutral-300"
-                            style={{ backgroundColor: selectedElement.fill || 'transparent' }}
+                            style={{ backgroundColor: selectedElement.style?.fill || 'transparent' }}
                         />
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-3" align="start">
                     <HexColorPicker
-                        color={selectedElement.fill || "#ffffff"}
-                        onChange={(color) => onUpdateElement({ ...selectedElement, fill: color })}
+                        color={selectedElement.style?.fill || "#ffffff"}
+                        onChange={(color) => onUpdateElement({ style: { ...selectedElement.style, fill: color } })}
                     />
                 </PopoverContent>
             </Popover>
@@ -77,13 +66,6 @@ export function QuickActionBar({
             <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-neutral-100" onClick={onDuplicate} title="Duplicate">
                 <Copy className="w-4 h-4 text-neutral-600" />
             </Button>
-
-            {/* Lock/Unlock (Future) 
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-neutral-100" onClick={onLock}>
-                {selectedElement.locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-            </Button> 
-            */}
-
             <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-50 text-red-500 hover:text-red-600" onClick={onDelete} title="Delete">
                 <Trash2 className="w-4 h-4" />
             </Button>

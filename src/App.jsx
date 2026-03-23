@@ -4,24 +4,25 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
+
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
-import OverviewView from "./components/dashboard/views/OverviewView";
-import AllBoardsView from "./components/dashboard/views/AllBoardsView";
-import TeamView from "./components/dashboard/views/TeamView";
-import LibraryView from "./components/dashboard/views/LibraryView";
-import SettingsView from "./components/dashboard/views/SettingsView";
-import SharedBoardsView from "./components/dashboard/views/SharedBoardsView";
-import Workspace from "./pages/Workspace";
+import BoardPage from "./pages/BoardPage";
 import NotFound from "./pages/NotFound";
-
-const queryClient = new QueryClient();
-
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import ProfilePage from "./pages/ProfilePage";
 
+import OverviewView from "./components/dashboard/views/OverviewView";
+import AllBoardsView from "./components/dashboard/views/AllBoardsView";
+// import TeamView from "./components/dashboard/views/TeamView";
+import LibraryView from "./components/dashboard/views/LibraryView";
+import ExploreView from "./components/dashboard/views/ExploreView";
+import SettingsView from "./components/dashboard/views/SettingsView";
+
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+
+const queryClient = new QueryClient();
 
 const RequireAuth = ({ children }) => {
     const { user, loading } = useAuth();
@@ -47,13 +48,13 @@ const App = () => (
                             <Route path="/dashboard" element={<Dashboard />}>
                                 <Route path="overview" element={<OverviewView />} />
                                 <Route path="boards" element={<AllBoardsView />} />
-                                <Route path="team" element={<TeamView />} />
+                                {/* <Route path="team" element={<TeamView />} /> */}
                                 <Route path="library" element={<LibraryView />} />
+                                <Route path="explore" element={<ExploreView />} />
                                 <Route path="settings" element={<SettingsView />} />
-                                <Route path="shared" element={<SharedBoardsView />} />
                             </Route>
                             <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
-                            <Route path="/board/:boardId" element={<Workspace />} />
+                            <Route path="/board/:boardId" element={<BoardPage />} />
 
                             <Route path="*" element={<NotFound />} />
                         </Routes>

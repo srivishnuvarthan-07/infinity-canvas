@@ -156,10 +156,14 @@ export function calculateResize(shape, handle, cursorX, cursorY, startState) {
     const globalShiftY = localCenterX * posSin + localCenterY * posCos;
 
     return {
-        x: centerX + globalShiftX,
-        y: centerY + globalShiftY,
-        width: finalW,
-        height: finalH
+        position: {
+            x: centerX + globalShiftX,
+            y: centerY + globalShiftY,
+        },
+        size: {
+            width: finalW,
+            height: finalH
+        }
     };
 }
 
@@ -167,8 +171,10 @@ export function calculateResize(shape, handle, cursorX, cursorY, startState) {
  * Calculates new rotation
  */
 export function calculateRotation(shape, cursorX, cursorY) {
-    const dx = cursorX - shape.x;
-    const dy = cursorY - shape.y;
+    const px = shape.position?.x || 0;
+    const py = shape.position?.y || 0;
+    const dx = cursorX - px;
+    const dy = cursorY - py;
     let angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
     // Offset because handle is at -90 degrees (top)

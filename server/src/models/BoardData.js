@@ -14,7 +14,7 @@ const BoardDataSchema = new mongoose.Schema({
     },
     version: {
         type: Number,
-        default: 1
+        default: 2
     },
     updatedAt: {
         type: Date,

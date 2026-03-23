@@ -3,7 +3,7 @@ import { DRAWING_COLORS } from "@/types/canvas";
 import { useCustomEngine } from "./useCustomEngine";
 import { exportToPng } from "@/engine/utils/export";
 import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file";
-import { resolveConnectorPoint } from "@/engine/physics/hitTest";
+
 import { SHAPE_TYPES } from "@/engine/schema";
 
 /**
@@ -12,7 +12,7 @@ import { SHAPE_TYPES } from "@/engine/schema";
  * Simplified hook that serves as the bridge between the UI components 
  * and the Custom Rendering Engine.
  */
-export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
+export function useCanvas({ initialShapes = [], socket, boardId, readonly = false } = {}) {
   /* ===================== REFS ===================== */
   const containerRef = useRef(null);
 
@@ -65,7 +65,8 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     activeColor,
     strokeWidth,
     strokeStyle,
-    boardId
+    boardId,
+    readonly
   });
 
   // Auto-Start Engine
@@ -101,10 +102,10 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
       return {
         id: 'selection-group',
         type: 'activeSelection',
-        stroke: objects[0].strokeColor,
-        strokeWidth: objects[0].strokeWidth,
-        opacity: objects[0].opacity,
-        sloppiness: objects[0].sloppiness,
+        stroke: objects[0].style?.stroke,
+        strokeWidth: objects[0].style?.strokeWidth,
+        opacity: objects[0].style?.opacity,
+        sloppiness: objects[0].style?.sloppiness,
         objects: objects
       };
     }
@@ -115,14 +116,14 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
       updateShapes(selectedShapeIds, updates);
 
       // Sync global tool state with selection changes ("Pick up style")
-      if (updates.strokeColor || updates.stroke || updates.color) {
-        setActiveColor(updates.strokeColor || updates.stroke || updates.color);
+      if (updates.style?.stroke || updates.color) {
+        setActiveColor(updates.style?.stroke || updates.color);
       }
-      if (updates.strokeWidth) {
-        setStrokeWidth(updates.strokeWidth);
+      if (updates.style?.strokeWidth) {
+        setStrokeWidth(updates.style?.strokeWidth);
       }
-      if (updates.strokeStyle) {
-        setStrokeStyle(updates.strokeStyle);
+      if (updates.style?.strokeStyle) {
+        setStrokeStyle(updates.style?.strokeStyle);
       }
     }
   };
@@ -134,24 +135,7 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     const shapeMap = {};
     customShapes.forEach(s => shapeMap[s.id] = s);
 
-    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id)).map(s => {
-      if (s.type === SHAPE_TYPES.CONNECTOR) {
-        let updated = { ...s };
-        let changed = false;
-        if (s.start && s.start.shapeId && selectedShapeIds.has(s.start.shapeId)) {
-          const pos = resolveConnectorPoint(s.start, shapeMap);
-          updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-          changed = true;
-        }
-        if (s.end && s.end.shapeId && selectedShapeIds.has(s.end.shapeId)) {
-          const pos = resolveConnectorPoint(s.end, shapeMap);
-          updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-          changed = true;
-        }
-        return changed ? updated : s;
-      }
-      return s;
-    });
+    const newShapes = customShapes.filter(s => !selectedShapeIds.has(s.id));
 
     setShapes(newShapes);
     saveState(newShapes); // Add to history
@@ -204,18 +188,18 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
           const newShape = {
             id,
             type: 'image',
-            x,
-            y,
-            width: w,
-            height: h,
+            position: { x, y },
+            size: { width: w, height: h },
             rotation: 0,
-            opacity: 1,
             src: src,
-            strokeColor: 'transparent',
-            // Add other defaults to avoid crashes in generic utils
-            strokeWidth: 0,
-            strokeStyle: 'solid',
-            sloppiness: 'architect'
+            style: {
+              opacity: 1,
+              stroke: 'transparent',
+              // Add other defaults to avoid crashes in generic utils
+              strokeWidth: 0,
+              strokeStyle: 'solid',
+              sloppiness: 'architect'
+            }
           };
 
           setShapes(prev => [...prev, newShape]);
@@ -292,8 +276,6 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     canUndo,
     canRedo,
     handleUndo: undo,
-    handleLoad,
-    insertShapes, // Export this
     handleRedo: redo,
 
     // Actions
@@ -303,7 +285,7 @@ export function useCanvas({ initialShapes = [], socket, boardId } = {}) {
     handleAddImage,
     handleSaveAs,
     handleLoad,
-    insertShapes, // Export this
+    insertShapes,
 
     // Selection
     selectedElement,

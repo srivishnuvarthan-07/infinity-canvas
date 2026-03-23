@@ -58,20 +58,11 @@ exports.login = async (req, res, next) => {
 // @access  Private
 exports.getMe = async (req, res, next) => {
     try {
-        // console.log("getMe called for user:", req.user ? req.user._id : 'null');
-        const user = await User.findById(req.user.id);
-
-        if (!user) {
-            console.error("getMe: User not found in DB but passed auth middleware");
-            return res.status(404).json({ success: false, error: 'User not found' });
-        }
-
         res.status(200).json({
             success: true,
-            data: user
+            data: req.user
         });
     } catch (err) {
-        console.error("getMe Error:", err);
         next(err);
     }
 };
@@ -89,6 +80,29 @@ exports.logout = async (req, res, next) => {
         success: true,
         data: {}
     });
+};
+
+// @desc    Log user out from all devices
+// @route   POST /api/auth/logout-all
+// @access  Private
+exports.logoutAll = async (req, res, next) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.tokenVersion += 1;
+        await user.save();
+
+        res.cookie('token', 'none', {
+            expires: new Date(Date.now() + 10 * 1000),
+            httpOnly: true
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Logged out of all devices successfully'
+        });
+    } catch (err) {
+        next(err);
+    }
 };
 
 // Get token from model, create cookie and send response
@@ -113,10 +127,12 @@ const sendTokenResponse = (user, statusCode, res) => {
             success: true,
             token,
             user: {
-                _id: user._id, // Standardize as _id or id? Frontend expects whatever.
+                _id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                avatarColor: user.avatarColor,
+                defaultStorage: user.defaultStorage
             }
         });
 };

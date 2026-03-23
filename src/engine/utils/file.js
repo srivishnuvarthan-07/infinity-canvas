@@ -1,10 +1,15 @@
+import { createRootDocument } from '../schema';
+
 /**
  * Saves the given shapes to a JSON file.
  * @param {Array} shapes - The shapes to save.
  * @param {string} filename - The name of the file to download.
  */
 export function saveToFile(shapes, filename = 'infinity-canvas.json') {
-    const data = JSON.stringify(shapes, null, 2);
+    const doc = createRootDocument();
+    doc.elements = shapes;
+
+    const data = JSON.stringify(doc, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
@@ -27,13 +32,25 @@ export function loadFromFile(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                const shapes = JSON.parse(e.target.result);
-                if (!Array.isArray(shapes)) {
-                    reject(new Error("Invalid file format: Expected an array of shapes."));
+                const doc = JSON.parse(e.target.result);
+
+                // If it's an array, it's a V1 legacy file without a wrapper
+                if (Array.isArray(doc)) {
+                    reject(new Error("Unsupported document version: V1 boards are no longer supported."));
                     return;
                 }
-                // Basic validation could go here
-                resolve(shapes);
+
+                if (doc.type !== 'infinity-canvas' || doc.version !== 2) {
+                    reject(new Error(`Unsupported document version: Expected version 2.`));
+                    return;
+                }
+
+                if (!Array.isArray(doc.elements)) {
+                    reject(new Error("Invalid file format: Expected an elements array."));
+                    return;
+                }
+
+                resolve(doc.elements);
             } catch (err) {
                 reject(err);
             }

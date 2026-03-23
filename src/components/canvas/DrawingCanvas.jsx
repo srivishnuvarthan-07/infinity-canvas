@@ -12,11 +12,12 @@ import { CursorOverlay } from "./CursorOverlay";
 import { SelectionOverlay } from "./SelectionOverlay";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ShareModal } from "./ShareModal";
+import { ShareDialog } from "./ShareDialog";
 
 import { FloatingMenu } from "@/components/layout/FloatingMenu";
+import { AIPromptBar } from "@/components/canvas/AIPromptBar";
 import { useAuth } from "@/hooks/useAuth";
-import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
+// import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
 import { toast } from "sonner";
 
 
@@ -48,15 +49,15 @@ export function DrawingCanvas({
     onInviteMember,
     onRemoveMember
 }) {
-    console.log("DrawingCanvas Render. Shapes:", initialShapes?.length);
-
     const { user } = useAuth();
-    const isOwner = user && user._id === ownerId;
+    const actualIsOwner = isLocal || (user && user?._id === ownerId);
+    const isLoggedIn = !!user;
+    const canEdit = actualIsOwner || linkAccess === 'edit';
 
-    const workspaces = useWorkspaceStore(state => state.workspaces);
-    // Determine the workspace name (assume active workspace for now if board doesn't have strict relations loaded)
-    const activeWorkspace = workspaces.find(w => w._id === useWorkspaceStore.getState().activeWorkspaceId);
-    const workspaceName = activeWorkspace ? activeWorkspace.name : null;
+    // const activeWorkspaceId = useWorkspaceStore(state => state.activeWorkspaceId);
+    // const workspaces = useWorkspaceStore(state => state.workspaces);
+    // const activeWorkspace = workspaces.find(w => w._id === activeWorkspaceId);
+    // const workspaceName = activeWorkspace?.name ?? null;
 
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
@@ -101,7 +102,7 @@ export function DrawingCanvas({
         canvasHandlers,
         insertShapes,
         deleteSelected
-    } = useCanvas({ initialShapes, socket, boardId });
+    } = useCanvas({ initialShapes, socket, boardId, readonly: !canEdit });
 
     // Propagate state changes
     useEffect(() => {
@@ -129,8 +130,8 @@ export function DrawingCanvas({
         if (!onMouseMove || !containerRef.current) return;
 
         const rect = containerRef.current.getBoundingClientRect();
-        const x = (e.clientX - rect.left - viewport.x) / viewport.zoom;
-        const y = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+        const x = (e.clientX - rect.left - (viewport?.x || 0)) / (viewport?.zoom || 1);
+        const y = (e.clientY - rect.top - (viewport?.y || 0)) / (viewport?.zoom || 1);
 
         if (socket?.emit) {
             socket.emit('cursor-move', { cursor: { x, y } });
@@ -157,10 +158,19 @@ export function DrawingCanvas({
         if (!data) return;
 
         try {
-            const { type, itemId } = JSON.parse(data);
-            if (type === 'LIBRARY_ITEM' && itemId && libraryItems) {
-                const item = libraryItems[itemId];
-                if (item) {
+            const parsed = JSON.parse(data);
+            const { type, itemId } = parsed;
+            
+            // Prefer the sent 'item' object, fallback to lookup in libraryItems (original behavior)
+            let item = parsed.item;
+            if (!item && type === 'LIBRARY_ITEM' && itemId && libraryItems) {
+                // libraryItems might be an array or object depending on source
+                item = Array.isArray(libraryItems) 
+                    ? libraryItems.find(i => i.id === itemId)
+                    : libraryItems[itemId];
+            }
+
+            if (item) {
                     // Calculate Drop Position (Center of Item at Mouse)
                     const rect = containerRef.current.getBoundingClientRect();
                     const clientX = e.clientX - rect.left;
@@ -168,26 +178,73 @@ export function DrawingCanvas({
 
                     // Convert to Canvas Coordinates
                     // x_canvas = (x_screen - pan_x) / zoom
-                    const dropX = (clientX - viewport.x) / viewport.zoom;
-                    const dropY = (clientY - viewport.y) / viewport.zoom;
+                    const dropX = (clientX - (viewport?.x || 0)) / (viewport?.zoom || 1);
+                    const dropY = (clientY - (viewport?.y || 0)) / (viewport?.zoom || 1);
 
-                    // Clone and Offset Shapes
-                    const newShapes = item.shapes.map(s => {
+                    // 1. Map old IDs to new IDs
+                    const idMap = new Map();
+                    item.shapes.forEach(s => idMap.set(s.id, crypto.randomUUID()));
+
+                    // 2. Clone deeply, updating nested IDs and bindings
+                    const clonedShapes = item.shapes.map(s => {
                         return {
                             ...s,
-                            id: crypto.randomUUID(),
-                            // Position relative to drop point
-                            // Item shapes are normalized to center (0,0)
-                            // So just add drop position
-                            x: dropX + s.x,
-                            y: dropY + s.y,
-                            opacity: s.opacity ?? 1, // Ensure defaults
+                            id: idMap.get(s.id),
+                            children: s.children ? s.children.map(c => {
+                                // Excalidraw doesn't nest, but handles legacy cases where children might be IDs or objects
+                                return typeof c === 'object' ? { ...c, id: idMap.get(c.id) || c.id } : (idMap.get(c) || c);
+                            }) : undefined,
+                            bindings: s.bindings ? {
+                                start: s.bindings.start ? { ...s.bindings.start, elementId: idMap.get(s.bindings.start.elementId) || s.bindings.start.elementId } : null,
+                                end: s.bindings.end ? { ...s.bindings.end, elementId: idMap.get(s.bindings.end.elementId) || s.bindings.end.elementId } : null,
+                            } : undefined
                         };
                     });
 
-                    insertShapes(newShapes);
+                    // 3. Find root shapes
+                    const childSet = new Set();
+                    clonedShapes.forEach(s => {
+                        if (s.children && Array.isArray(s.children)) {
+                            s.children.forEach(c => {
+                                const cId = typeof c === 'object' ? c.id : c;
+                                childSet.add(cId);
+                            });
+                        }
+                    });
+                    const rootShapes = clonedShapes.filter(s => !childSet.has(s.id));
+
+                    let finalShapes = [];
+
+                    if (rootShapes.length > 1) {
+                        // Wrap all roots into one parent group at drop point.
+                        const groupId = crypto.randomUUID();
+                        finalShapes.push({
+                            id: groupId,
+                            type: 'group',
+                            position: { x: dropX, y: dropY },
+                            size: { width: item.width || 100, height: item.height || 100 },
+                            rotation: 0,
+                            scale: { x: 1, y: 1 },
+                            children: rootShapes, // InfinityCanvas requires FULL objects, not just IDs!
+                            locked: false,
+                            visible: true,
+                            style: { opacity: 1, stroke: 'transparent', strokeWidth: 0, strokeStyle: 'solid' },
+                            revision: { number: 1, timestamp: Date.now() }
+                        });
+                    } else {
+                        // If it's just a single root, no group wrapper is made.
+                        // We must translate it (and all its root stuff) to the drop point.
+                        rootShapes.forEach(rs => {
+                            rs.position = {
+                                x: dropX + (rs.position?.x || 0),
+                                y: dropY + (rs.position?.y || 0)
+                            };
+                            finalShapes.push(rs);
+                        });
+                    }
+
+                    insertShapes(finalShapes);
                 }
-            }
         } catch (err) {
             console.error('Drop failed:', err);
         }
@@ -291,8 +348,6 @@ export function DrawingCanvas({
         };
     }, [customShapes]);
 
-    // ...
-
     const handleDuplicate = () => {
         if (!selectedElement) return;
         const shapesToDuplicate = selectedElement.type === 'activeSelection' ? selectedElement.objects : [selectedElement];
@@ -300,8 +355,10 @@ export function DrawingCanvas({
         const newShapes = shapesToDuplicate.map(s => ({
             ...s,
             id: crypto.randomUUID(),
-            x: s.x + 20,
-            y: s.y + 20
+            position: {
+                x: (s.position?.x || 0) + 20,
+                y: (s.position?.y || 0) + 20
+            }
         }));
 
         insertShapes(newShapes);
@@ -398,50 +455,50 @@ export function DrawingCanvas({
                     </div>
                 </div>
 
-                {/* Share Button (Hidden for Local) */}
                 {!isLocal && (
-                    <div title={isOwner ? "Share & Collaborate" : "View Access Info"}>
+                    <div title={actualIsOwner ? "Share" : "Board Access"}>
                         <Button
-                            className={`h-9 px-4 shadow-sm rounded-full font-medium transition-all ${isOwner ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'} flex items-center gap-2`}
+                            className={`h-9 px-4 shadow-sm rounded-full font-medium transition-all ${actualIsOwner ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50'} flex items-center gap-2`}
                             onClick={() => setIsShareModalOpen(true)}
                         >
-                            {isLive && <div className={`w-2 h-2 rounded-full animate-pulse ${isOwner ? 'bg-white/40' : 'bg-green-500'}`}></div>}
-                            {isOwner ? "Share" : (isLive ? "Live Session" : "Share")}
+                            {isLive && <div className={`w-2 h-2 rounded-full animate-pulse ${actualIsOwner ? 'bg-white/40' : 'bg-green-500'}`}></div>}
+                            Share
                         </Button>
                     </div>
                 )}
             </div>
 
-            <ShareModal
+            <ShareDialog
                 isOpen={isShareModalOpen}
                 onClose={() => setIsShareModalOpen(false)}
-                boardId={boardId}
                 boardName={boardName || "Untitled"}
-                linkAccess={linkAccess}
-                visibility={visibility}
                 isLive={isLive}
                 onToggleLive={onToggleLive}
+                linkAccess={linkAccess}
                 onUpdateAccess={onUpdateAccess}
-                members={members}
-                onInviteMember={onInviteMember}
-                onRemoveMember={onRemoveMember}
-                ownerId={ownerId}
-                activeUsersCount={socket?.myIdentity ? Object.keys(socket?.remoteUsers || {}).length + 1 : 0}
-                workspaceName={workspaceName}
-                isOwner={isOwner}
+                activeUsers={
+                    socket?.myIdentity ? [socket.myIdentity, ...Object.values(socket.remoteUsers || {})] : []
+                }
+                isOwner={actualIsOwner}
+                isLoggedIn={isLoggedIn}
             />
 
             {/* BOTTOM CENTER: FLOATING TOOLBAR */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
-                <Toolbar
-                    activeTool={activeTool}
-                    onToolChange={setActiveTool}
-                    orientation="horizontal"
-                />
-            </div>
+            {canEdit && (
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+                    <Toolbar
+                        activeTool={activeTool}
+                        onToolChange={setActiveTool}
+                        orientation="horizontal"
+                    />
+                </div>
+            )}
+
+            {/* BOTTOM LEFT: AI PROMPT BAR */}
+            {canEdit && <AIPromptBar onInsertShapes={insertShapes} onAddToLibrary={onAddToLibrary} />}
 
             {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
-            {!disablePropertyPanel && selectedElement && (
+            {!disablePropertyPanel && canEdit && selectedElement && (
                 <div className="absolute top-20 right-4 z-20 w-72 pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide">
                     <Sidebar
                         selectedElement={selectedElement}
@@ -481,38 +538,32 @@ export function DrawingCanvas({
             {/* OVERLAYS */}
             <CursorOverlay
                 cursors={Object.values(socket?.remoteCursors || {})}
-                viewport={viewport}
+                viewport={viewport || { x: 0, y: 0, zoom: 1 }}
             />
             <SelectionOverlay
                 selections={Object.values(socket?.remoteSelections || {})}
-                shapes={customShapes}
-                viewport={viewport}
+                shapes={customShapes || []}
+                viewport={viewport || { x: 0, y: 0, zoom: 1 }}
             />
 
-            {editingShapeId && customShapes && (
-                <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
-                    {(() => {
-                        const shape = customShapes.find(s => s.id === editingShapeId);
-                        if (shape) {
-                            return (
-                                <div className="pointer-events-auto">
-                                    <div className="pointer-events-auto">
-                                        <TextEditorOverlay
-                                            key={shape.id}
-                                            shape={shape}
-                                            canvasRef={customCanvasRef}
-                                            updateShape={updateCustomShape}
-                                            onBlur={() => setEditingShapeId(null)}
-                                            viewport={viewport}
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        }
-                        return null;
-                    })()}
-                </div>
-            )}
+            {editingShapeId && customShapes && (() => {
+                const shape = customShapes.find(s => s.id === editingShapeId);
+                if (!shape) return null;
+                return (
+                    <div className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                        <div className="pointer-events-auto">
+                            <TextEditorOverlay
+                                key={shape.id}
+                                shape={shape}
+                                canvasRef={customCanvasRef}
+                                updateShape={updateCustomShape}
+                                onBlur={() => setEditingShapeId(null)}
+                                viewport={viewport}
+                            />
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ZOOM CONTROLS (Bottom Right) */}
             <div className="absolute bottom-4 right-4 z-20 pointer-events-auto">
@@ -525,34 +576,36 @@ export function DrawingCanvas({
             </div>
 
             {/* UNDO / REDO CONTROLS (Bottom Left) */}
-            <div className="absolute bottom-4 left-4 z-20 flex gap-2 pointer-events-auto">
-                <div className="bg-white/90 backdrop-blur-sm border border-neutral-200 shadow-sm rounded-lg flex items-center p-1 gap-1">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-neutral-100"
-                        onClick={handleUndo}
-                        disabled={!canUndo}
-                        title="Undo (Ctrl+Z)"
-                    >
-                        <Undo className="w-4 h-4 text-neutral-700" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-neutral-100"
-                        onClick={handleRedo}
-                        disabled={!canRedo}
-                        title="Redo (Ctrl+Y)"
-                    >
-                        <Redo className="w-4 h-4 text-neutral-700" />
-                    </Button>
+            {canEdit && (
+                <div className="absolute bottom-6 left-6 z-40 flex gap-2 pointer-events-auto">
+                    <div className="bg-white/95 backdrop-blur-md border border-neutral-200/60 shadow-lg rounded-xl flex items-center p-1.5 gap-1.5">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 hover:bg-neutral-100/80 rounded-lg transition-all active:scale-90"
+                            onClick={handleUndo}
+                            disabled={!canUndo}
+                            title="Undo (Ctrl+Z)"
+                        >
+                            <Undo className="w-5 h-5 text-neutral-700" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 hover:bg-neutral-100/80 rounded-lg transition-all active:scale-90"
+                            onClick={handleRedo}
+                            disabled={!canRedo}
+                            title="Redo (Ctrl+Y)"
+                        >
+                            <Redo className="w-5 h-5 text-neutral-700" />
+                        </Button>
+                    </div>
                 </div>
+            )}
 
-                {/* COMMAND HINT (Next to buttons) */}
-                <div className="flex items-center px-2 py-1 bg-white/50 backdrop-blur-sm rounded-md border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-10">
-                    ⌘K
-                </div>
+            {/* COMMAND HINT (Bottom left, right of undo/redo) */}
+            <div className="absolute bottom-6 left-32 z-40 pointer-events-auto flex items-center px-4 py-1 bg-white/70 backdrop-blur-md rounded-xl border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-11 shadow-sm">
+                ⌘K
             </div>
 
         </div>

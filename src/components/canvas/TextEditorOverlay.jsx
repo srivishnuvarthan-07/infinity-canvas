@@ -20,11 +20,11 @@ export function TextEditorOverlay({ shape, canvasRef, updateShape, onBlur, viewp
     const viewY = viewport ? viewport.y : 0;
 
     // Determine final screen coordinates
-    const screenX = (shape.x + layout.offsetX) * zoom + viewX;
-    const screenY = (shape.y + layout.offsetY) * zoom + viewY;
+    const screenX = (shape.position.x + layout.offsetX) * zoom + viewX;
+    const screenY = (shape.position.y + layout.offsetY) * zoom + viewY;
     const screenWidth = layout.width * zoom;
     const screenHeight = layout.height * zoom;
-    const screenFontSize = shape.fontSize * zoom;
+    const screenFontSize = shape.font.size * zoom;
 
     // Style
     const style = {
@@ -39,8 +39,8 @@ export function TextEditorOverlay({ shape, canvasRef, updateShape, onBlur, viewp
         textAlign: shape.textAlign || 'center',
 
         // Font
-        font: `${screenFontSize}px ${shape.fontFamily || 'sans-serif'}`,
-        color: shape.strokeColor,
+        font: `${screenFontSize}px ${shape.font.family}`,
+        color: shape.style.stroke,
         background: 'transparent',
         border: '1px dashed #3b82f6',
         outline: 'none',
@@ -73,8 +73,10 @@ export function TextEditorOverlay({ shape, canvasRef, updateShape, onBlur, viewp
 
         updateShape(shape.id, {
             text: value,
-            width: finalLayout.width,
-            height: finalLayout.height
+            size: {
+                width: finalLayout.width,
+                height: finalLayout.height
+            }
         });
 
         onBlur();
@@ -82,12 +84,8 @@ export function TextEditorOverlay({ shape, canvasRef, updateShape, onBlur, viewp
 
     const handleKeyDown = (e) => {
         if (e.key === 'Escape') {
-            onBlur(); // Cancel or Commit? Standard is Commit on blur.
+            onBlur();
         }
-        // Shift+Enter for new line? Default behavior works.
-        // Enter? Depends if we want single line default.
-        // Excalidraw uses Enter for new line.
-        // Ctrl+Enter to stop?
         if (e.key === 'Enter' && e.ctrlKey) {
             handleBlur();
         }

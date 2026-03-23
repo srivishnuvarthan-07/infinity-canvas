@@ -125,11 +125,16 @@ class CloudProvider extends StorageProvider {
         try {
             const response = await api.get(`/boards/${id}/data`);
             const data = response.data.data;
+            const version = data.data?.version ?? data.version ?? 1;
+            if (version !== 1 && version !== 2) {
+                throw new Error("Unsupported document version: " + version);
+            }
+
             return {
                 id: id,
                 // API returns: { success, data: { _id, board, data: { shapes } } }
                 shapes: data.data?.shapes ?? data.shapes ?? [],
-                version: data.version ?? 1
+                version: 2
             };
 
         } catch (err) {
@@ -143,7 +148,7 @@ class CloudProvider extends StorageProvider {
             // data is { shapes, version }
             // Backend expects { data: { shapes: ... } }
             await api.put(`/boards/${id}/data`, {
-                data: { shapes: data.shapes }
+                data: { shapes: data.shapes, version: 2 }
             });
         } catch (err) {
             console.error("CloudProvider: saveBoardData failed", err);

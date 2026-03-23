@@ -37,11 +37,10 @@ const authService = {
         }
     },
 
-    // Update Profile - Not implemented in backend yet
+    // Update Profile
     updateProfile: async (updates) => {
-        // throw new Error("Not implemented in backend yet");
-        // Placeholder for future implementation
-        return { user: { ...updates } };
+        const response = await api.put('/profile/update', updates);
+        return response.data;
     }
 };
 

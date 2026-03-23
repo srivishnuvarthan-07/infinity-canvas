@@ -1,31 +1,6 @@
 /**
- * @typedef {'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'pencil' | 'group' | 'connector'} ShapeType
- * @typedef {'solid' | 'dashed' | 'dotted'} StrokeStyle
- * @typedef {'artist' | 'architect' | 'cartoonist'} SloppinessType
- */
-
-/**
- * Base properties shared by all shapes
- * @typedef {Object} BaseShapeSchema
- * @property {string} id - Unique identifier (UUID)
- * @property {ShapeType} type - The type of the shape
- * @property {number} x - x coordinate (center)
- * @property {number} y - y coordinate (center)
- * @property {number} rotation - Rotation in degrees
- * @property {number} opacity - Opacity (0-1)
- * @property {string} strokeColor - Hex color string
- * @property {string} [fillColor] - Hex color string or "transparent"
- * @property {string} [fillStyle] - Fill style ('hachure', 'solid', etc - specific to RoughJS)
- * @property {number} strokeWidth - Width of the stroke
- * @property {StrokeStyle} strokeStyle - Style of the stroke
- * @property {SloppinessType} [sloppiness] - Rendering style
- * @property {number} [width] - Width of the bounding box
- * @property {number} [height] - Height of the bounding box
- * @property {Array<{x: number, y: number}>} [points] - Points for polyline/pencil (Relative to x,y)
- * @property {string} [text] - Text content for text objects
- * @property {number} [fontSize] - Font size for text objects
- * @property {string} [textAlign] - Text alignment ('left', 'center', 'right')
- * @property {Array<BaseShapeSchema>} [children] - For Groups
+ * @typedef {'rectangle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'pencil' | 'group' | 'image'} ShapeType
+ * @typedef {'vector' | 'rough'} RenderMode
  */
 
 export const SHAPE_TYPES = {
@@ -38,7 +13,11 @@ export const SHAPE_TYPES = {
     PENCIL: 'pencil',
     GROUP: 'group',
     IMAGE: 'image',
-    CONNECTOR: 'connector',
+    CYLINDER: 'cylinder',
+    PARALLELOGRAM: 'parallelogram',
+    HEXAGON: 'hexagon',
+    DOCUMENT: 'document',
+    PATH: 'path',
 };
 
 /**
@@ -47,18 +26,131 @@ export const SHAPE_TYPES = {
  * @param {ShapeType} type 
  * @param {number} x 
  * @param {number} y 
- * @returns {BaseShapeSchema}
+ * @returns {Object}
  */
 export const createBaseSchema = (id, type, x, y) => ({
     id,
     type,
-    x,
-    y,
+
+    position: { x, y },
     rotation: 0,
-    opacity: 1,
-    strokeColor: '#000000',
-    fillColor: 'transparent',
-    strokeWidth: 2,
-    strokeStyle: 'solid',
-    sloppiness: 'architect',
+    scale: { x: 1, y: 1 },
+
+    zIndex: 0,
+
+    style: {
+        stroke: '#000000',
+        fill: 'transparent',
+        strokeWidth: 2,
+        opacity: 1,
+
+        renderMode: 'vector',
+        roughness: 0,
+        seed: Math.floor(Math.random() * 1000000),
+        fillStyle: 'solid'
+    },
+
+    locked: false,
+    visible: true,
+
+    revision: {
+        number: 1,
+        timestamp: Date.now()
+    }
+});
+
+/**
+ * Creates a rectangle schema
+ */
+export const createRectangle = (id, x, y, width, height) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.RECTANGLE, x, y),
+    size: { width, height },
+    cornerRadius: 0
+});
+
+/**
+ * Creates an ellipse schema
+ */
+export const createEllipse = (id, x, y, width, height) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.ELLIPSE, x, y),
+    size: { width, height }
+});
+
+/**
+ * Creates a diamond schema
+ */
+export const createDiamond = (id, x, y, width, height) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.DIAMOND, x, y),
+    size: { width, height }
+});
+
+/**
+ * Creates a text schema
+ */
+export const createText = (id, x, y, textStr, fontSize = 20) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.TEXT, x, y),
+    text: textStr,
+    font: {
+        family: 'Arial',
+        size: fontSize,
+        weight: 'normal',
+        align: 'center'
+    }
+});
+
+/**
+ * Creates an arrow schema
+ */
+export const createArrow = (id, startPoint, endPoint) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.ARROW, startPoint.x, startPoint.y),
+    points: [{ x: 0, y: 0 }, { x: endPoint.x - startPoint.x, y: endPoint.y - startPoint.y }],
+    arrow: {
+        startHead: "none",
+        endHead: "triangle"
+    },
+    bindings: {
+        start: null, // { elementId: string, anchor: string }
+        end: null
+    }
+});
+
+/**
+ * Creates a line schema
+ */
+export const createLine = (id, startPoint, endPoint) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.LINE, startPoint.x, startPoint.y),
+    points: [{ x: 0, y: 0 }, { x: endPoint.x - startPoint.x, y: endPoint.y - startPoint.y }],
+    bindings: {
+        start: null,
+        end: null
+    }
+});
+
+/**
+ * Creates a pencil schema
+ */
+export const createPencil = (id, startPoint) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.PENCIL, startPoint.x, startPoint.y),
+    points: [{ x: 0, y: 0 }]
+});
+
+/**
+ * Root Document Schema Factory
+ */
+export const createRootDocument = () => ({
+    type: "infinity-canvas",
+    version: 2,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+
+    viewport: {
+        zoom: 1,
+        scrollX: 0,
+        scrollY: 0
+    },
+
+    elements: [],
+    groups: [],
+    assets: [],
+    meta: {}
 });

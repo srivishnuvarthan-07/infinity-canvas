@@ -1,9 +1,4 @@
 const { z } = require('zod');
-
-/**
- * Middleware to validate request body against a Zod schema
- * @param {z.ZodSchema} schema 
- */
 const validate = (schema) => (req, res, next) => {
     try {
         schema.parse(req.body);

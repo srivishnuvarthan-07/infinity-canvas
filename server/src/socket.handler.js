@@ -1,4 +1,3 @@
-const Action = require('./models/Action');
 const Board = require('./models/Board');
 
 const sessionData = new Map();
@@ -9,7 +8,6 @@ let ioInstance;
 function setupSocket(io) {
     ioInstance = io;
     io.on('connection', (socket) => {
-        console.log(`User connected to socket: ${socket.id}`);
 
         // Global Tracking for Notifications
         socket.on('global-connect', ({ user }) => {
@@ -61,8 +59,6 @@ function setupSocket(io) {
 
                 sessionData.set(socket.id, { boardId, identity, canEdit });
                 socket.join(boardId);
-
-                console.log(`User ${identity.displayName} joined board ${boardId} (canEdit: ${canEdit})`);
 
                 // Broadcast to others
                 socket.to(boardId).emit('user-joined', identity);
@@ -133,7 +129,6 @@ function setupSocket(io) {
         });
 
         socket.on('disconnect', () => {
-            console.log(`Socket disconnected: ${socket.id}`);
             const session = sessionData.get(socket.id);
             if (session) {
                 socket.to(session.boardId).emit('user-left', { userId: session.identity.userId });

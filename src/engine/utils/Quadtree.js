@@ -1,3 +1,5 @@
+import { getBounds } from "../geometry/geometry";
+
 /**
  * Quadtree Implementation for Spatial Indexing
  */
@@ -57,9 +59,13 @@ export class Quadtree {
     }
 
     insert(shape) {
-        // Shape needs { x, y, width, height }
-        // We assume shape position is center-based
-        if (!this.boundary.intersects(new Rectangle(shape.x, shape.y, shape.width, shape.height))) {
+        const bounds = getBounds(shape);
+        const x = bounds.minX + bounds.width / 2;
+        const y = bounds.minY + bounds.height / 2;
+        const w = bounds.width;
+        const h = bounds.height;
+
+        if (!this.boundary.intersects(new Rectangle(x, y, w, h))) {
             return false;
         }
 
@@ -77,10 +83,10 @@ export class Quadtree {
         if (this.southwest.insert(shape)) return true;
         if (this.southeast.insert(shape)) return true;
 
-        // Should not happen?
-        // Actually for overlapping shapes it might trickle down.
-        // For simplicity, we just push to children.
-        return false;
+        // Shape spans multiple quadrant boundaries (e.g. elbow arrows with large bounding boxes).
+        // Store it in the current node rather than silently dropping it.
+        this.shapes.push(shape);
+        return true;
     }
 
     query(range, found) {
@@ -91,8 +97,13 @@ export class Quadtree {
         }
 
         for (let shape of this.shapes) {
-            // Check intersection (AABB)
-            const shapeRect = new Rectangle(shape.x, shape.y, shape.width, shape.height);
+            const bounds = getBounds(shape);
+            const x = bounds.minX + bounds.width / 2;
+            const y = bounds.minY + bounds.height / 2;
+            const w = bounds.width;
+            const h = bounds.height;
+
+            const shapeRect = new Rectangle(x, y, w, h);
             if (range.intersects(shapeRect)) {
                 found.push(shape);
             }

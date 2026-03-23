@@ -1,134 +1,100 @@
-import { LayoutGrid, Home, Users, Shapes, Settings, Box, HardDrive, Share2, Plus } from "lucide-react";
+import { LayoutGrid, Home, Shapes, Settings, Compass, Plus, ChevronDown, User, Keyboard, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useWorkspaceStore } from "@/hooks/useWorkspaceStore";
-import { useEffect } from "react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
+import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
 
 export function DashboardSidebar() {
-    const { user } = useAuth();
-    const { workspaces, activeWorkspaceId, fetchWorkspaces, setActiveWorkspaceId, createWorkspace } = useWorkspaceStore();
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+    const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
 
-    useEffect(() => {
-        if (user) {
-            fetchWorkspaces();
-        }
-    }, [user, fetchWorkspaces]);
+    const handleLogout = async () => {
+        await logout();
+        navigate('/dashboard');
+    };
 
-    // Guest Links
     const guestLinks = [
-        { id: 'shared', label: 'Shared Boards', icon: Share2, to: '/dashboard/shared' },
-        { id: 'boards', label: 'Local Boards', icon: HardDrive, to: '/dashboard/boards' },
+        { id: 'boards', label: 'Local Boards', icon: LayoutGrid, to: '/dashboard/boards' },
     ];
 
-    // Logged-in Links
     const authLinks = [
-        { id: 'overview', label: 'Overview', icon: Home, to: '/dashboard/overview' },
-        { id: 'boards', label: 'All Boards', icon: LayoutGrid, to: '/dashboard/boards' },
-        { id: 'team', label: 'Team', icon: Users, to: '/dashboard/team' },
+        { id: 'overview', label: 'Overview', icon: LayoutGrid, to: '/dashboard/overview' },
+        { id: 'boards', label: 'All boards', icon: Home, to: '/dashboard/boards' },
         { id: 'library', label: 'Library', icon: Shapes, to: '/dashboard/library' },
+        { id: 'explore', label: 'Explore', icon: Compass, to: '/dashboard/explore' },
     ];
 
     const navItems = user ? authLinks : guestLinks;
 
     return (
-        <aside className="w-64 border-r border-black/5 bg-[#F6F5F3]/50 backdrop-blur-xl h-screen flex flex-col sticky top-0 z-20 text-neutral-600">
-            <div className="p-6 flex items-center gap-3">
-                <div className="h-9 w-9 bg-neutral-900 rounded-xl flex items-center justify-center text-white shadow-md shadow-black/10">
-                    <Box className="h-5 w-5" />
+        <aside className="w-[240px] flex flex-col bg-[#FAFAFA] border-r border-black/5 py-4 flex-shrink-0 z-20">
+            {/* Logo Row */}
+            <div className="px-4 pb-4 border-b border-black/5 mb-3">
+                <div className="flex items-center gap-2.5 p-1 -m-1 rounded-xl">
+                    <div className="h-7 w-7 bg-neutral-900 rounded-[7px] flex items-center justify-center text-white shrink-0">
+                        <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </div>
+                    <span className="font-medium text-[14px] text-neutral-900 tracking-tight">Infinity</span>
                 </div>
-                <span className="font-semibold text-lg text-neutral-900 tracking-tight">Studio</span>
             </div>
 
-            <nav className="flex-1 px-4 py-2 space-y-1">
+            {/* Navigation */}
+            <nav className="px-2.5 flex flex-col gap-1">
                 {navItems.map((item) => (
                     <NavLink
                         key={item.id}
                         to={item.to}
                         className={({ isActive }) => cn(
-                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
+                            "flex items-center gap-[9px] px-[10px] py-[7px] border border-transparent rounded-lg text-[13px] transition-colors",
                             isActive
-                                ? 'bg-white text-neutral-900 shadow-sm border border-black/5'
-                                : 'hover:bg-white/50 text-neutral-500 hover:text-neutral-800'
+                                ? 'bg-white text-neutral-900 font-medium shadow-sm border-black/5'
+                                : 'text-neutral-500 hover:bg-white hover:text-neutral-900 border-transparent hover:border-black/5'
                         )}
                     >
-                        {({ isActive }) => (
-                            <>
-                                <item.icon className={cn("h-4 w-4 transition-colors", isActive ? "text-neutral-900" : "text-neutral-400 group-hover:text-neutral-600")} />
-                                {item.label}
-                            </>
-                        )}
+                        <item.icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                        {item.label}
                     </NavLink>
                 ))}
             </nav>
 
-            {/* Workspaces Section (Logged in only) */}
+            {/* Bottom Section */}
             {user && (
-                <div className="px-4 py-2 mt-4">
-                    <div className="flex items-center justify-between px-2 mb-2">
-                        <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-widest">Workspaces</span>
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-5 w-5 hover:bg-black/5" 
-                            title="Create Workspace"
-                            onClick={() => {
-                                const name = prompt("Enter Workspace Name:");
-                                if (name) createWorkspace(name);
-                            }}
-                        >
-                            <Plus className="h-3 w-3 text-neutral-500" />
-                        </Button>
-                    </div>
-                    <div className="space-y-1">
-                        {workspaces.map(ws => (
-                            <Button
-                                key={ws._id}
-                                variant={activeWorkspaceId === ws._id ? "secondary" : "ghost"}
-                                onClick={() => setActiveWorkspaceId(ws._id)}
-                                className={cn(
-                                    "w-full justify-start gap-3 px-3 font-medium rounded-xl",
-                                    activeWorkspaceId === ws._id 
-                                        ? "bg-white border border-black/5 shadow-sm text-neutral-800"
-                                        : "hover:bg-black/5 text-neutral-500"
-                                )}
-                            >
-                                <div className={cn(
-                                    "w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold",
-                                    activeWorkspaceId === ws._id
-                                        ? "bg-neutral-800 text-white"
-                                        : "bg-neutral-200 text-neutral-500"
-                                )}>
-                                    {ws.name ? ws.name.charAt(0).toUpperCase() : 'W'}
-                                </div>
-                                <span className="truncate">{ws.name}</span>
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {user && (
-                <div className="p-4 mt-auto">
+                <div className="mt-auto px-2.5 pt-3 border-t border-black/5">
                     <NavLink
                         to="/dashboard/settings"
                         className={({ isActive }) => cn(
-                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
+                            "flex items-center gap-[9px] px-[10px] py-[7px] border border-transparent rounded-lg text-[13px] transition-colors mb-2",
                             isActive
-                                ? 'bg-white text-neutral-900 shadow-sm border border-black/5'
-                                : 'hover:bg-white/50 text-neutral-500 hover:text-neutral-800'
+                                ? 'bg-white text-neutral-900 font-medium shadow-sm border-black/5'
+                                : 'text-neutral-500 hover:bg-white hover:text-neutral-900 hover:border-black/5'
                         )}
                     >
-                        {({ isActive }) => (
-                            <>
-                                <Settings className={cn("h-4 w-4 transition-colors", isActive ? "text-neutral-900" : "text-neutral-400 group-hover:text-neutral-600")} />
-                                Settings
-                            </>
-                        )}
+                        <Settings className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                        Settings
                     </NavLink>
+                    
+                    <div className="flex items-center gap-[9px] p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-black/5 transition-colors cursor-pointer" onClick={() => navigate('/profile')}>
+                        <div className="h-[26px] w-[26px] bg-[#7F77DD] rounded-full flex items-center justify-center text-white text-[10px] font-medium shrink-0">
+                            {user?.name?.[0]?.toUpperCase() || 'U'}
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[12px] font-medium text-neutral-900 leading-tight">{user?.name}</span>
+                            <span className="text-[10px] text-neutral-500 leading-tight">Pro plan</span>
+                        </div>
+                    </div>
                 </div>
             )}
+            
+            <KeyboardShortcutsModal open={shortcutsModalOpen} onOpenChange={setShortcutsModalOpen} />
         </aside>
     );
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import { getBounds } from "../../engine/geometry/geometry";
 
 // Calculate bounding box that encapsulates multiple shapes
 function getBoundingRect(shapes) {
@@ -7,30 +8,14 @@ function getBoundingRect(shapes) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
     shapes.forEach(shape => {
-        let sx = shape.x;
-        let sy = shape.y;
+        const bounds = getBounds(shape);
+        // Add padding for potential rotation (simple visual padding)
+        const pad = Math.max(bounds.width, bounds.height) * 0.25;
 
-        if (shape.type === 'line' || shape.type === 'arrow') {
-            if (shape.points) {
-                shape.points.forEach(p => {
-                    minX = Math.min(minX, sx + p.x);
-                    minY = Math.min(minY, sy + p.y);
-                    maxX = Math.max(maxX, sx + p.x);
-                    maxY = Math.max(maxY, sy + p.y);
-                });
-            }
-        } else {
-            // Shapes are centered at x,y
-            const hw = (shape.width || 0) / 2;
-            const hh = (shape.height || 0) / 2;
-            // Add padding for potential rotation
-            const pad = Math.max(hw, hh) * 0.5;
-
-            minX = Math.min(minX, sx - hw - pad);
-            minY = Math.min(minY, sy - hh - pad);
-            maxX = Math.max(maxX, sx + hw + pad);
-            maxY = Math.max(maxY, sy + hh + pad);
-        }
+        minX = Math.min(minX, bounds.minX - pad);
+        minY = Math.min(minY, bounds.minY - pad);
+        maxX = Math.max(maxX, bounds.maxX + pad);
+        maxY = Math.max(maxY, bounds.maxY + pad);
     });
 
     if (minX === Infinity) return null;
@@ -57,10 +42,10 @@ export function SelectionOverlay({ selections = [], shapes = [], viewport = { x:
                 if (!rect) return null;
 
                 // Transform to screen coordinates
-                const screenX = rect.x * viewport.zoom + viewport.x;
-                const screenY = rect.y * viewport.zoom + viewport.y;
-                const screenW = rect.width * viewport.zoom;
-                const screenH = rect.height * viewport.zoom;
+                const screenX = rect.x * (viewport?.zoom || 1) + (viewport?.x || 0);
+                const screenY = rect.y * (viewport?.zoom || 1) + (viewport?.y || 0);
+                const screenW = rect.width * (viewport?.zoom || 1);
+                const screenH = rect.height * (viewport?.zoom || 1);
 
                 const PADDING = 4; // Padding around the shape
 

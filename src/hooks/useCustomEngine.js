@@ -15,7 +15,8 @@ export function useCustomEngine({
     strokeWidth,
     strokeStyle,
     sloppiness,
-    boardId
+    boardId,
+    readonly = false
 } = {}) {
     // 0. Refs & Lifted State
     const canvasRef = useRef(null);
@@ -44,8 +45,10 @@ export function useCustomEngine({
         sendToBack,
         bringForward,
         sendBackward,
-        emitUpdate
-    } = useEngineState(initialShapes, socket);
+        emitUpdate,
+        resetHistory,
+        clearCanvas
+    } = useEngineState(initialShapes, socket, boardId);
 
     // 2. Viewport Management (Zoom, Pan, Coordinates)
     const {
@@ -80,6 +83,8 @@ export function useCustomEngine({
         setViewport,
         toWorld,
         saveState,
+        undo,
+        redo,
 
         // Lifted State
         selectionBox,
@@ -92,7 +97,8 @@ export function useCustomEngine({
         strokeWidth,
         strokeStyle,
         emitUpdate,
-        boardId
+        boardId,
+        readonly
     });
 
     // 3. Renderer (Canvas Lifecycle)
@@ -140,9 +146,8 @@ export function useCustomEngine({
         undo,
         redo,
         canUndo,
-        canUndo,
         canRedo,
-        saveState, // Add this export
+        saveState,
 
         viewport,
         setViewport,
@@ -169,14 +174,9 @@ export function useCustomEngine({
         setShapes,
         selectedShapeIds,
         setSelectedShapeIds,
-        clearCanvas: () => {
-            setShapes([]);
-            setHistory([[]]);
-            // clear others?
-        },
+        clearCanvas,
         setCanvasState: (newShapes) => {
-            setShapes(newShapes);
-            setHistory([newShapes]); // Reset history to this state
+            resetHistory(newShapes);
         },
 
         groupShapes,

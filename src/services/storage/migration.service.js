@@ -2,19 +2,11 @@ import localProvider from './local.provider';
 import cloudProvider from './cloud.provider';
 
 class MigrationService {
-
-    // Check if there are any local boards
-    async hasLocalBoards() {
-        const boards = await localProvider.getBoards();
-        return boards.length > 0;
-    }
-
     // Get count of local boards
     async getLocalBoardCount() {
         const boards = await localProvider.getBoards();
         return boards.length;
     }
-
     // Migrate a single board from Local to Cloud
     async migrateBoard(localId) {
         try {
@@ -40,28 +32,6 @@ class MigrationService {
             throw err;
         }
     }
-
-    // Migrate all local boards
-    async migrateAll(onProgress) {
-        const boards = await localProvider.getBoards();
-        const results = [];
-        let completed = 0;
-
-        for (const board of boards) {
-            try {
-                const cloudBoard = await this.migrateBoard(board.id);
-                results.push(cloudBoard);
-                completed++;
-                if (onProgress) onProgress(completed, boards.length);
-            } catch (err) {
-                console.error(`Failed to migrate ${board.name}`, err);
-                // Continue with others? or Stop?
-                // For now, continue
-            }
-        }
-        return results;
-    }
-
     // Delete all local boards (if user declines migration)
     async clearLocalBoards() {
         const boards = await localProvider.getBoards();

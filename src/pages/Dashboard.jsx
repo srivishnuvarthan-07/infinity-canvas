@@ -2,6 +2,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useBoardStore } from '@/hooks/useBoardStore';
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar';
+import GuestDashboardView from '@/components/dashboard/views/GuestDashboardView';
 import { Loader2 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -10,9 +11,8 @@ export default function Dashboard() {
     const location = useLocation();
 
     // Redirection Logic
-    if (location.pathname === '/dashboard' || location.pathname === '/dashboard/') {
-        // If guest, maybe go to boards. If user, go to overview.
-        return <Navigate to={user ? "/dashboard/overview" : "/dashboard/boards"} replace />;
+    if (user && (location.pathname === '/dashboard' || location.pathname === '/dashboard/')) {
+        return <Navigate to="/dashboard/overview" replace />;
     }
 
     if (!isLoaded) {
@@ -21,6 +21,11 @@ export default function Dashboard() {
                 <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
             </div>
         );
+    }
+
+    // Completely replace layout for guests
+    if (!user) {
+        return <GuestDashboardView />;
     }
 
     return (

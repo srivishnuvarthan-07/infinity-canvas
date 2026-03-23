@@ -1,238 +1,255 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { SHAPE_TYPES } from '@/engine/schema';
 import { getTextLayout } from '@/engine/utils/textUtils';
-import { resolveConnectorPoint } from '@/engine/physics/hitTest';
+import { diffShapes, applyUndo, applyRedo, updateShapes } from '@/engine/core/stateManager';
+import {
+    groupShapes as groupShapesFn,
+    ungroupShapes as ungroupShapesFn,
+    bringToFront as bringToFrontFn,
+    sendToBack as sendToBackFn,
+    bringForward as bringForwardFn,
+    sendBackward as sendBackwardFn
+} from '@/engine/core/actionManager';
 
-export function useEngineState(initialShapes = [], socket = null) {
-    // Canvas State
-    const [shapes, setShapes] = useState(initialShapes);
+const MAX_HISTORY = 50;
+
+export function useEngineState(initialShapes = [], socket = null, boardId = null) {
+    const [shapes, _setShapes] = useState(initialShapes);
+    const shapesRef = useRef(shapes);
+    
+    const setShapes = useCallback((val) => {
+        _setShapes(prev => {
+            const next = typeof val === 'function' ? val(prev) : val;
+            shapesRef.current = next;
+            return next;
+        });
+    }, []);
+
     const [selectedShapeIds, setSelectedShapeIds] = useState(new Set());
     const [hoveredShapeId, setHoveredShapeId] = useState(null);
     const [editingShapeId, setEditingShapeId] = useState(null);
 
-    // History State
-    const [history, setHistory] = useState([]); // Array of Command[] (Batch)
-    const [historyIndex, setHistoryIndex] = useState(-1);
+    const [history, _setHistory] = useState([]);
+    const historyRef = useRef([]);
 
-    // Mutable access to current shapes for diffing
-    const shapesRef = useRef(shapes);
-    useEffect(() => { shapesRef.current = shapes; }, [shapes]);
+    const setHistory = useCallback((val) => {
+        _setHistory(prev => {
+            const next = typeof val === 'function' ? val(prev) : val;
+            historyRef.current = next;
+            return next;
+        });
+    }, []);
+    const [historyIndex, _setHistoryIndex] = useState(-1);
+    const historyIndexRef = useRef(-1);
 
-    // Live Emit for Dragging/Drawing (Throttled)
-    const emitUpdate = useCallback((shapeToUpdate) => {
-        if (!socket || !shapeToUpdate) return;
+    const setHistoryIndex = useCallback((val) => {
+        _setHistoryIndex(prev => {
+            const next = typeof val === 'function' ? val(prev) : val;
+            historyIndexRef.current = next;
+            return next;
+        });
+    }, []);
+
+    const lastSavedShapesRef = useRef(initialShapes);
+    // useEffect(() => { shapesRef.current = shapes; }, [shapes]); // This is now handled by the custom setShapes
+
+    // Sync shapes with initialShapes if they change (e.g. after async fetch)
+    useEffect(() => {
+        if (initialShapes && initialShapes.length > 0 && shapes.length === 0) {
+            setShapes(initialShapes);
+            lastSavedShapesRef.current = initialShapes;
+        }
+    }, [initialShapes]);
+
+    // Live emit for dragging/drawing (low-latency, no history)
+    const emitUpdate = useCallback((shape) => {
+        if (!socket || !shape || !boardId) return;
         socket.emit('board-action', {
-            action: {
-                id: crypto.randomUUID(),
-                type: 'UPDATE', // Overwrite shape
-                payload: shapeToUpdate,
-                timestamp: new Date()
-            }
+            boardId,
+            action: { id: crypto.randomUUID(), type: 'UPDATE', payload: shape, timestamp: new Date() }
         });
-    }, [socket]);
+    }, [socket, boardId]);
 
-    // History Actions
-    // Command Structure: { type: 'ADD'|'REMOVE'|'UPDATE', id: string, prev: Shape, next: Shape }
+    // Commit current shapes to history and emit diffs to socket
+    const saveState = useCallback((nextShapes) => {
+        const targetShapes = nextShapes || shapesRef.current;
+        const commands = diffShapes(lastSavedShapesRef.current, targetShapes);
+        if (commands.length === 0) return;
 
-    const saveState = useCallback((newShapes) => {
-        const prevShapes = shapesRef.current;
-        const nextShapes = newShapes;
-
-        // Calculate Diff
-        const prevMap = new Map(prevShapes.map(s => [s.id, s]));
-        const nextMap = new Map(nextShapes.map(s => [s.id, s]));
-
-        const commands = [];
-
-        // 1. Check for Updates and Adds
-        nextShapes.forEach(next => {
-            const prev = prevMap.get(next.id);
-            if (!prev) {
-                commands.push({ type: 'ADD', id: next.id, next });
-            } else if (JSON.stringify(prev) !== JSON.stringify(next)) {
-                commands.push({ type: 'UPDATE', id: next.id, prev, next });
-            }
-        });
-
-        // 2. Check for Removes
-        prevShapes.forEach(prev => {
-            if (!nextMap.has(prev.id)) {
-                commands.push({ type: 'REMOVE', id: prev.id, prev });
-            }
-        });
-
-        if (commands.length === 0) return; // No changes
+        lastSavedShapesRef.current = targetShapes;
 
         setHistory(prev => {
-            const newHistory = prev.slice(0, historyIndex + 1);
-            newHistory.push(commands);
-            if (newHistory.length > 50) newHistory.shift();
-            return newHistory;
+            const currentIdx = historyIndexRef.current;
+            const trimmed = prev.slice(0, currentIdx + 1);
+            trimmed.push(commands);
+            if (trimmed.length > MAX_HISTORY) trimmed.shift();
+            return trimmed;
         });
 
-        setHistoryIndex(prev => {
-            const nextIndex = prev + 1;
-            return prev >= 49 ? 49 : nextIndex;
-        });
+        setHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
 
-        // EMIT ACTIONS TO SOCKET
-        if (socket) {
-            console.log("EMITTING ACTIONS TO SOCKET", commands);
+        // Sync to others
+        if (socket && boardId) {
             commands.forEach(cmd => {
                 socket.emit('board-action', {
+                    boardId,
                     action: {
                         id: crypto.randomUUID(),
-                        type: cmd.type, // 'ADD', 'UPDATE', 'REMOVE'
+                        type: cmd.type,
                         payload: cmd.type === 'REMOVE' ? { id: cmd.id } : cmd.next,
                         timestamp: new Date()
                     }
                 });
             });
         }
+    }, [socket, boardId]);
 
-    }, [historyIndex, socket]);
-
-    // Handle incoming Remote Actions
+    // Handle incoming remote actions
     useEffect(() => {
         if (!socket) return;
-
         const unsubscribe = socket.on('remote-action', (action) => {
-            console.log("RECEIVED REMOTE ACTION", action);
             setShapes(current => {
                 const nextMap = new Map(current.map(s => [s.id, s]));
-
                 if (action.type === 'ADD' || action.type === 'UPDATE') {
                     nextMap.set(action.payload.id, action.payload);
                 } else if (action.type === 'REMOVE' || action.type === 'DELETE') {
-                    const deletedId = action.payload.id;
-                    nextMap.delete(deletedId);
-
-                    const shapeMap = {};
-                    current.forEach(s => shapeMap[s.id] = s);
-
-                    nextMap.forEach((s, key) => {
-                        if (s.type === SHAPE_TYPES.CONNECTOR) {
-                            let updated = { ...s };
-                            let changed = false;
-                            if (s.start && s.start.shapeId === deletedId) {
-                                const pos = resolveConnectorPoint(s.start, shapeMap);
-                                updated.start = { ...s.start, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                changed = true;
-                            }
-                            if (s.end && s.end.shapeId === deletedId) {
-                                const pos = resolveConnectorPoint(s.end, shapeMap);
-                                updated.end = { ...s.end, shapeId: null, anchor: null, x: pos.x, y: pos.y };
-                                changed = true;
-                            }
-                            if (changed) nextMap.set(key, updated);
-                        }
-                    });
+                    nextMap.delete(action.payload.id);
                 }
-
                 return Array.from(nextMap.values());
             });
         });
-
         return unsubscribe;
     }, [socket]);
 
+    // ── History ──────────────────────────────────────────────────────────────
+
     const undo = useCallback(() => {
-        if (historyIndex < 0) return;
-
-        const commands = history[historyIndex];
+        const hIdx = historyIndexRef.current;
+        if (hIdx < 0) return;
+        
+        const currentHistory = historyRef.current;
+        const commands = currentHistory[hIdx];
+        
         setHistoryIndex(prev => prev - 1);
-
+        
         setShapes(current => {
-            const next = [...current];
-            const nextMap = new Map(next.map(s => [s.id, s]));
-
-            // Apply Inverse Actions (Backwards)
-            for (let i = commands.length - 1; i >= 0; i--) {
-                const cmd = commands[i];
-                if (cmd.type === 'ADD') {
-                    // Inverse: Remove
-                    nextMap.delete(cmd.id);
-                } else if (cmd.type === 'REMOVE') {
-                    // Inverse: Add
-                    nextMap.set(cmd.id, cmd.prev);
-                } else if (cmd.type === 'UPDATE') {
-                    // Inverse: Revert to prev
-                    nextMap.set(cmd.id, cmd.prev);
-                }
+            const next = applyUndo(current, commands);
+            lastSavedShapesRef.current = next;
+            if (socket) {
+                // Sync Undo to others
+                commands.slice().reverse().forEach(cmd => {
+                    const inverseType = cmd.type === 'ADD' ? 'REMOVE' : cmd.type === 'REMOVE' ? 'ADD' : 'UPDATE';
+                    const payload = inverseType === 'REMOVE' ? { id: cmd.id } : cmd.prev;
+                    socket.emit('board-action', { 
+                        boardId,
+                        action: { id: crypto.randomUUID(), type: inverseType, payload, timestamp: new Date() } 
+                    });
+                });
             }
-            return Array.from(nextMap.values());
+            return next;
         });
-    }, [history, historyIndex]);
+    }, [history, historyIndex, socket, boardId]);
 
     const redo = useCallback(() => {
-        if (historyIndex >= history.length - 1) return;
-
-        const commands = history[historyIndex + 1];
+        const hIdx = historyIndexRef.current;
+        const currentHistory = historyRef.current;
+        
+        if (hIdx >= currentHistory.length - 1) return;
+        
+        const commands = currentHistory[hIdx + 1];
         setHistoryIndex(prev => prev + 1);
-
+        
         setShapes(current => {
-            const next = [...current];
-            const nextMap = new Map(next.map(s => [s.id, s]));
-
-            // Apply Actions (Forwards)
-            for (const cmd of commands) {
-                if (cmd.type === 'ADD') {
-                    nextMap.set(cmd.id, cmd.next);
-                } else if (cmd.type === 'REMOVE') {
-                    nextMap.delete(cmd.id);
-                } else if (cmd.type === 'UPDATE') {
-                    nextMap.set(cmd.id, cmd.next);
-                }
+            const next = applyRedo(current, commands);
+            lastSavedShapesRef.current = next;
+            if (socket) {
+                // Sync Redo to others
+                commands.forEach(cmd => {
+                    const payload = cmd.type === 'REMOVE' ? { id: cmd.id } : cmd.next;
+                    socket.emit('board-action', { 
+                        boardId,
+                        action: { id: crypto.randomUUID(), type: cmd.type, payload, timestamp: new Date() } 
+                    });
+                });
             }
-            return Array.from(nextMap.values());
+            return next;
         });
-    }, [history, historyIndex]);
+    }, [history, historyIndex, socket, boardId]);
 
-    // Layer Management
+    // ── Shape Mutations ───────────────────────────────────────────────────────
+
+    const updateShapesById = useCallback((ids, updates) => {
+        const idSet = ids instanceof Set ? ids : new Set(Array.isArray(ids) ? ids : [ids]);
+        if (idSet.size === 0) return;
+
+        setShapes(prev => {
+            // Recalculate text bounds if text/font changed
+            let next = updateShapes(prev, idSet, updates);
+            if ('text' in updates || 'font' in updates) {
+                next = next.map(s => {
+                    if (!idSet.has(s.id) || s.type !== SHAPE_TYPES.TEXT) return s;
+                    try {
+                        const layout = getTextLayout(null, s);
+                        return { ...s, size: { ...s.size, width: layout.width, height: layout.height } };
+                    } catch {
+                        return s;
+                    }
+                });
+            }
+            saveState(next);
+            return next;
+        });
+    }, [saveState]);
+
+    // ── Layer Actions (delegate to actionManager) ─────────────────────────────
+
+    const groupShapes = useCallback(() => {
+        setShapes(prev => {
+            const result = groupShapesFn(prev, selectedShapeIds);
+            if (!result) return prev;
+            saveState(result.shapes);
+            setSelectedShapeIds(new Set([result.groupId]));
+            return result.shapes;
+        });
+    }, [selectedShapeIds, saveState]);
+
+    const ungroupShapes = useCallback(() => {
+        if (selectedShapeIds.size !== 1) return;
+        const groupId = [...selectedShapeIds][0];
+        setShapes(prev => {
+            const result = ungroupShapesFn(prev, groupId);
+            if (!result) return prev;
+            saveState(result.shapes);
+            setSelectedShapeIds(new Set(result.childIds));
+            return result.shapes;
+        });
+    }, [selectedShapeIds, saveState]);
+
     const bringToFront = useCallback(() => {
         if (selectedShapeIds.size === 0) return;
         setShapes(prev => {
-            const selected = [];
-            const others = [];
-            prev.forEach(s => {
-                if (selectedShapeIds.has(s.id)) selected.push(s);
-                else others.push(s);
-            });
-            if (others.length === prev.length) return prev; // No change
-            const newShapes = [...others, ...selected];
-            saveState(newShapes);
-            return newShapes;
+            const next = bringToFrontFn(prev, selectedShapeIds);
+            saveState(next);
+            return next;
         });
     }, [selectedShapeIds, saveState]);
 
     const sendToBack = useCallback(() => {
         if (selectedShapeIds.size === 0) return;
         setShapes(prev => {
-            const selected = [];
-            const others = [];
-            prev.forEach(s => {
-                if (selectedShapeIds.has(s.id)) selected.push(s);
-                else others.push(s);
-            });
-            if (others.length === prev.length) return prev;
-            const newShapes = [...selected, ...others];
-            saveState(newShapes);
-            return newShapes;
+            const next = sendToBackFn(prev, selectedShapeIds);
+            saveState(next);
+            return next;
         });
     }, [selectedShapeIds, saveState]);
 
     const bringForward = useCallback(() => {
-        if (selectedShapeIds.size !== 1) return; // Only single selection for step-wise
+        if (selectedShapeIds.size !== 1) return;
         const id = [...selectedShapeIds][0];
         setShapes(prev => {
-            const index = prev.findIndex(s => s.id === id);
-            if (index === -1 || index === prev.length - 1) return prev;
-
-            const newShapes = [...prev];
-            // Swap with next
-            [newShapes[index], newShapes[index + 1]] = [newShapes[index + 1], newShapes[index]];
-            saveState(newShapes);
-            return newShapes;
+            const next = bringForwardFn(prev, id);
+            saveState(next);
+            return next;
         });
     }, [selectedShapeIds, saveState]);
 
@@ -240,153 +257,28 @@ export function useEngineState(initialShapes = [], socket = null) {
         if (selectedShapeIds.size !== 1) return;
         const id = [...selectedShapeIds][0];
         setShapes(prev => {
-            const index = prev.findIndex(s => s.id === id);
-            if (index <= 0) return prev;
-
-            const newShapes = [...prev];
-            // Swap with prev
-            [newShapes[index], newShapes[index - 1]] = [newShapes[index - 1], newShapes[index]];
-            saveState(newShapes);
-            return newShapes;
-        });
-    }, [selectedShapeIds, saveState]);
-
-    const clearCanvas = useCallback(() => {
-        setShapes(prev => {
-            const next = [];
+            const next = sendBackwardFn(prev, id);
             saveState(next);
             return next;
         });
+    }, [selectedShapeIds, saveState]);
+
+    // ── Canvas Lifecycle ──────────────────────────────────────────────────────
+
+    const clearCanvas = useCallback(() => {
+        setShapes([]);
+        setHistory([]);
+        setHistoryIndex(-1);
         setSelectedShapeIds(new Set());
-    }, [saveState]);
+    }, []);
 
-    // Helpers
-    const updateShapes = useCallback((ids, updates) => {
-        const idsSet = ids instanceof Set ? ids : new Set(Array.isArray(ids) ? ids : [ids]);
-        if (idsSet.size === 0) return;
-
-        setShapes(prev => {
-            const newShapes = prev.map(shape => {
-                if (idsSet.has(shape.id)) {
-                    const newShape = { ...shape, ...updates };
-
-                    // 1️⃣ Recalculate Text Bounds Immediately
-                    if (newShape.type === SHAPE_TYPES.TEXT) {
-                        const styleChanged = 'text' in updates || 'fontSize' in updates || 'fontFamily' in updates || 'textAlign' in updates;
-                        if (styleChanged) {
-                            try {
-                                const layout = getTextLayout(null, newShape);
-                                newShape.width = layout.width;
-                                newShape.height = layout.height;
-                            } catch (e) {
-                                console.warn('Failed to measure text during update', e);
-                            }
-                        }
-                    }
-
-                    return newShape;
-                }
-                return shape;
-            });
-            saveState(newShapes);
-            return newShapes;
-        });
-    }, [saveState]);
-
-    const groupShapes = useCallback(() => {
-        if (selectedShapeIds.size < 2) return;
-
-        setShapes(prev => {
-            const selected = prev.filter(s => selectedShapeIds.has(s.id));
-            if (selected.length < 2) return prev;
-
-            // 1. Calculate Bounding Box
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            selected.forEach(s => {
-                const hw = s.width / 2;
-                const hh = s.height / 2;
-                minX = Math.min(minX, s.x - hw);
-                minY = Math.min(minY, s.y - hh);
-                maxX = Math.max(maxX, s.x + hw);
-                maxY = Math.max(maxY, s.y + hh);
-            });
-
-            // Padding
-            minX -= 10; minY -= 10; maxX += 10; maxY += 10;
-
-            const width = maxX - minX;
-            const height = maxY - minY;
-            const x = minX + width / 2;
-            const y = minY + height / 2;
-
-            // 2. Create Group
-            const groupId = crypto.randomUUID();
-            const group = {
-                id: groupId,
-                type: 'group',
-                x, y,
-                width, height,
-                rotation: 0,
-                opacity: 1,
-                strokeColor: 'transparent',
-                strokeWidth: 0,
-                strokeStyle: 'solid',
-                sloppiness: 'architect',
-                children: selected.map(s => ({
-                    ...s,
-                    x: s.x - x,
-                    y: s.y - y,
-                }))
-            };
-
-            // 3. Update State
-            const idsToRemove = new Set(selected.map(s => s.id));
-            const newShapes = prev.filter(s => !idsToRemove.has(s.id));
-            newShapes.push(group);
-
-            saveState(newShapes);
-            setSelectedShapeIds(new Set([groupId]));
-            return newShapes;
-        });
-    }, [selectedShapeIds, saveState]);
-
-    const ungroupShapes = useCallback(() => {
-        if (selectedShapeIds.size !== 1) return;
-
-        setShapes(prev => {
-            const groupId = [...selectedShapeIds][0];
-            const group = prev.find(s => s.id === groupId);
-            if (!group || group.type !== 'group' || !group.children) return prev;
-
-            // 1. Convert Children to Absolute
-            const children = group.children.map(child => {
-                const rad = (group.rotation * Math.PI) / 180;
-                const cos = Math.cos(rad);
-                const sin = Math.sin(rad);
-
-                const cx = child.x; // relative
-                const cy = child.y; // relative
-
-                const absX = group.x + (cx * cos - cy * sin);
-                const absY = group.y + (cx * sin + cy * cos);
-
-                return {
-                    ...child,
-                    x: absX,
-                    y: absY,
-                    rotation: (child.rotation || 0) + (group.rotation || 0)
-                };
-            });
-
-            // 2. Update State
-            const newShapes = prev.filter(s => s.id !== groupId);
-            newShapes.push(...children);
-
-            saveState(newShapes);
-            setSelectedShapeIds(new Set(children.map(c => c.id)));
-            return newShapes;
-        });
-    }, [selectedShapeIds, saveState]);
+    const resetHistory = useCallback((newShapes = []) => {
+        setShapes(newShapes);
+        setHistory([]);
+        setHistoryIndex(-1);
+        lastSavedShapesRef.current = newShapes;
+        setSelectedShapeIds(new Set());
+    }, []);
 
     return {
         shapes,
@@ -398,17 +290,15 @@ export function useEngineState(initialShapes = [], socket = null) {
         editingShapeId,
         setEditingShapeId,
 
-        // History
         history,
         historyIndex,
         saveState,
         undo,
         redo,
-        canUndo: historyIndex > 0,
+        canUndo: historyIndex >= 0,
         canRedo: historyIndex < history.length - 1,
 
-        // Actions
-        updateShapes,
+        updateShapes: updateShapesById,
         clearCanvas,
         groupShapes,
         ungroupShapes,
@@ -416,6 +306,7 @@ export function useEngineState(initialShapes = [], socket = null) {
         sendToBack,
         bringForward,
         sendBackward,
-        emitUpdate
+        emitUpdate,
+        resetHistory
     };
 }

@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { UserProfileMenu } from "@/components/dashboard/UserProfileMenu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Menu, Share2, MessageSquare, Clock } from "lucide-react";
 
 export function CanvasHeader({ boardName, onRename, onBack, onShare, onToggleHistory, onToggleComments }) {
@@ -27,17 +26,7 @@ export function CanvasHeader({ boardName, onRename, onBack, onShare, onToggleHis
 
             {/* Right: Collaboration & Actions */}
             <div className="flex items-center gap-2 pointer-events-auto">
-                {/* Presence Pile */}
-                <div className="flex items-center -space-x-2 mr-2 bg-white/80 backdrop-blur-md p-1.5 rounded-full shadow-sm border border-neutral-200/50">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-neutral-100 flex items-center justify-center text-xs font-medium text-neutral-600 shadow-sm transition-transform hover:scale-110 hover:z-10" style={{ backgroundColor: `hsl(${i * 60}, 70%, 90%)`, color: `hsl(${i * 60}, 80%, 30%)` }}>
-                            {String.fromCharCode(64 + i)}
-                        </div>
-                    ))}
-                    <div className="w-8 h-8 rounded-full border-2 border-white bg-neutral-50 flex items-center justify-center text-[10px] font-bold text-neutral-500 shadow-sm">
-                        +2
-                    </div>
-                </div>
+                {/* Presence pile rendered by DrawingCanvas via socket.remoteUsers */}
 
                 <div className="flex items-center gap-2 bg-white/80 backdrop-blur-md p-1.5 rounded-xl shadow-sm border border-neutral-200/50">
                     <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-indigo-50 text-neutral-500 hover:text-indigo-600" onClick={onToggleComments}>

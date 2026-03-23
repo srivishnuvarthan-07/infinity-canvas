@@ -1,26 +1,12 @@
-import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Square,
-  PenTool,
-  Smile,
-  Hash,
-  Grid3X3,
-  MoreHorizontal,
-  Minus,
-  Ban,
-  Activity,
-  Ruler
-} from "lucide-react";
-
-const COLORS = ["#000000", "#ff4757", "#1e90ff", "#2ed573", "#ffa502"];
+import { Square, PenTool, Smile, Hash, Grid3X3, MoreHorizontal, Minus } from "lucide-react";
+import { ColorPicker } from "./ColorPicker";
 
 export function ShapeStylePanel({ element, updateElement }) {
   // Derive state from element
-  const strokeColor = element.stroke || element.strokeColor || "#000000";
-  const strokeWidth = element.strokeWidth || 2;
+  const strokeColor = element.style?.stroke || "#000000";
+  const strokeWidth = element.style?.strokeWidth || 2;
 
   // Determine stroke type from strokeDashArray OR strokeStyle
   let strokeStyle = element.strokeStyle || "solid";
@@ -47,61 +33,38 @@ export function ShapeStylePanel({ element, updateElement }) {
             min={1}
             max={10}
             step={1}
-            onValueChange={([v]) => updateElement({ strokeWidth: v })}
+            onValueChange={([v]) => updateElement({ style: { ...element.style, strokeWidth: v } })}
             className="py-1"
           />
 
-          <div className="flex gap-2 flex-wrap mt-2">
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                className={`h-7 w-7 rounded-full shadow-sm border border-black/5 transition-all outline-none ${strokeColor === color ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110' : 'hover:scale-105'}`}
-                style={{ backgroundColor: color }}
-                onClick={() => updateElement({ stroke: color, strokeColor: color })}
-                title={color}
-              />
-            ))}
-          </div>
+          <ColorPicker
+            value={strokeColor}
+            onChange={(c) => updateElement({ style: { ...element.style, stroke: c } })}
+          />
         </div>
 
         {/* Fill Color */}
         <div className="space-y-3 pt-2">
-          <div className="flex justify-between items-center">
-            <span className="text-[13px] font-medium text-neutral-600">Fill</span>
-          </div>
-
-          <div className="flex gap-2 flex-wrap mt-2">
-            <button
-              className={`h-7 w-7 rounded-full shadow-sm border border-black/5 flex items-center justify-center transition-all outline-none ${element.fillColor === "transparent" ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110 bg-neutral-100' : 'bg-white hover:scale-105'}`}
-              onClick={() => updateElement({ fillColor: "transparent", fill: '' })}
-              title="Transparent"
-            >
-              <Ban className="h-3.5 w-3.5 text-red-500" />
-            </button>
-            {COLORS.map((color) => (
-              <button
-                key={color}
-                className={`h-7 w-7 rounded-full shadow-sm border border-black/5 transition-all outline-none ${element.fillColor === color ? 'ring-2 ring-offset-2 ring-indigo-500 scale-110' : 'hover:scale-105'}`}
-                style={{ backgroundColor: color }}
-                onClick={() => updateElement({ fillColor: color, fill: color })}
-                title={color}
-              />
-            ))}
-          </div>
+          <span className="text-[13px] font-medium text-neutral-600">Fill</span>
+          <ColorPicker
+            value={element.style?.fill || "transparent"}
+            onChange={(c) => updateElement({ style: { ...element.style, fill: c } })}
+            allowTransparent
+          />
         </div>
 
         {/* Opacity */}
         <div className="space-y-3 pt-2">
           <div className="flex justify-between items-center">
             <span className="text-[13px] font-medium text-neutral-600">Opacity</span>
-            <span className="text-xs font-mono text-neutral-400">{Math.round((element.opacity ?? 1) * 100)}%</span>
+            <span className="text-xs font-mono text-neutral-400">{Math.round((element.style?.opacity ?? 1) * 100)}%</span>
           </div>
           <Slider
-            value={[(element.opacity ?? 1) * 100]}
+            value={[(element.style?.opacity ?? 1) * 100]}
             min={0}
             max={100}
             step={1}
-            onValueChange={([v]) => updateElement({ opacity: v / 100 })}
+            onValueChange={([v]) => updateElement({ style: { ...element.style, opacity: v / 100 } })}
             className="py-1"
           />
         </div>
@@ -118,8 +81,8 @@ export function ShapeStylePanel({ element, updateElement }) {
             <ToggleGroup
               type="single"
               size="sm"
-              value={element.fillStyle || "solid"}
-              onValueChange={(v) => v && updateElement({ fillStyle: v })}
+              value={element.style?.fillStyle || "solid"}
+              onValueChange={(v) => v && updateElement({ style: { ...element.style, fillStyle: v } })}
             >
               <ToggleGroupItem value="solid" className="h-8 px-2.5" title="Solid"><Square className="h-3.5 w-3.5 fill-current" /></ToggleGroupItem>
               <ToggleGroupItem value="hachure" className="h-8 px-2.5" title="Hachure"><Hash className="h-3.5 w-3.5" /></ToggleGroupItem>
@@ -138,7 +101,7 @@ export function ShapeStylePanel({ element, updateElement }) {
                 let dashArray = null;
                 if (v === 'dashed') dashArray = [10, 5];
                 if (v === 'dotted') dashArray = [2, 2];
-                updateElement({ strokeDashArray: dashArray, strokeStyle: v });
+                updateElement({ strokeDashArray: dashArray, style: { ...element.style, strokeStyle: v } });
               }}
             >
               <ToggleGroupItem value="solid" className="h-8 px-2.5" title="Solid"><Minus className="h-3.5 w-3.5" /></ToggleGroupItem>
@@ -158,8 +121,22 @@ export function ShapeStylePanel({ element, updateElement }) {
             <ToggleGroup
               type="single"
               size="sm"
-              value={element.sloppiness || "architect"}
-              onValueChange={(v) => v && updateElement({ sloppiness: v })}
+              value={
+                element.style?.roughness === 0 ? "architect" :
+                  element.style?.roughness === 1.5 ? "artist" :
+                    element.style?.roughness === 2.5 ? "cartoonist" :
+                      (element.sloppiness || "architect")
+              }
+              onValueChange={(v) => {
+                if (!v) return;
+                let roughness = 0;
+                if (v === 'artist') roughness = 1.5;
+                if (v === 'cartoonist') roughness = 2.5;
+                updateElement({
+                  sloppiness: v,
+                  style: { ...element.style, roughness }
+                });
+              }}
             >
               <ToggleGroupItem value="architect" className="h-8 px-2.5" title="Architect"><Square className="h-3.5 w-3.5" /></ToggleGroupItem>
               <ToggleGroupItem value="artist" className="h-8 px-2.5" title="Artist"><PenTool className="h-3.5 w-3.5" /></ToggleGroupItem>
@@ -168,20 +145,7 @@ export function ShapeStylePanel({ element, updateElement }) {
           </div>
         </div>
 
-        {element.type === 'connector' && (
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-medium text-neutral-600">Connection</span>
-            <ToggleGroup
-              type="single"
-              size="sm"
-              value={element.arrowType || "straight"}
-              onValueChange={(v) => v && updateElement({ arrowType: v })}
-            >
-              <ToggleGroupItem value="straight" className="h-8 px-2.5" title="Straight"><Ruler className="h-3.5 w-3.5" /></ToggleGroupItem>
-              <ToggleGroupItem value="curved" className="h-8 px-2.5" title="Curved"><Activity className="h-3.5 w-3.5" /></ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        )}
+
       </div>
     </div>
   );
