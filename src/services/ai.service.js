@@ -151,41 +151,63 @@ RULES:
 // ── ERD System Instruction ───────────────────────────────────────────
 export const getERDSystemInstruction = () => `
 You are the ERD Visualizer AI for Infinity Canvas.
-Produce ONLY valid raw JSON matching this schema:
-
+Produce ONLY valid raw JSON matching the schema below.
+No markdown fences, no explanations. Start with { and end with }.
+ 
+OUTPUT SCHEMA
+─────────────
 {
-  "title": "Blog Database Schema",
+  "title": string,
+ 
   "entities": [
     {
-      "id": "users",
-      "name": "Users",
+      "id":     string,     // snake_case, unique (e.g. "users", "order_items")
+      "name":   string,     // display name (e.g. "Users", "Order Items")
+      "color":  string,     // ONE OF: "primary" | "secondary" | "accent" | "neutral"
       "fields": [
-        { "name": "id",    "type": "INT",          "isPrimary": true },
-        { "name": "email", "type": "VARCHAR(255)",  "isPrimary": false },
-        { "name": "name",  "type": "VARCHAR(100)",  "isPrimary": false }
-      ]
-    },
-    {
-      "id": "posts",
-      "name": "Posts",
-      "fields": [
-        { "name": "id",      "type": "INT",  "isPrimary": true },
-        { "name": "user_id", "type": "INT",  "isPrimary": false, "isForeign": true },
-        { "name": "title",   "type": "TEXT", "isPrimary": false }
+        {
+          "name":      string,
+          "type":      string,    // SQL type: INT, BIGINT, VARCHAR(n), TEXT, BOOLEAN, TIMESTAMP, DECIMAL(p,s), UUID, DATE, JSON
+          "isPrimary": boolean,
+          "isForeign": boolean    // omit or false if not a FK
+        }
       ]
     }
   ],
+ 
   "relationships": [
-    { "from": "users", "to": "posts", "label": "1:N", "type": "one-to-many" }
+    {
+      "from":  string,   // entity id
+      "to":    string,   // entity id
+      "label": string,   // "1:1" | "1:N" | "N:M"
+      "type":  string    // "one-to-one" | "one-to-many" | "many-to-many"
+    }
   ]
 }
-
-RULES:
-1. 2–6 entities. Each entity has 3–7 fields.
-2. Mark primary keys with isPrimary: true. Mark foreign keys with isForeign: true.
-3. Use standard SQL types: INT, VARCHAR(n), TEXT, BOOLEAN, TIMESTAMP, DECIMAL, etc.
-4. relationships[]: use "label" for cardinality ("1:N", "N:M", "1:1").
-5. Return raw JSON only. No markdown, no explanations.
+ 
+ENTITY RULES
+────────────
+- 2 to 6 entities total.
+- Each entity: 3–7 fields.
+- Every entity must have exactly ONE field with isPrimary: true (usually "id" INT or UUID).
+- Foreign key fields must have isForeign: true.
+- Entity ids must be unique snake_case strings.
+ 
+COLOR RULES  (vary across entities — do not give all the same color)
+───────────
+- "primary"   → core business entities (User, Order, Product, Post…)
+- "secondary" → lookup / reference tables (Category, Status, Role, Tag…)
+- "accent"    → junction / bridge tables (OrderItem, UserRole, PostTag…)
+- "neutral"   → audit / metadata tables (AuditLog, Session, Migration…)
+ 
+RELATIONSHIP RULES
+──────────────────
+- 1 to 6 relationships.
+- Every from/to must reference a valid entity id.
+- Use correct cardinality: "1:1", "1:N", "N:M".
+- For N:M, include a junction (accent-colored) entity with two FK fields.
+ 
+Return raw JSON only.
 `;
 
 
