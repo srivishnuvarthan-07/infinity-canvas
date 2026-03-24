@@ -90,12 +90,12 @@ exports.logoutAll = async (req, res, next) => {
         const user = await User.findById(req.user.id);
         user.tokenVersion += 1;
         await user.save();
-
+        const isProduction = process.env.NODE_ENV === "production";
         res.cookie('token', 'none', {
             expires: new Date(Date.now() + 10 * 1000),
             httpOnly: true,
-            secure: true,
-            sameSite: "None",
+            secure: isProduction,
+            sameSite: isProduction ? "None" : "Lax",
             path: "/"
         });
 
@@ -111,7 +111,7 @@ exports.logoutAll = async (req, res, next) => {
 // Get token from model, create cookie and send response
 const sendTokenResponse = (user, statusCode, res) => {
     const token = user.getSignedJwtToken();
-
+    const isProduction = process.env.NODE_ENV === "production";
     const options = {
         expires: new Date(
             Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
@@ -120,8 +120,8 @@ const sendTokenResponse = (user, statusCode, res) => {
     };
 
     if (process.env.NODE_ENV === 'production') {
-        options.secure = true;
-        options.sameSite = "None";
+        options.secure = isProduction;
+        options.sameSite = isProduction ? "None" : "Lax";
         options.path = "/";
     }
 
