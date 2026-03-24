@@ -93,7 +93,10 @@ exports.logoutAll = async (req, res, next) => {
 
         res.cookie('token', 'none', {
             expires: new Date(Date.now() + 10 * 1000),
-            httpOnly: true
+            httpOnly: true,
+            secure: true,
+            sameSite: "None",
+            path: "/"
         });
 
         res.status(200).json({
@@ -118,6 +121,8 @@ const sendTokenResponse = (user, statusCode, res) => {
 
     if (process.env.NODE_ENV === 'production') {
         options.secure = true;
+        options.sameSite = "None";
+        options.path = "/";
     }
 
     res
