@@ -134,12 +134,9 @@ export function ShareDialog({
     const renderVariantA = () => (
         <div className="flex flex-col h-full animate-in fade-in duration-200">
             {/* Header */}
-            <div className="px-5 pt-5 pb-4 relative bg-white">
+            <div className="px-5 pt-5 pb-4 relative bg-white border-b border-black/5">
                 <h2 className="text-[15px] font-medium text-black leading-tight">Share "{boardName}"</h2>
                 <p className="text-[12px] text-neutral-500 mt-0.5">{headerSubtitleA}</p>
-                <button onClick={onClose} className="absolute top-[18px] right-[18px] w-[26px] h-[26px] rounded-[6px] flex items-center justify-center hover:bg-black/5 text-neutral-400 transition-colors">
-                    <X className="w-4 h-4" />
-                </button>
             </div>
 
             {/* Body */}
@@ -266,12 +263,9 @@ export function ShareDialog({
     const renderVariantB = () => (
         <div className="flex flex-col h-full animate-in fade-in duration-200 bg-white">
             {/* Header */}
-            <div className="px-5 pt-5 pb-4 relative">
+            <div className="px-5 pt-5 pb-4 relative border-b border-black/5">
                 <h2 className="text-[15px] font-medium text-black leading-tight">Share "{boardName}"</h2>
                 <p className="text-[12px] text-neutral-500 mt-0.5">You're collaborating on this board</p>
-                <button onClick={onClose} className="absolute top-[18px] right-[18px] w-[26px] h-[26px] rounded-[6px] flex items-center justify-center hover:bg-black/5 text-neutral-400 transition-colors">
-                    <X className="w-4 h-4" />
-                </button>
             </div>
 
             <div className="px-5 pb-5 space-y-[18px]">
@@ -348,12 +342,9 @@ export function ShareDialog({
     const renderVariantC = () => (
         <div className="flex flex-col h-full animate-in fade-in duration-200 bg-white">
             {/* Header */}
-            <div className="px-5 pt-5 pb-4 relative">
+            <div className="px-5 pt-5 pb-4 relative border-b border-black/5">
                 <h2 className="text-[15px] font-medium text-black leading-tight">Share "{boardName}"</h2>
                 <p className="text-[12px] text-neutral-500 mt-0.5">You're viewing as a guest</p>
-                <button onClick={onClose} className="absolute top-[18px] right-[18px] w-[26px] h-[26px] rounded-[6px] flex items-center justify-center hover:bg-black/5 text-neutral-400 transition-colors">
-                    <X className="w-4 h-4" />
-                </button>
             </div>
 
             <div className="px-5 pb-5 space-y-[18px]">

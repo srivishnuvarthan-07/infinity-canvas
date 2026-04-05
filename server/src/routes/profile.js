@@ -106,7 +106,9 @@ router.post('/ai-config/key', protect, async (req, res) => {
     // Encrypt and save
     try {
         const encryptedKey = encryptKey(key);
-        req.user.aiConfig.keys[provider] = encryptedKey;
+        
+        // Use .set() for reliable nested update in Mongoose
+        req.user.set(`aiConfig.keys.${provider}`, encryptedKey);
         await req.user.save();
 
         res.status(200).json({
@@ -124,11 +126,8 @@ router.post('/ai-config/key', protect, async (req, res) => {
 router.delete('/ai-config/key', protect, async (req, res) => {
     const { provider } = req.body;
 
-    if (!['groq', 'openai', 'anthropic', 'gemini'].includes(provider)) {
-        return res.status(400).json({ success: false, error: 'Invalid provider' });
-    }
-
-    req.user.aiConfig.keys[provider] = null;
+    // Use .set() for reliable nested update in Mongoose
+    req.user.set(`aiConfig.keys.${provider}`, null);
 
     // Reset default if it was the deleted one
     if (req.user.aiConfig.defaultProvider === provider) {
@@ -172,17 +171,27 @@ router.put('/ai-config/default', protect, async (req, res) => {
 });
 
 // @desc    Get free usage info
-// @route   GET /api/profile/ai-config/usage
-// @access  Private
 router.get('/ai-config/usage', protect, async (req, res) => {
-    const { freeUsage } = req.user.aiConfig;
-    const remaining = Math.max(0, 10 - freeUsage.count);
+    const { aiConfig } = req.user;
+    const { freeUsage } = aiConfig;
+    
+    // Check for keys explicitly (ensure they are non-empty strings)
+    const keys = aiConfig.keys || {};
+    const hasAnyKey = !!(
+        (keys.groq && typeof keys.groq === 'string' && keys.groq.length > 5) || 
+        (keys.openai && typeof keys.openai === 'string' && keys.openai.length > 5) || 
+        (keys.anthropic && typeof keys.anthropic === 'string' && keys.anthropic.length > 5) || 
+        (keys.gemini && typeof keys.gemini === 'string' && keys.gemini.length > 5)
+    );
+    
+    const remaining = Math.max(0, 10 - (freeUsage?.count || 0));
 
     res.status(200).json({
         success: true,
-        count: freeUsage.count,
-        resetDate: freeUsage.resetDate,
-        remaining
+        count: freeUsage?.count || 0,
+        resetDate: freeUsage?.resetDate,
+        remaining,
+        unlimited: hasAnyKey
     });
 });
 

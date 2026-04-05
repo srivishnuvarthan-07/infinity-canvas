@@ -104,6 +104,23 @@ export function DrawingCanvas({
         deleteSelected
     } = useCanvas({ initialShapes, socket, boardId, readonly: !canEdit });
 
+    // When pencil tool is active, ALWAYS show the tool-mode panel.
+    // Never switch to the selected-element sidebar during/after a stroke
+    // (selectedElement briefly exists between pointer-up and selection-clear).
+    const isFreedrawTool = activeTool === 'pencil' || activeTool === 'draw';
+    const [freedrawOpacity, setFreedrawOpacity] = useState(1);
+
+    const freedrawToolElement = isFreedrawTool ? {
+        type: 'pencil',
+        style: { stroke: activeColor, strokeWidth, opacity: freedrawOpacity }
+    } : null;
+
+    const updateFreedrawTool = (changes) => {
+        if (changes.style?.stroke !== undefined) setActiveColor(changes.style.stroke);
+        if (changes.style?.strokeWidth !== undefined) setStrokeWidth(changes.style.strokeWidth);
+        if (changes.style?.opacity !== undefined) setFreedrawOpacity(changes.style.opacity);
+    };
+
     // Propagate state changes
     useEffect(() => {
         onSelectionChange?.(selectedElement);
@@ -498,30 +515,26 @@ export function DrawingCanvas({
             {canEdit && <AIPromptBar onInsertShapes={insertShapes} onAddToLibrary={onAddToLibrary} />}
 
             {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
-            {!disablePropertyPanel && canEdit && selectedElement && (
+            {!disablePropertyPanel && canEdit && (freedrawToolElement || selectedElement) && (
                 <div className="absolute top-20 right-4 z-20 w-72 pointer-events-auto animate-in slide-in-from-right-4 fade-in duration-200 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-hide">
                     <Sidebar
-                        selectedElement={selectedElement}
-                        updateElement={updateSelectedElement}
-                        layerActions={layerActions}
-                        groupActions={groupActions}
-                        onAddToLibrary={() => {
-                            // Extract shapes from selection
+                        selectedElement={isFreedrawTool ? freedrawToolElement : selectedElement}
+                        updateElement={isFreedrawTool ? updateFreedrawTool : updateSelectedElement}
+                        layerActions={isFreedrawTool ? null : layerActions}
+                        groupActions={isFreedrawTool ? null : groupActions}
+                        onAddToLibrary={isFreedrawTool ? null : selectedElement ? () => {
                             if (!onAddToLibrary || !selectedElement) return;
-
                             let shapesToSave = [];
                             if (selectedElement.type === 'activeSelection' && selectedElement.objects) {
                                 shapesToSave = selectedElement.objects;
                             } else {
                                 shapesToSave = [selectedElement];
                             }
-
-                            // Ask for name? simplified for now
                             const name = prompt("Enter name for library item:", "New Item");
                             if (name) {
                                 onAddToLibrary(shapesToSave, name);
                             }
-                        }}
+                        } : null}
                     />
                 </div>
             )}
