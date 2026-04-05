@@ -32,11 +32,14 @@ export function LibraryAIPrompt({ onGenerateSuccess }) {
             if (intent.intent_type === 'non_visual') {
                 toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.');
             } else if (intent.intent_type === 'diagram') {
-                const validation = validateGraph(intent.graph);
-                if (!validation.success) {
-                    toast.error('AI returned an invalid diagram format. Please try again.');
-                    console.error("Zod Validation Error:", validation.error);
-                    return;
+                const isExplanation = intent.graph?.diagramMode === 'explanation';
+                if (!isExplanation) {
+                    const validation = validateGraph(intent.graph);
+                    if (!validation.success) {
+                        toast.error('AI returned an invalid diagram format. Please try again.');
+                        console.error("Zod Validation Error:", validation.error);
+                        return;
+                    }
                 }
 
                 const newShapes = generateDiagramShapes(intent);

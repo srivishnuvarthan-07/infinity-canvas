@@ -1,4 +1,5 @@
 import { useBoardStore } from '@/hooks/useBoardStore';
+import { useLibraryStore } from '@/hooks/useLibraryStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { Search, Plus, Pencil, Sparkles, PlusSquare, FileText, Compass } from 'l
 import { BoardCard } from '../BoardCard';
 import { UserProfileMenu } from '../UserProfileMenu';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 
 export default function OverviewView() {
     const { user } = useAuth();
@@ -19,7 +20,12 @@ export default function OverviewView() {
         renameBoard,
         moveBoardToCloud 
     } = useBoardStore();
+    const { libraryItems } = useLibraryStore();
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Real counts derived from live data
+    const aiDiagramCount = useMemo(() => libraryItems.filter(i => i.source === 'AI').length, [libraryItems]);
+    const libraryShapeCount = libraryItems.length;
 
     const allBoards = useMemo(() => [...localBoards, ...cloudBoards]
         .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)),
@@ -113,7 +119,7 @@ export default function OverviewView() {
                                 Good morning, {user?.name?.split(' ')[0] || 'User'}
                             </h1>
                             <p className="text-[12px] text-neutral-500 mt-[4px]">
-                                Monday, March 23 · {allBoards.length} boards created
+                                {format(new Date(), 'EEEE, MMMM d')} · {allBoards.length} boards created
                             </p>
                         </div>
                     </div>
@@ -125,11 +131,11 @@ export default function OverviewView() {
                             <div className="text-[12px] text-neutral-500 mt-[4px]">Total boards</div>
                         </div>
                         <div className="bg-white border-[0.5px] border-black/5 rounded-[12px] p-[18px_20px] hover:-translate-y-[2px] hover:border-black/10 transition-all duration-[180ms] ease-out">
-                            <div className="text-[24px] font-medium text-neutral-900 leading-none">12</div>
+                            <div className="text-[24px] font-medium text-neutral-900 leading-none">{aiDiagramCount}</div>
                             <div className="text-[12px] text-neutral-500 mt-[4px]">AI diagrams generated</div>
                         </div>
                         <div className="bg-white border-[0.5px] border-black/5 rounded-[12px] p-[18px_20px] hover:-translate-y-[2px] hover:border-black/10 transition-all duration-[180ms] ease-out">
-                            <div className="text-[24px] font-medium text-neutral-900 leading-none">0</div>
+                            <div className="text-[24px] font-medium text-neutral-900 leading-none">{libraryShapeCount}</div>
                             <div className="text-[12px] text-neutral-500 mt-[4px]">Library shapes</div>
                         </div>
                     </div>
