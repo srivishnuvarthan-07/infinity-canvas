@@ -4,7 +4,7 @@ import { useCustomEngine } from "./useCustomEngine";
 import { exportToPng } from "@/engine/utils/export";
 import { saveToFile, loadFromFile, loadImageFromFile } from "@/engine/utils/file";
 
-import { SHAPE_TYPES } from "@/engine/schema";
+import { SHAPE_TYPES, createImage } from "@/engine/schema";
 
 /**
  * useCanvas Hook - Custom Engine Version
@@ -18,6 +18,17 @@ export function useCanvas({ initialShapes = [], socket, boardId, readonly = fals
 
   /* ===================== STATE ===================== */
   const [activeTool, setActiveTool] = useState("select");
+  
+  // Handle tool changes
+  const handleToolChange = (tool) => {
+    if (tool === 'image') {
+      handleAddImage();
+      // Don't actually switch to 'image' tool permanently, 
+      // as image insertion is a one-off action.
+      return;
+    }
+    setActiveTool(tool);
+  };
   const [activeColor, setActiveColor] = useState(DRAWING_COLORS[0].value);
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [strokeStyle, setStrokeStyle] = useState("solid");
@@ -157,59 +168,111 @@ export function useCanvas({ initialShapes = [], socket, boardId, readonly = fals
     saveToFile(customShapes, 'infinity-canvas.json');
   };
 
-  const handleAddImage = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+  const handleAddImage = async (droppedFile = null, dropX = null, dropY = null) => {
+    const processFile = async (file) => {
+      const isSvg = file.type === 'image/svg+xml' || file.name.endsWith('.svg');
 
       try {
-        const src = await loadImageFromFile(file);
-        const img = new Image();
-        img.onload = () => {
-          // Add to canvas
-          const id = crypto.randomUUID();
-          // Default to center of viewport
-          const x = -customViewport.x / customViewport.zoom + (window.innerWidth / 2) / customViewport.zoom;
-          const y = -customViewport.y / customViewport.zoom + (window.innerHeight / 2) / customViewport.zoom;
+        let src, naturalW, naturalH;
 
-          // Clamp max size
-          let w = img.naturalWidth;
-          let h = img.naturalHeight;
-          const MAX_SIZE = 500;
-          if (w > MAX_SIZE || h > MAX_SIZE) {
-            const ratio = w / h;
-            if (w > h) { w = MAX_SIZE; h = MAX_SIZE / ratio; }
-            else { h = MAX_SIZE; w = MAX_SIZE * ratio; }
+        if (isSvg) {
+          // Read SVG as text → parse + fix dimensions → Blob URL
+          const text = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = ev => res(ev.target.result);
+            r.onerror = () => rej(new Error('Failed to read SVG'));
+            r.readAsText(file);
+          });
+
+          // Parse the SVG to read/set explicit width + height
+          const parser = new DOMParser();
+          const svgDoc = parser.parseFromString(text, 'image/svg+xml');
+          const svgEl  = svgDoc.querySelector('svg');
+
+          if (!svgEl) throw new Error('Invalid SVG: no <svg> root');
+
+          let w = parseFloat(svgEl.getAttribute('width'))  || 0;
+          let h = parseFloat(svgEl.getAttribute('height')) || 0;
+
+          // Fall back to viewBox
+          if ((!w || !h) && svgEl.getAttribute('viewBox')) {
+            const vb = svgEl.getAttribute('viewBox').split(/[\s,]+/).map(Number);
+            if (vb.length === 4) { w = w || vb[2]; h = h || vb[3]; }
           }
 
-          const newShape = {
-            id,
-            type: 'image',
-            position: { x, y },
-            size: { width: w, height: h },
-            rotation: 0,
-            src: src,
-            style: {
-              opacity: 1,
-              stroke: 'transparent',
-              // Add other defaults to avoid crashes in generic utils
-              strokeWidth: 0,
-              strokeStyle: 'solid',
-              sloppiness: 'architect'
-            }
-          };
+          naturalW = w || 200;
+          naturalH = h || 200;
 
-          setShapes(prev => [...prev, newShape]);
+          // Force explicit width/height onto the root so img.naturalWidth is non-zero
+          svgEl.setAttribute('width',  naturalW);
+          svgEl.setAttribute('height', naturalH);
+
+          // Serialize back and create a Blob URL (more reliable than base64 for canvas)
+          const serializer = new XMLSerializer();
+          const fixedSvg = serializer.serializeToString(svgDoc);
+          const blob = new Blob([fixedSvg], { type: 'image/svg+xml;charset=utf-8' });
+          src = URL.createObjectURL(blob);
+          // Note: blob URL persists for the session — acceptable for canvas shapes
+
+        } else {
+          // Raster image — load as data URL and get natural size
+          src = await loadImageFromFile(file);
+          const dims = await new Promise(res => {
+            const img = new Image();
+            img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+            img.onerror = () => res({ w: 200, h: 200 });
+            img.src = src;
+          });
+          naturalW = dims.w;
+          naturalH = dims.h;
+        }
+
+        // Clamp max size
+        let w = naturalW;
+        let h = naturalH;
+        const MAX_SIZE = 500;
+        if (w > MAX_SIZE || h > MAX_SIZE) {
+          const ratio = w / h;
+          if (w > h) { w = MAX_SIZE; h = MAX_SIZE / ratio; }
+          else { h = MAX_SIZE; w = MAX_SIZE * ratio; }
+        }
+
+        // Place at drop position or viewport center
+        const x = dropX !== null ? dropX : (-customViewport.x / customViewport.zoom + (window.innerWidth / 2) / customViewport.zoom);
+        const y = dropY !== null ? dropY : (-customViewport.y / customViewport.zoom + (window.innerHeight / 2) / customViewport.zoom);
+
+        const newShape = createImage(crypto.randomUUID(), x, y, src, w, h);
+        newShape.style = {
+          opacity: 1,
+          stroke: 'transparent',
+          strokeWidth: 0,
+          strokeStyle: 'solid',
         };
-        img.src = src;
+
+        setShapes(prev => {
+          const next = [...prev, newShape];
+          saveState(next);
+          return next;
+        });
+
       } catch (err) {
-        console.error("Failed to load image", err);
+        console.error('Failed to load image/SVG', err);
       }
     };
-    input.click();
+
+    if (droppedFile) {
+      await processFile(droppedFile);
+    } else {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,.svg';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await processFile(file);
+      };
+      input.click();
+    }
   };
 
   const handleLoad = () => {
@@ -255,7 +318,7 @@ export function useCanvas({ initialShapes = [], socket, boardId, readonly = fals
 
     // State
     activeTool,
-    setActiveTool,
+    setActiveTool: handleToolChange,
     activeColor,
     setActiveColor,
     strokeWidth,

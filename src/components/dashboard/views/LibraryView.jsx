@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLibraryStore } from '@/hooks/useLibraryStore';
 import { useBoardStore } from '@/hooks/useBoardStore';
@@ -10,6 +10,8 @@ import { getAIService } from '@/services/ai.service';
 import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
 import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
+import { convertExcalidrawLibrary } from "@/utils/excalidrawConverter";
+// Removed obsolete svgConverter
 import { 
     Search, 
     Plus, 
@@ -18,7 +20,8 @@ import {
     Layers,
     CirclePlus,
     MoreVertical,
-    Trash2
+    Trash2,
+    UploadCloud
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -108,7 +111,90 @@ export default function LibraryView() {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [aiResult, setAiResult] = useState(null);
+
+    const fileInputRef = useRef(null);
+
+    const handleImportClick = () => {
+        if (!user) {
+            setIsSignupModalOpen(true);
+            return;
+        }
+        fileInputRef.current?.click();
+    };
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        processFile(file);
+        e.target.value = null;
+    };
+
+    const processFile = (file) => {
+        const reader = new FileReader();
+        
+        reader.onload = async (event) => {
+            try {
+                const content = event.target.result;
+                let convertedItems = [];
+                let type = "Excalidraw";
+
+                convertedItems = convertExcalidrawLibrary(content);
+
+                if (convertedItems.length === 0) {
+                    toast.error(`No compatible shapes found in ${type} file.`);
+                    return;
+                }
+
+                for (const item of convertedItems) {
+                    await addItem(item.shapes, item.name, 'Excalidraw');
+                }
+
+                toast.success(`Imported ${convertedItems.length} items from ${type}!`);
+            } catch (err) {
+                console.error(`${type} parse failed:`, err);
+                toast.error(`Import Failed: ${err.message || "Invalid file format"}`);
+            }
+        };
+
+        reader.readAsText(file);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (user) setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        if (!user) {
+            setIsSignupModalOpen(true);
+            return;
+        }
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.name.endsWith('.json') || file.name.endsWith('.excalidrawlib')) {
+                    processFile(file);
+                } else {
+                    toast.error(`Unsupported file type: ${file.name}`);
+                }
+            }
+        }
+    };
 
     const handleCreateBoard = async () => {
         try {
@@ -140,15 +226,17 @@ export default function LibraryView() {
             const intent = await aiService.generateGraphJSON(prompt);
 
             if (intent.intent_type === 'diagram') {
-                const validation = validateGraph(intent.graph);
-                if (validation.success) {
+                const isExplanation = intent.graph?.diagramMode === 'explanation';
+                const shouldValidate = !isExplanation;
+                const isValid = !shouldValidate || validateGraph(intent.graph).success;
+                if (isValid) {
                     const newShapes = generateDiagramShapes(intent);
                     if (newShapes && newShapes.length > 0) {
                         setAiResult({ shapes: newShapes, name: prompt });
                     }
                 }
             } else {
-                toast.info(intent.suggestion || 'Please provide a diagram description.');
+                toast.info('Please provide a diagram description.');
             }
         } catch (error) {
             toast.error('Failed to generate diagram');
@@ -174,7 +262,23 @@ export default function LibraryView() {
     ];
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-[#FAFAFA]">
+        <div 
+            className="flex flex-col h-full overflow-hidden bg-[#FAFAFA] relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {/* Drag Overlay */}
+            {isDragging && (
+                <div className="absolute inset-4 z-[100] border-2 border-dashed border-[#7F77DD] bg-white/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center pointer-events-none transition-all animate-in fade-in zoom-in duration-200">
+                    <div className="w-16 h-16 rounded-full bg-white shadow-xl border border-neutral-100 flex items-center justify-center mb-4">
+                        <UploadCloud className="w-8 h-8 text-[#7F77DD] animate-bounce" />
+                    </div>
+                    <p className="text-lg font-semibold text-neutral-900">Drop shapes here</p>
+                    <p className="text-sm text-neutral-500 mt-1">JSON or Excalidraw library</p>
+                </div>
+            )}
+
             {/* ── TOPBAR ──────────────────────────────────────────────────────── */}
             <div className="flex items-center justify-between gap-[10px] px-[20px] py-[12px] bg-[#FAFAFA] shrink-0 sticky top-0 z-10 w-full">
                 <div className="flex flex-1 max-w-[220px] relative">
@@ -186,6 +290,20 @@ export default function LibraryView() {
                     />
                 </div>
                 <div className="ml-auto flex items-center gap-[12px]">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept=".json,.excalidrawlib"
+                        onChange={handleFileUpload}
+                    />
+                    <button 
+                        onClick={handleImportClick}
+                        className="flex items-center gap-[6px] bg-white text-black border border-black/10 rounded-[99px] px-[14px] py-[8px] text-[12px] font-medium hover:bg-neutral-50 transition-colors shadow-sm"
+                    >
+                        <UploadCloud className="h-[14px] w-[14px] text-neutral-500" />
+                        Import Lib
+                    </button>
                     <button 
                         onClick={handleCreateBoard}
                         className="flex items-center gap-[6px] bg-black text-white rounded-[99px] px-[14px] py-[8px] text-[12px] font-medium hover:bg-neutral-800 transition-colors shadow-sm hidden sm:flex"

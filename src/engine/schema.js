@@ -135,6 +135,15 @@ export const createPencil = (id, startPoint) => ({
 });
 
 /**
+ * Creates an image schema
+ */
+export const createImage = (id, x, y, src, width, height) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.IMAGE, x, y),
+    src,
+    size: { width, height }
+});
+
+/**
  * Root Document Schema Factory
  */
 export const createRootDocument = () => ({

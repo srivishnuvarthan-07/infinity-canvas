@@ -174,16 +174,31 @@ export class CanvasRenderer {
     _drawImage(shape) {
         if (!shape.src) return;
 
+        const w = getShapeWidth(shape);
+        const h = getShapeHeight(shape);
+        if (w <= 0 || h <= 0) return;
+
         let img = this.imageCache.get(shape.id);
-        if (!img) {
-            img = new Image();
-            img.src = shape.src;
-            this.imageCache.set(shape.id, img);
+
+        // Invalidate cache if the src changed
+        if (img && img._src !== shape.src) {
+            this.imageCache.delete(shape.id);
+            img = null;
         }
 
-        if (img.complete && img.naturalWidth > 0) {
-            const w = getShapeWidth(shape);
-            const h = getShapeHeight(shape);
+        if (!img) {
+            img = new Image();
+            img._src = shape.src;
+            this.imageCache.set(shape.id, img);
+            img.onload = () => {
+                // Trigger re-render by dispatching a custom event the engine listens to,
+                // or just directly request a new animation frame paint
+                this.canvas.dispatchEvent(new CustomEvent('image-loaded'));
+            };
+            img.src = shape.src;
+        }
+
+        if (img.complete && img.naturalHeight >= 0 && img.naturalWidth >= 0) {
             this.ctx.drawImage(img, -w / 2, -h / 2, w, h);
         }
     }

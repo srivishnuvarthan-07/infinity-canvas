@@ -694,13 +694,199 @@ function renderDPTable(dsa) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ── MODE: compare ────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Renders two DSA diagrams side-by-side with a differences table below.
+ * Layout:
+ *   [LEFT diagram]   [RIGHT diagram]
+ *          [differences table]
+ */
+function renderCompare(dsa) {
+  const shapes = [];
+  const { left, right, differences = [] } = dsa.compare || {};
+  if (!left || !right) return [];
+
+  const GAP = 160; // horizontal gap between the two sub-diagrams
+
+  // Render left sub-diagram offset to the left
+  const leftShapes  = renderByType({ ...left,  title: left.title  || 'Left'  });
+  const rightShapes = renderByType({ ...right, title: right.title || 'Right' });
+
+  // Estimate bounding width of each sub-diagram for positioning
+  const SUB_W = 520;
+
+  // Shift left group to -SUB_W/2 - GAP/2, right group to +SUB_W/2 + GAP/2
+  const offsetShapes = (shapeArr, dx, dy = 0) =>
+    shapeArr.map(s => ({ ...s, position: { x: s.position.x + dx, y: s.position.y + dy } }));
+
+  shapes.push(...offsetShapes(leftShapes,  -(SUB_W / 2 + GAP / 2)));
+  shapes.push(...offsetShapes(rightShapes,  (SUB_W / 2 + GAP / 2)));
+
+  // VS divider label
+  shapes.push(makeText(0, 0, 60, 36, 'VS', { fontSize: 20, bold: true, color: '#6366f1' }));
+
+  // Differences table below both diagrams
+  if (differences.length > 0) {
+    const TABLE_Y  = 260;
+    const COL_W    = 220;
+    const ROW_H    = 36;
+    const CRIT_W   = 200;
+    const startY   = TABLE_Y;
+
+    // Header row
+    shapes.push(makeNode(-CRIT_W / 2 - COL_W / 2, startY, CRIT_W, ROW_H, 'Criterion', 'rectangle', '#e2e8f0'));
+    shapes.push(makeNode(CRIT_W / 2 - COL_W / 2 + COL_W * 0.5, startY, COL_W, ROW_H, left.title  || 'Left',  'rectangle', '#bfdbfe'));
+    shapes.push(makeNode(CRIT_W / 2 - COL_W / 2 + COL_W * 1.5, startY, COL_W, ROW_H, right.title || 'Right', 'rectangle', '#bbf7d0'));
+
+    differences.forEach((row, i) => {
+      const cy = startY + (i + 1) * ROW_H;
+      const bg = i % 2 === 0 ? '#f8fafc' : '#f1f5f9';
+      shapes.push(makeNode(-CRIT_W / 2 - COL_W / 2,             cy, CRIT_W, ROW_H, row.criterion, 'rectangle', bg));
+      shapes.push(makeNode(CRIT_W / 2 - COL_W / 2 + COL_W * 0.5, cy, COL_W,  ROW_H, row.left,      'rectangle', bg));
+      shapes.push(makeNode(CRIT_W / 2 - COL_W / 2 + COL_W * 1.5, cy, COL_W,  ROW_H, row.right,     'rectangle', bg));
+    });
+  }
+
+  return shapes;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ── MODE: leetcode ───────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+
+const DIFF_COLORS = { Easy: '#86efac', Medium: '#fcd34d', Hard: '#fca5a5' };
+
+/**
+ * Renders a LeetCode problem as 3 vertical sections on the canvas:
+ *   1. Problem Card  (title, difficulty, statement, example I/O)
+ *   2. Algorithm trace (the normal DSA diagram for the example)
+ *   3. Complexity badge
+ */
+function renderLeetcode(dsa) {
+  const shapes = [];
+  const lc = dsa.leetcode || {};
+
+  // ── 1. Problem card ────────────────────────────────────────────
+  const CARD_W   = 520;
+  const CARD_H   = 180;
+  const CARD_Y   = -320;
+
+  const cardId = uid();
+  shapes.push({
+    ...baseProps({
+      id: cardId, type: 'rectangle',
+      position: { x: 0, y: CARD_Y },
+      size: { width: CARD_W, height: CARD_H },
+      style: baseStyle({ fill: '#1e293b', stroke: '#334155', strokeWidth: 2, roughness: 0.3, seed: stableHash(cardId) }),
+    }),
+  });
+
+  // Difficulty badge
+  const diffColor = DIFF_COLORS[lc.difficulty] || '#e2e8f0';
+  const badgeId = uid();
+  shapes.push({
+    ...baseProps({
+      id: badgeId, type: 'rectangle',
+      position: { x: CARD_W / 2 - 56, y: CARD_Y - CARD_H / 2 + 16 },
+      size: { width: 88, height: 24 },
+      style: baseStyle({ fill: diffColor, stroke: 'transparent', strokeWidth: 0, roughness: 0, seed: stableHash(badgeId) }),
+    }),
+  });
+  shapes.push(makeText(CARD_W / 2 - 56, CARD_Y - CARD_H / 2 + 16, 88, 24,
+    lc.difficulty || 'Medium', { fontSize: 11, bold: true, color: '#1e293b' }));
+
+  // Title
+  shapes.push(makeText(0, CARD_Y - CARD_H / 2 + 30, CARD_W - 20, 28,
+    lc.title || dsa.title || 'LeetCode Problem', { fontSize: 18, bold: true, color: '#f8fafc' }));
+
+  // Category + approach
+  shapes.push(makeText(0, CARD_Y - CARD_H / 2 + 62, CARD_W - 20, 20,
+    `${lc.category || ''}  ·  ${lc.approach || ''}`, { fontSize: 12, color: '#94a3b8' }));
+
+  // Problem statement (truncate if long)
+  const stmt = (lc.problemStatement || '').slice(0, 120);
+  shapes.push(makeText(0, CARD_Y - CARD_H / 2 + 90, CARD_W - 24, 36,
+    stmt, { fontSize: 12, color: '#cbd5e1' }));
+
+  // Example I/O
+  if (lc.example) {
+    shapes.push(makeText(-60, CARD_Y + CARD_H / 2 - 28, 240, 20,
+      `Input: ${lc.example.input}`, { fontSize: 12, bold: true, color: '#6ee7b7' }));
+    shapes.push(makeText(160, CARD_Y + CARD_H / 2 - 28, 200, 20,
+      `Output: ${lc.example.output}`, { fontSize: 12, bold: true, color: '#fbbf24' }));
+  }
+
+  // ── 2. Algorithm trace diagram ─────────────────────────────────
+  const traceShapes = renderByType(dsa);
+  // traceShapes are already centered at 0,0 — they sit below the card naturally
+  shapes.push(...traceShapes);
+
+  // ── 3. Complexity badge row ────────────────────────────────────
+  const BADGE_Y = 260;
+  if (lc.complexity) {
+    const timeBadgeId = uid();
+    const spaceBadgeId = uid();
+    shapes.push({
+      ...baseProps({
+        id: timeBadgeId, type: 'rectangle',
+        position: { x: -90, y: BADGE_Y },
+        size: { width: 160, height: 36 },
+        style: baseStyle({ fill: '#dbeafe', stroke: '#93c5fd', roughness: 0.3, seed: stableHash(timeBadgeId) }),
+      }),
+    });
+    shapes.push(makeText(-90, BADGE_Y, 160, 36,
+      `⏱ Time: ${lc.complexity.time}`, { fontSize: 13, bold: true, color: '#1e40af' }));
+
+    shapes.push({
+      ...baseProps({
+        id: spaceBadgeId, type: 'rectangle',
+        position: { x: 90, y: BADGE_Y },
+        size: { width: 160, height: 36 },
+        style: baseStyle({ fill: '#dcfce7', stroke: '#86efac', roughness: 0.3, seed: stableHash(spaceBadgeId) }),
+      }),
+    });
+    shapes.push(makeText(90, BADGE_Y, 160, 36,
+      `💾 Space: ${lc.complexity.space}`, { fontSize: 13, bold: true, color: '#166534' }));
+  }
+
+  return shapes;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ── Internal type dispatcher (used by compare + leetcode) ────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+
+function renderByType(dsa) {
+  switch (dsa.dsaType) {
+    case 'array':         return renderArray(dsa);
+    case 'linked_list':   return renderLinkedList(dsa);
+    case 'stack':         return renderStack(dsa);
+    case 'queue':         return renderQueue(dsa);
+    case 'binary_tree':   return renderBinaryTree(dsa);
+    case 'graph':         return renderGraph(dsa);
+    case 'hash_table':    return renderHashTable(dsa);
+    case 'sorting_steps': return renderSortingSteps(dsa);
+    case 'dp_table':      return renderDPTable(dsa);
+    default: return [];
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // ── Main dispatcher ──────────────────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
  * Converts a DSA AI result into a flat list of Infinity Canvas shapes.
  *
- * @param {Object} dsaIntent - { intent_type: "dsa", dsa: { dsaType, title, structure, steps } }
+ * Supports 4 modes via dsa.dsaMode:
+ *   "snapshot"  → single static diagram (original behaviour)
+ *   "trace"     → step-by-step diagram  (original behaviour, steps[] populated)
+ *   "compare"   → two diagrams side-by-side with differences table
+ *   "leetcode"  → problem card + algorithm trace + complexity badges
+ *
+ * @param {Object} dsaIntent - { intent_type: "dsa", dsa: { dsaMode, dsaType, title, structure, steps, compare?, leetcode? } }
  * @returns {Array} Flat array of Infinity Canvas shape objects
  */
 export function generateDSAShapes(dsaIntent) {
@@ -708,20 +894,549 @@ export function generateDSAShapes(dsaIntent) {
     return [];
   }
 
-  const dsa = dsaIntent.dsa;
+  const dsa  = dsaIntent.dsa;
+  const mode = dsa.dsaMode || 'snapshot';
 
-  switch (dsa.dsaType) {
-    case 'array':          return renderArray(dsa);
-    case 'linked_list':    return renderLinkedList(dsa);
-    case 'stack':          return renderStack(dsa);
-    case 'queue':          return renderQueue(dsa);
-    case 'binary_tree':    return renderBinaryTree(dsa);
-    case 'graph':          return renderGraph(dsa);
-    case 'hash_table':     return renderHashTable(dsa);
-    case 'sorting_steps':  return renderSortingSteps(dsa);
-    case 'dp_table':       return renderDPTable(dsa);
-    default:
-      console.warn(`[DSA Generator] Unknown dsaType: "${dsa.dsaType}".`);
-      return [];
+  if (mode === 'compare')  return renderCompare(dsa);
+  if (mode === 'leetcode') return renderLeetcode(dsa);
+
+  // trace mode → route to rich step-card renderers based on dsaType
+  if (mode === 'trace') {
+    switch (dsa.dsaType) {
+      case 'sorting_steps': return renderSortingTrace(dsa);
+      case 'binary_tree':   return renderTreeTrace(dsa);
+      case 'graph':         return renderGraphTrace(dsa);
+      case 'dp_table':      return renderDPTrace(dsa);
+      // linked_list / stack / queue / array / hash_table fall through to snapshot renderers
+      default:              return renderByType(dsa);
+    }
   }
+
+  // snapshot mode (and anything else) → original static renderers
+  return renderByType(dsa);
+}
+// ═════════════════════════════════════════════════════════════════════════════
+// ── RICH TRACE RENDERERS ─────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── Shared: Step card container ───────────────────────────────────────────────
+// Each step card = a labelled border box containing a mini-diagram.
+// Cards are laid left→right, connected by arrows.
+// offsetX = left edge of the card; returns shapes offset to card center.
+
+const CARD_PAD   = 16;
+const CARD_GAP   = 56;   // gap between cards
+const CARD_HDR   = 32;   // header height inside card
+
+function makeStepCard(offsetX, cardW, cardH, stepLabel, stepDesc) {
+  const shapes = [];
+  const cx = offsetX + cardW / 2;
+  const cy = 0;
+
+  // Card border
+  const cardId = uid();
+  shapes.push({
+    ...baseProps({
+      id: cardId, type: 'rectangle',
+      position: { x: cx, y: cy },
+      size: { width: cardW, height: cardH },
+      style: baseStyle({ fill: '#f8fafc', stroke: '#cbd5e1', strokeWidth: 1.5, roughness: 0.4, seed: stableHash(cardId) }),
+    }),
+  });
+
+  // Header strip
+  const hdrId = uid();
+  shapes.push({
+    ...baseProps({
+      id: hdrId, type: 'rectangle',
+      position: { x: cx, y: cy - cardH / 2 + CARD_HDR / 2 },
+      size: { width: cardW, height: CARD_HDR },
+      style: baseStyle({ fill: '#1e293b', stroke: 'transparent', strokeWidth: 0, roughness: 0, seed: stableHash(hdrId) }),
+    }),
+  });
+
+  // Step number
+  shapes.push(makeText(cx - cardW / 2 + 30, cy - cardH / 2 + CARD_HDR / 2, 44, CARD_HDR,
+    stepLabel, { fontSize: 12, bold: true, color: '#fbbf24' }));
+
+  // Step description
+  shapes.push(makeText(cx + 24, cy - cardH / 2 + CARD_HDR / 2, cardW - 56, CARD_HDR,
+    stepDesc, { fontSize: 11, color: '#e2e8f0', align: 'left' }));
+
+  return shapes;
+}
+
+function connectCards(cards) {
+  // cards = array of { offsetX, cardW, cardH }
+  const arrows = [];
+  for (let i = 0; i < cards.length - 1; i++) {
+    const a = cards[i];
+    const b = cards[i + 1];
+    const x1 = a.offsetX + a.cardW;
+    const x2 = b.offsetX;
+    const y  = 0;
+    arrows.push(...makeArrow(x1, y, x2, y));
+  }
+  return arrows;
+}
+
+// ── RICH: Sorting Trace ───────────────────────────────────────────────────────
+// Schema expected:
+// structure.steps[] = [{ array, comparing:[], swapped, sorted:[], pointers:{i,j,pivot} }]
+// steps[] = human labels per step
+
+export function renderSortingTrace(dsa) {
+  const shapes  = [];
+  const rawSteps = dsa.structure?.steps || [];
+  const labels   = dsa.steps || [];
+
+  const CELL_W = 48, CELL_H = 44;
+  const CARD_H = CELL_H + CARD_HDR + CARD_PAD * 3 + 24; // array + pointers row
+  const firstLen = rawSteps[0]?.array?.length || 1;
+  const CARD_W   = Math.max(180, firstLen * CELL_W + CARD_PAD * 2);
+  const stride   = CARD_W + CARD_GAP;
+  const totalW   = rawSteps.length * stride - CARD_GAP;
+
+  shapes.push(makeTitle(-totalW / 2 + CARD_W / 2, -CARD_H / 2 - 48, dsa.title || 'Sorting'));
+
+  const cardMetas = [];
+
+  rawSteps.forEach((step, si) => {
+    const arr      = step.array     || [];
+    const cmpSet   = new Set(step.comparing || []);
+    const sortedSet= new Set(step.sorted    || []);
+    const pointers = step.pointers  || {};
+    const offsetX  = -totalW / 2 + si * stride;
+    const cx       = offsetX + CARD_W / 2;
+    const label    = `S${si + 1}`;
+    const desc     = labels[si] || (step.swapped ? 'swap' : 'compare');
+
+    shapes.push(...makeStepCard(offsetX, CARD_W, CARD_H, label, desc));
+    cardMetas.push({ offsetX, cardW: CARD_W, cardH: CARD_H });
+
+    // Array cells — vertically centered inside card body
+    const bodyCY  = CARD_HDR / 2 + CARD_PAD + CELL_H / 2;  // relative to card center
+    const arrStartX = cx - (arr.length * CELL_W) / 2 + CELL_W / 2;
+
+    arr.forEach((val, ci) => {
+      const cellCX = arrStartX + ci * CELL_W;
+      const cellCY = bodyCY;
+      const fill   = cmpSet.has(ci)    ? C.comparing
+                   : sortedSet.has(ci) ? C.sorted
+                   : C.normal;
+      shapes.push(makeNode(cellCX, cellCY, CELL_W, CELL_H, String(val), 'rectangle', fill));
+
+      // Pointer labels below cell
+      const ptrLabels = Object.entries(pointers)
+        .filter(([, v]) => v === ci)
+        .map(([k]) => k);
+      if (ptrLabels.length) {
+        shapes.push(makeText(cellCX, bodyCY + CELL_H / 2 + 12, CELL_W, 16,
+          ptrLabels.join(','), { fontSize: 11, bold: true, color: '#6366f1' }));
+      }
+    });
+
+    // Swap badge
+    if (step.swapped) {
+      shapes.push(makeText(cx, bodyCY + CELL_H / 2 + 28, 70, 18, '⇄ swap',
+        { fontSize: 11, bold: true, color: '#dc2626' }));
+    }
+  });
+
+  shapes.push(...connectCards(cardMetas));
+  return shapes;
+}
+
+// ── RICH: Tree Traversal Trace ────────────────────────────────────────────────
+// Schema expected:
+// structure.nodes[]         = full node list (id, value, left, right)
+// structure.root            = root id
+// structure.traversalSteps[]= [{ visitedIds:[], currentId, queueOrStack:[] }]
+// steps[]                   = human labels per step
+
+// Estimate ellipse width needed to fit a text label (approx 7.5px per char at 11px font)
+function estimateNodeSize(label) {
+  const text  = String(label || '');
+  // Split on newline or '|' separator the AI may use
+  const lines = text.split(/[\n|]/).map(l => l.trim()).filter(Boolean);
+  const longest = Math.max(...lines.map(l => l.length), 1);
+  // Ellipse needs ~1.42x its text width to contain the text (ellipse geometry)
+  const w = Math.max(90, Math.ceil(longest * 7.8 * 1.42));
+  const h = Math.max(60, lines.length > 1 ? 76 : 60);
+  return { w, h, lines };
+}
+
+function buildTreePositions(nodeMap, rootId) {
+  const LEVEL_H  = 110; // vertical gap between levels
+  const H_MARGIN = 24;  // extra horizontal margin between siblings
+  const positions = new Map();
+  const sizeMap   = new Map(); // node id → { w, h }
+
+  // Pre-compute each node's ellipse size from its label
+  nodeMap.forEach((n, id) => {
+    const label = n.nodeLabel || n.value || id;
+    sizeMap.set(id, estimateNodeSize(label));
+  });
+
+  // Returns minimum width this subtree needs
+  function subtreeWidth(id) {
+    if (!id || !nodeMap.has(id)) return 0;
+    const n    = nodeMap.get(id);
+    const nw   = (sizeMap.get(id) || {}).w || 90;
+    const lw   = subtreeWidth(n.left);
+    const rw   = subtreeWidth(n.right);
+    if (!n.left && !n.right) return nw;
+    if (!n.left  || !n.right) return Math.max(nw, (lw || rw) + nw + H_MARGIN);
+    return Math.max(nw, lw + rw + H_MARGIN);
+  }
+
+  function assign(id, cx, cy) {
+    if (!id || !nodeMap.has(id)) return;
+    const n    = nodeMap.get(id);
+    const nw   = (sizeMap.get(id) || {}).w || 90;
+    positions.set(id, { x: cx, y: cy });
+    const lw   = subtreeWidth(n.left);
+    const rw   = subtreeWidth(n.right);
+    if (n.left)  assign(n.left,  cx - (lw / 2 + nw / 2 + H_MARGIN / 2), cy + LEVEL_H);
+    if (n.right) assign(n.right, cx + (rw / 2 + nw / 2 + H_MARGIN / 2), cy + LEVEL_H);
+  }
+
+  const depth = (function d(id, lv = 0) {
+    if (!id || !nodeMap.has(id)) return lv;
+    const n = nodeMap.get(id);
+    return Math.max(d(n.left, lv + 1), d(n.right, lv + 1));
+  })(rootId);
+
+  // Use max node height for level height calculation
+  let maxNodeH = 60;
+  sizeMap.forEach(s => { if (s.h > maxNodeH) maxNodeH = s.h; });
+
+  const treeH = depth * LEVEL_H + maxNodeH;
+  assign(rootId, 0, -treeH / 2 + maxNodeH / 2);
+  return { positions, treeH, sizeMap, LEVEL_H };
+}
+
+export function renderTreeTrace(dsa) {
+  const shapes   = [];
+  const allNodes = dsa.structure?.nodes || [];
+  const rootId   = dsa.structure?.root;
+  const tSteps   = dsa.structure?.traversalSteps || [];
+  const labels   = dsa.steps || [];
+
+  if (!rootId || allNodes.length === 0) return renderBinaryTree(dsa); // fallback
+
+  const nodeMap = new Map();
+  allNodes.forEach(n => nodeMap.set(n.id, n));
+
+  const { positions, treeH, sizeMap } = buildTreePositions(nodeMap, rootId);
+
+  // Compute true bounding box from every node's actual center + its own size
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  positions.forEach((pos, id) => {
+    const sz = sizeMap.get(id) || { w: 90, h: 60 };
+    minX = Math.min(minX, pos.x - sz.w / 2);
+    maxX = Math.max(maxX, pos.x + sz.w / 2);
+    minY = Math.min(minY, pos.y - sz.h / 2);
+    maxY = Math.max(maxY, pos.y + sz.h / 2);
+  });
+
+  const realTreeW = maxX - minX;
+  const realTreeH = maxY - minY;
+
+  const auxH      = 44;   // queue/stack row height
+  const INNER_PAD = 28;   // breathing room on each side inside card
+
+  // Card must fit the full tree width (minX..maxX are relative to tree center 0,0)
+  // Both left and right extremes must be padded, so use the larger half × 2
+  const halfSpread = Math.max(Math.abs(minX), Math.abs(maxX));
+  const CARD_W = Math.max(320, halfSpread * 2 + INNER_PAD * 2);
+  const CARD_H = realTreeH + CARD_HDR + INNER_PAD * 2 + auxH;
+  const stride   = CARD_W + CARD_GAP;
+  const steps    = tSteps.length > 0 ? tSteps : [{ visitedIds: [], currentId: null, queueOrStack: [] }];
+  const totalW   = steps.length * stride - CARD_GAP;
+
+  shapes.push(makeTitle(-totalW / 2 + CARD_W / 2, -CARD_H / 2 - 48, dsa.title || 'Tree Traversal'));
+
+  const cardMetas = [];
+
+  steps.forEach((step, si) => {
+    const visitedSet = new Set(step.visitedIds || []);
+    const currentId  = step.currentId || null;
+    const aux        = step.queueOrStack || [];
+    const offsetX    = -totalW / 2 + si * stride;
+    const cx         = offsetX + CARD_W / 2;
+    // treeOriginY: shift so topmost node edge sits at header-bottom + padding
+    // nodes are stored relative to (0,0); minY is the top of the topmost node
+    const treeOriginY = -CARD_H / 2 + CARD_HDR + INNER_PAD + (-minY);
+    // treeOriginX: tree (0,0) is already horizontally centered in card (cx)
+    // no extra X offset needed — nodes draw at cx + pos.x
+
+    shapes.push(...makeStepCard(offsetX, CARD_W, CARD_H, `S${si + 1}`, labels[si] || `Visit ${currentId || '—'}`));
+    cardMetas.push({ offsetX, cardW: CARD_W, cardH: CARD_H });
+
+    // Draw edges — use per-node sizes for exact top/bottom offsets
+    allNodes.forEach(node => {
+      const pos  = positions.get(node.id); if (!pos) return;
+      const pSz  = sizeMap.get(node.id) || { w: 90, h: 60 };
+      ['left', 'right'].forEach(dir => {
+        const childId = node[dir];
+        if (childId) {
+          const cPos = positions.get(childId); if (!cPos) return;
+          const cSz  = sizeMap.get(childId) || { w: 90, h: 60 };
+          shapes.push(...makeArrow(
+            cx + pos.x,  treeOriginY + pos.y  + pSz.h / 2,
+            cx + cPos.x, treeOriginY + cPos.y - cSz.h / 2
+          ));
+        }
+      });
+    });
+
+    // Draw nodes with traversal coloring
+    allNodes.forEach(node => {
+      const pos = positions.get(node.id); if (!pos) return;
+      const isVisited = visitedSet.has(node.id);
+      const isCurrent = node.id === currentId;
+      const fill = isCurrent ? C.highlight
+                 : isVisited ? C.sorted
+                 : C.treeNode;
+
+      // Auto-size ellipse to fit the full label text
+      const { w: NW, h: NH, lines } = sizeMap.get(node.id) || estimateNodeSize(node.nodeLabel || node.value || node.id);
+
+      // Draw ellipse background
+      const ellId = uid();
+      shapes.push({
+        ...baseProps({
+          id: ellId, type: 'ellipse',
+          position: { x: cx + pos.x, y: treeOriginY + pos.y },
+          size: { width: NW, height: NH },
+          style: baseStyle({ fill, stroke: HAND_STROKE, strokeWidth: 2, roughness: ROUGHNESS, seed: stableHash(ellId) }),
+        }),
+      });
+
+      // Render each line of text centered inside the ellipse
+      // For ellipse: usable width ≈ NW * 0.70 (chord at mid-height)
+      const usableW = Math.floor(NW * 0.70);
+      const lineH   = 15;
+      const totalTH = lines.length * lineH;
+      lines.forEach((line, li) => {
+        const textY = treeOriginY + pos.y - totalTH / 2 + li * lineH + lineH / 2;
+        shapes.push(makeText(
+          cx + pos.x, textY, usableW, lineH, line,
+          { fontSize: 11, bold: false, color: '#1e293b', align: 'center' }
+        ));
+      });
+
+      // Visit order badge (top-right of ellipse)
+      const visitOrder = [...visitedSet].indexOf(node.id);
+      if (visitOrder >= 0) {
+        const badgeId = uid();
+        shapes.push({
+          ...baseProps({
+            id: badgeId, type: 'ellipse',
+            position: { x: cx + pos.x + NW / 2 - 10, y: treeOriginY + pos.y - NH / 2 + 10 },
+            size: { width: 20, height: 20 },
+            style: baseStyle({ fill: '#6366f1', stroke: 'transparent', strokeWidth: 0, roughness: 0, seed: stableHash(badgeId) }),
+          }),
+        });
+        shapes.push(makeText(
+          cx + pos.x + NW / 2 - 10, treeOriginY + pos.y - NH / 2 + 10,
+          20, 20, String(visitOrder + 1),
+          { fontSize: 9, bold: true, color: '#ffffff' }
+        ));
+      }
+    });
+
+    // Queue / stack row — anchored to card bottom edge
+    const auxY = CARD_H / 2 - auxH / 2 - 4;
+    const auxLabel = step.auxLabel || 'Queue';
+    shapes.push(makeText(cx - CARD_W / 2 + 28, auxY, 50, auxH, auxLabel,
+      { fontSize: 10, bold: true, color: '#475569' }));
+    aux.forEach((val, ai) => {
+      shapes.push(makeNode(cx - CARD_W / 2 + 70 + ai * 34, auxY, 30, 24,
+        String(val), 'rectangle', '#e0e7ff'));
+    });
+    if (aux.length === 0) {
+      shapes.push(makeText(cx - CARD_W / 2 + 80, auxY, 40, auxH, '∅',
+        { fontSize: 13, color: '#94a3b8' }));
+    }
+  });
+
+  shapes.push(...connectCards(cardMetas));
+  return shapes;
+}
+
+// ── RICH: Graph Traversal Trace ───────────────────────────────────────────────
+// Schema expected:
+// structure.nodes[]          = [{ id, label }]
+// structure.edges[]          = [{ from, to, directed }]
+// structure.traversalSteps[] = [{ visitedIds:[], currentId, queueOrStack:[], auxLabel }]
+// steps[]                    = human labels
+
+export function renderGraphTrace(dsa) {
+  const shapes   = [];
+  const gnodes   = dsa.structure?.nodes || [];
+  const gedges   = dsa.structure?.edges || [];
+  const tSteps   = dsa.structure?.traversalSteps || [];
+  const labels   = dsa.steps || [];
+
+  if (tSteps.length === 0) return renderGraph(dsa); // fallback to snapshot
+
+  const NODE_R   = 28;
+  const R        = Math.max(90, gnodes.length * 28);
+
+  // Build fixed circular positions (same for every card)
+  const posMap = new Map();
+  gnodes.forEach((n, i) => {
+    const angle = (2 * Math.PI * i) / gnodes.length - Math.PI / 2;
+    posMap.set(n.id, { x: Math.round(R * Math.cos(angle)), y: Math.round(R * Math.sin(angle)) });
+  });
+
+  const graphW = (R + NODE_R) * 2 + 8;
+  const graphH = (R + NODE_R) * 2 + 8;
+  const auxH   = 36;
+  const CARD_H = graphH + CARD_HDR + CARD_PAD * 2 + auxH;
+  const CARD_W = Math.max(220, graphW + CARD_PAD * 2);
+  const stride = CARD_W + CARD_GAP;
+  const totalW = tSteps.length * stride - CARD_GAP;
+
+  shapes.push(makeTitle(-totalW / 2 + CARD_W / 2, -CARD_H / 2 - 48, dsa.title || 'Graph Traversal'));
+
+  const cardMetas = [];
+
+  tSteps.forEach((step, si) => {
+    const visitedSet = new Set(step.visitedIds || []);
+    const currentId  = step.currentId || null;
+    const aux        = step.queueOrStack || [];
+    const offsetX    = -totalW / 2 + si * stride;
+    const cx         = offsetX + CARD_W / 2;
+    const graphCY    = CARD_HDR / 2 + CARD_PAD + graphH / 2;
+
+    shapes.push(...makeStepCard(offsetX, CARD_W, CARD_H, `S${si + 1}`, labels[si] || `Visit ${currentId || '—'}`));
+    cardMetas.push({ offsetX, cardW: CARD_W, cardH: CARD_H });
+
+    // Draw edges
+    gedges.forEach(e => {
+      const from = posMap.get(e.from); const to = posMap.get(e.to);
+      if (!from || !to) return;
+      const dx = to.x - from.x, dy = to.y - from.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = dx / dist, ny = dy / dist;
+      const sx = cx + from.x + nx * NODE_R, sy = graphCY + from.y + ny * NODE_R;
+      const ex = cx + to.x   - nx * NODE_R, ey = graphCY + to.y   - ny * NODE_R;
+      if (e.directed !== false) shapes.push(...makeArrow(sx, sy, ex, ey));
+      else shapes.push(makeLine(sx, sy, ex, ey));
+    });
+
+    // Draw nodes
+    gnodes.forEach(n => {
+      const pos = posMap.get(n.id); if (!pos) return;
+      const isVisited = visitedSet.has(n.id);
+      const isCurrent = n.id === currentId;
+      const fill = isCurrent ? C.highlight
+                 : isVisited ? C.sorted
+                 : '#f1f5f9';
+      shapes.push(makeNode(cx + pos.x, graphCY + pos.y, NODE_R * 2, NODE_R * 2,
+        n.label || n.id, 'ellipse', fill));
+    });
+
+    // Queue / stack row
+    const auxY = graphCY + graphH / 2 + CARD_PAD + auxH / 2;
+    const auxLabel = step.auxLabel || 'Queue';
+    shapes.push(makeText(cx - CARD_W / 2 + 30, auxY, 52, auxH, auxLabel,
+      { fontSize: 10, bold: true, color: '#475569' }));
+    aux.forEach((val, ai) => {
+      shapes.push(makeNode(cx - CARD_W / 2 + 76 + ai * 34, auxY, 30, 24,
+        String(val), 'rectangle', '#e0e7ff'));
+    });
+    if (aux.length === 0) {
+      shapes.push(makeText(cx - CARD_W / 2 + 80, auxY, 40, auxH, '∅',
+        { fontSize: 13, color: '#94a3b8' }));
+    }
+  });
+
+  shapes.push(...connectCards(cardMetas));
+  return shapes;
+}
+
+// ── RICH: DP Table Trace ──────────────────────────────────────────────────────
+// Schema expected:
+// structure.colHeaders[]
+// structure.rowHeaders[]   (array of row labels; 1 row = 1D DP, N rows = 2D)
+// structure.tableSteps[]   = [{ cells:[][], currentCell:[r,c], formula, filledSoFar:[[r,c],...] }]
+// steps[]                  = human labels
+
+export function renderDPTrace(dsa) {
+  const shapes     = [];
+  const colHeaders = dsa.structure?.colHeaders || [];
+  const rowHeaders = dsa.structure?.rowHeaders || [dsa.structure?.rowHeader || 'dp'];
+  const tSteps     = dsa.structure?.tableSteps || [];
+  const labels     = dsa.steps || [];
+
+  if (tSteps.length === 0) return renderDPTable(dsa); // fallback
+
+  const CELL_W = 52, CELL_H = 40;
+  const numCols = colHeaders.length;
+  const numRows = rowHeaders.length;
+  const tableW  = (numCols + 1) * CELL_W; // +1 for row header col
+  const tableH  = (numRows + 1) * CELL_H; // +1 for col header row
+  const formulaH = 28;
+  const CARD_H  = tableH + formulaH + CARD_HDR + CARD_PAD * 3;
+  const CARD_W  = Math.max(240, tableW + CARD_PAD * 2);
+  const stride  = CARD_W + CARD_GAP;
+  const totalW  = tSteps.length * stride - CARD_GAP;
+
+  shapes.push(makeTitle(-totalW / 2 + CARD_W / 2, -CARD_H / 2 - 48, dsa.title || 'DP Trace'));
+
+  const cardMetas = [];
+
+  tSteps.forEach((step, si) => {
+    const cells      = step.cells      || [];
+    const [cr, cc]   = step.currentCell || [-1, -1];
+    const filledSet  = new Set((step.filledSoFar || []).map(([r, c]) => `${r},${c}`));
+    const formula    = step.formula    || '';
+    const offsetX    = -totalW / 2 + si * stride;
+    const cx         = offsetX + CARD_W / 2;
+
+    shapes.push(...makeStepCard(offsetX, CARD_W, CARD_H, `S${si + 1}`, labels[si] || formula));
+    cardMetas.push({ offsetX, cardW: CARD_W, cardH: CARD_H });
+
+    // Table origin (top-left of table relative to card center)
+    const tblOriginX = cx - tableW / 2;
+    const tblOriginY = -CARD_H / 2 + CARD_HDR + CARD_PAD + CELL_H / 2;
+
+    // Formula row above table body
+    if (formula) {
+      shapes.push(makeText(cx, tblOriginY - CELL_H / 2 - formulaH / 2 + 4, CARD_W - CARD_PAD * 2, formulaH,
+        formula, { fontSize: 11, bold: true, color: '#7c3aed' }));
+    }
+
+    // Column headers
+    colHeaders.forEach((ch, j) => {
+      shapes.push(makeNode(tblOriginX + (j + 1) * CELL_W, tblOriginY, CELL_W, CELL_H,
+        String(ch), 'rectangle', '#e2e8f0'));
+    });
+
+    // Row headers + cells
+    rowHeaders.forEach((rh, i) => {
+      const rowCY = tblOriginY + (i + 1) * CELL_H;
+      // Row header
+      shapes.push(makeNode(tblOriginX, rowCY, CELL_W, CELL_H, String(rh), 'rectangle', '#e2e8f0'));
+
+      // Data cells
+      (cells[i] || []).forEach((val, j) => {
+        const key    = `${i},${j}`;
+        const isCurr = i === cr && j === cc;
+        const isFilld= filledSet.has(key);
+        const fill   = isCurr ? C.dpHL
+                     : isFilld ? C.dpFilled
+                     : C.dpEmpty;
+        shapes.push(makeNode(tblOriginX + (j + 1) * CELL_W, rowCY, CELL_W, CELL_H,
+          val !== undefined ? String(val) : '', 'rectangle', fill));
+      });
+    });
+  });
+
+  shapes.push(...connectCards(cardMetas));
+  return shapes;
 }

@@ -1,208 +1,176 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Loader2, Send, Activity, Info } from 'lucide-react';
-import { getAIService } from '@/services/ai.service';
-import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
-import { generateDSAShapes } from '@/engine/ai/dsa.generator';
-import { generateMindMapShapes } from '@/engine/ai/mindmap.generator';
-import { generateComparisonShapes } from '@/engine/ai/comparison.generator';
-import { generateERDShapes } from '@/engine/ai/erd.generator';
-import { validateGraph } from '@/engine/ai/graph.schema';
+import { Sparkles, Lock, KeyRound, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { SignupModal } from '@/components/auth/SignupModal';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
+import { AIPanel } from './AIPanel';
+
+const DAILY_LIMIT = 10;
+
+// ── Dot progress indicator ────────────────────────────────────────────────────
+function PromptDots({ used, total = DAILY_LIMIT }) {
+    return (
+        <div className="flex items-center gap-[3px]">
+            {Array.from({ length: total }).map((_, i) => (
+                <span
+                    key={i}
+                    className={`block rounded-full transition-all duration-300 ${
+                        i < used
+                            ? 'w-[6px] h-[6px] bg-indigo-300'   // used — dim
+                            : 'w-[7px] h-[7px] bg-indigo-600'   // remaining — bright
+                    }`}
+                />
+            ))}
+        </div>
+    );
+}
+
+// ── Locked overlay card ────────────────────────────────────────────────────────
+function LockedCard({ onAddKey, onClose }) {
+    return (
+        <div className="absolute bottom-20 left-4 z-50 pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-200">
+            <div className="bg-white border border-neutral-200 rounded-2xl shadow-2xl w-[300px] overflow-hidden">
+                {/* Header */}
+                <div className="px-5 pt-5 pb-4 flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                            <Lock className="w-4 h-4 text-red-500" />
+                        </div>
+                        <div>
+                            <div className="text-[13px] font-semibold text-neutral-900 leading-tight">Daily limit reached</div>
+                            <div className="text-[11px] text-neutral-400 mt-0.5">All 10 free prompts used</div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-neutral-300 hover:text-neutral-500 transition-colors mt-0.5">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* Dot progress — all used */}
+                <div className="px-5 pb-4">
+                    <div className="flex items-center gap-[3px] mb-3">
+                        {Array.from({ length: DAILY_LIMIT }).map((_, i) => (
+                            <span key={i} className="block w-[6px] h-[6px] rounded-full bg-neutral-200" />
+                        ))}
+                    </div>
+                    <p className="text-[11px] text-neutral-500 leading-relaxed">
+                        Your 10 daily prompts reset at midnight. Add your own API key for <strong className="text-neutral-700">unlimited generation</strong> — no restrictions.
+                    </p>
+                </div>
+
+                {/* CTA */}
+                <div className="border-t border-neutral-100 px-5 py-3 bg-neutral-50/60 flex items-center gap-2">
+                    <button
+                        onClick={onAddKey}
+                        className="flex-1 flex items-center justify-center gap-2 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-[12px] font-medium rounded-xl transition-colors"
+                    >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        Add API key
+                    </button>
+                    <div className="text-[10px] text-neutral-400 text-center leading-tight">
+                        Resets<br/>midnight
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [prompt, setPrompt] = useState('');
-    const [isGenerating, setIsGenerating] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
     const [usageInfo, setUsageInfo] = useState(null);
+    const [showLocked, setShowLocked] = useState(false);
 
     const fetchUsage = async () => {
         if (!user) return;
         try {
-            const response = await api.get('/profile/ai-config/usage');
-            if (response.data.success) {
-                setUsageInfo(response.data);
-            }
+            const res = await api.get(`/profile/ai-config/usage?t=${Date.now()}`);
+            if (res.data.success) setUsageInfo(res.data);
         } catch (err) {
-            console.error("Failed to fetch usage info", err);
+            console.error('Failed to fetch usage info', err);
         }
     };
 
+    useEffect(() => { if (user) fetchUsage(); }, [user]);
+    useEffect(() => { if (user && isOpen) fetchUsage(); }, [user, isOpen]);
     useEffect(() => {
-        if (user && isOpen) {
-            fetchUsage();
-        }
-    }, [user, isOpen]);
+        if (!user) return;
+        const onFocus = () => fetchUsage();
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, [user]);
 
-    const handleGenerate = async (e) => {
-        if (e) e.preventDefault();
-        if (!prompt.trim()) return;
-        
-        if (!user) {
-            setIsSignupModalOpen(true);
-            return;
-        }
+    const isGuest = !user;
+    const isUnlimited = usageInfo?.unlimited;
+    const isLimitReached = !isGuest && usageInfo && usageInfo.remaining === 0 && !isUnlimited;
+    const used = usageInfo && !isUnlimited ? (DAILY_LIMIT - usageInfo.remaining) : 0;
+    const isLockedUI = isGuest || isLimitReached;
 
-        if (usageInfo && usageInfo.remaining === 0 && !usageInfo.unlimited) {
-            toast.error('Daily limit reached. Add your API key in profile for unlimited access.');
-            navigate('/profile');
-            return;
-        }
-
-        setIsGenerating(true);
-        try {
-            const aiService = getAIService();
-
-            // Step 1: Generate JSON directly (expandPrompt is called internally)
-            toast.loading('Analysing prompt...', { id: 'ai-gen' });
-            const intent = await aiService.generateGraphJSON(prompt);
-
-            // Update usage after generation
-            fetchUsage();
-
-            if (intent.intent_type === 'non_visual') {
-                toast.dismiss('ai-gen');
-                toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.', { duration: 5000 });
-            } else if (intent.intent_type === 'comparison') {
-                const newShapes = generateComparisonShapes(intent);
-                if (newShapes && newShapes.length > 0) {
-                    onInsertShapes(newShapes);
-                    if (onAddToLibrary) { try { onAddToLibrary(newShapes, 'AI Comparison'); } catch (e) {/* silent */} }
-                    toast.success(`Comparison table generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the comparison table.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'erd') {
-                const newShapes = generateERDShapes(intent);
-                if (newShapes && newShapes.length > 0) {
-                    onInsertShapes(newShapes);
-                    if (onAddToLibrary) { try { onAddToLibrary(newShapes, 'AI ERD'); } catch (e) {/* silent */} }
-                    toast.success(`ERD diagram generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the ERD.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'mindmap') {
-                const newShapes = generateMindMapShapes(intent);
-                if (newShapes && newShapes.length > 0) {
-                    onInsertShapes(newShapes);
-                    if (onAddToLibrary) { try { onAddToLibrary(newShapes, 'AI Mind Map'); } catch (e) { /* silent */ } }
-                    toast.success(`Mind map generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the mind map.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'dsa') {
-                const newShapes = generateDSAShapes(intent);
-                if (newShapes && newShapes.length > 0) {
-                    onInsertShapes(newShapes);
-                    if (onAddToLibrary) { try { onAddToLibrary(newShapes, 'AI DSA Diagram'); } catch (e) { /* silent */ } }
-                    toast.success(`DSA visualization generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the DSA structure.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'diagram') {
-                const validation = validateGraph(intent.graph);
-                if (!validation.success) {
-                    toast.error('AI returned an invalid diagram format. Please try again.', { id: 'ai-gen' });
-                    return;
-                }
-                const newShapes = generateDiagramShapes(intent);
-                if (newShapes && newShapes.length > 0) {
-                    onInsertShapes(newShapes);
-                    if (onAddToLibrary) { try { onAddToLibrary(newShapes, "AI Diagram"); } catch (e) {} }
-                    toast.success(`Diagram generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not layout the diagram.', { id: 'ai-gen' }); }
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error('Failed to generate diagram: ' + error.message, { id: 'ai-gen' });
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    if (!isOpen) {
+    // ── Locked overlay card ────────────────────────────────────────────────────
+    if (showLocked && isLimitReached) {
         return (
-            <button
-                onClick={() => setIsOpen(true)}
-                className="absolute bottom-20 left-4 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 z-50 pointer-events-auto"
-            >
-                <Sparkles className="w-4 h-4" />
-                <span className="font-medium text-sm">Generate Diagram</span>
-            </button>
+            <>
+                <LockedCard
+                    onAddKey={() => { setShowLocked(false); navigate('/dashboard/settings'); }}
+                    onClose={() => setShowLocked(false)}
+                />
+                <SignupModal isOpen={isSignupModalOpen} onOpenChange={setIsSignupModalOpen} />
+            </>
         );
     }
 
-    const isLimitReached = usageInfo && usageInfo.remaining === 0 && !usageInfo.unlimited;
-
-    return (
-        <div className="absolute bottom-20 left-4 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 z-50 pointer-events-auto">
-            <div className="flex flex-col gap-2">
-                <form
-                    onSubmit={handleGenerate}
-                    className={`flex items-center gap-2 bg-white dark:bg-neutral-910 border rounded-full shadow-2xl p-2 pl-6 pr-2 ${isLimitReached ? 'border-red-200 bg-red-50/10' : ''}`}
+    // ── Collapsed trigger button ───────────────────────────────────────────────
+    if (!isOpen) {
+        return (
+            <>
+                <button
+                    onClick={() => {
+                        if (isGuest) { setIsSignupModalOpen(true); return; }
+                        if (isLimitReached) { setShowLocked(true); return; }
+                        setIsOpen(true);
+                    }}
+                    className={`absolute bottom-20 left-4 flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-lg z-50 pointer-events-auto
+                        transition-all duration-200 hover:scale-105 active:scale-95
+                        ${isLockedUI
+                            ? 'bg-neutral-100 border border-neutral-200 text-neutral-400'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        }`}
                 >
-                    <Sparkles className={`w-5 h-5 shrink-0 ${isLimitReached ? 'text-red-400' : 'text-indigo-500'}`} />
-                    <input
-                        type="text"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder={isLimitReached ? "Daily limit reached — add your API key" : "Describe what to generate — diagram, ERD, comparison, mind map, or DSA..."}
-                        className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-foreground placeholder:text-muted-foreground min-w-0"
-                        disabled={isGenerating || isLimitReached}
-                        onClick={() => isLimitReached && navigate('/profile')}
-                        autoFocus
-                    />
-                    
-                    {/* Provider Indicator */}
-                    {usageInfo && (
-                        <div className="px-3 py-1.5 rounded-full bg-neutral-100 flex items-center gap-2 mr-1">
-                            <div className={`w-2 h-2 rounded-full ${usageInfo.unlimited ? 'bg-emerald-500' : 'bg-neutral-400'}`} />
-                            <span className="text-[10px] font-bold uppercase tracking-tight text-neutral-600">
-                                {usageInfo.unlimited ? 'Custom Key' : `Free: ${usageInfo.remaining} left`}
-                            </span>
-                        </div>
+                    {isLockedUI
+                        ? <Lock className="w-4 h-4 text-neutral-400" />
+                        : <Sparkles className="w-4 h-4" />
+                    }
+                    <span className="font-medium text-sm">
+                        {isLockedUI ? 'Locked' : 'Generate Diagram'}
+                    </span>
+
+                    {/* Usage dots */}
+                    {!isGuest && usageInfo && !isUnlimited && !isLimitReached && (
+                        <PromptDots used={used} total={DAILY_LIMIT} />
                     )}
+                </button>
+                <SignupModal isOpen={isSignupModalOpen} onOpenChange={setIsSignupModalOpen} />
+            </>
+        );
+    }
 
-                    <div className="flex items-center gap-1 shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => setIsOpen(false)}
-                            className="px-3 py-2 text-sm text-neutral-500 hover:text-neutral-900 rounded-full transition-colors"
-                            disabled={isGenerating}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isGenerating || !prompt.trim() || isLimitReached}
-                            className="flex items-center justify-center min-w-[40px] h-[40px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-full disabled:opacity-50 transition-colors"
-                        >
-                            {isGenerating ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                <Send className="w-5 h-5 ml-0.5" />
-                            )}
-                        </button>
-                    </div>
-                </form>
-                
-                {usageInfo && !usageInfo.unlimited && !isLimitReached && (
-                    <div className="flex items-center gap-2 px-6 py-1">
-                        <Info className="w-3 h-3 text-neutral-400" />
-                        <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-widest">
-                            Using system fallback. Add your own key in profile for unlimited generation.
-                        </span>
-                    </div>
-                )}
-            </div>
-
-            <SignupModal 
-                isOpen={isSignupModalOpen} 
-                onOpenChange={setIsSignupModalOpen} 
-                onSuccess={() => handleGenerate()} 
+    // ── AI Panel (open state) ──────────────────────────────────────────────────
+    return (
+        <div className="absolute bottom-20 left-4 z-50 pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-200">
+            <AIPanel
+                onClose={() => setIsOpen(false)}
+                onInsertShapes={(shapes) => {
+                    onInsertShapes(shapes);
+                    fetchUsage(); // refresh usage after generation
+                }}
+                onAddToLibrary={onAddToLibrary}
+                usageInfo={usageInfo}
+                isUnlimited={isUnlimited}
             />
         </div>
     );

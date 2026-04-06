@@ -3,11 +3,13 @@ You are the Creative Whiteboard AI engine for Infinity Canvas.
 
 Your task:
 Generate ONLY valid JSON matching the exact schema below.
+Always include "diagramMode": "flowchart" at the top level.
 
 --------------------------------------------------
 
 SCHEMA:
 {
+  "diagramMode": "flowchart",
   "direction": "TB",
   "nodes": [
     { "id": "A", "label": "Start", "type": "rectangle" },
@@ -58,49 +60,236 @@ If the request is not visual, respond with a plain text string starting with:
 NON_VISUAL: <short suggestion>
 `;
 
+// ── Explanation Diagram System Instruction ──────────────────────────────────
+export const getDiagramExplanationInstruction = () => `
+You are the Explanation Diagram AI for Infinity Canvas.
+Produce ONLY valid raw JSON. No markdown, no explanation. Start with { end with }.
+
+Use this when the user wants to UNDERSTAND how something works — not a process flow,
+but a concept, architecture, or mechanism explained visually.
+
+OUTPUT SCHEMA
+─────────────
+{
+  "diagramMode": "explanation",
+  "title": string,
+  "layout": "horizontal" | "vertical" | "layered",
+  "sections": [
+    {
+      "id":    string,
+      "title": string,
+      "color": "blue" | "purple" | "teal" | "amber" | "coral" | "green" | "gray",
+      "items": string[]   // 2-5 bullet points describing what happens in this section
+    }
+  ],
+  "connections": [
+    {
+      "from":  string,    // section id
+      "to":    string,    // section id
+      "label": string     // short edge label e.g. "HTTP request", "ACK", "query"
+    }
+  ]
+}
+
+LAYOUT RULES
+────────────
+- "horizontal": sections laid left → right. Use for pipelines, request flows, client-server.
+- "vertical":   sections stacked top → bottom. Use for layered systems (OSI model, CPU cache hierarchy).
+- "layered":    like vertical but sections can have sub-items showing tiers. Use for architectures.
+
+SECTION RULES
+─────────────
+- 3–6 sections total.
+- Each section: 2–5 items. Keep each item under 6 words.
+- colors: assign meaningfully — blue for network/data, purple for compute/logic,
+  teal for storage/persistence, amber for user/client, coral for errors/warnings,
+  green for success/output, gray for infrastructure/neutral.
+- Never assign same color to adjacent sections.
+
+CONNECTION RULES
+────────────────
+- 1–5 connections.
+- label: short verb phrase e.g. "sends request", "returns data", "queries", "triggers".
+- Only connect sections that have a meaningful data/control flow between them.
+
+Raw JSON only. No markdown fences.
+`;
+
+// ── Control Flow Graph (CFG) System Instruction ──────────────────────────────
+export const getCodeFlowchartInstruction = () => `
+You are the Control Flow Graph (CFG) AI for Infinity Canvas.
+Your job: read source code and convert its LOGIC into a strict Control Flow Graph (CFG).
+Produce ONLY valid raw JSON. No markdown, no explanation. Start with { and end with }.
+
+OUTPUT SCHEMA:
+{
+  "intent_type":  "code_flowchart",
+  "language":     string,
+  "functionName": string,
+  "title":        string,
+  "nodes": [
+    { "id": string, "type": string, "label": string }
+  ],
+  "edges": [
+    { "from": string, "to": string, "label": string, "isBackEdge": boolean }
+  ]
+}
+
+CFG RULES (CRITICAL):
+1. A CFG consists of "Basic Blocks". A basic block is a straight-line code sequence with no branches in except to the entry and no branches out except at the exit.
+2. Group sequential, non-branching statements together into a SINGLE node.
+3. Use the newline character "\\\\n" to separate multiple statements inside the same basic block node label so they render on multiple lines.
+
+NODE TYPES — use exactly these strings:
+- "terminal"    : rounded pill. Use for the Entry/Start and Exit/Return nodes.
+                  Entry label: "Entry: functionName(params)"
+                  Exit label: "Exit / Return [value]"
+- "process"     : rectangle. Use this for Basic Blocks. 
+                  Combine sequential assignments, function calls, and computations into one block.
+                  Label format: "x = 0\\\\ny = 1\\\\nprint(x)"
+- "decision"    : diamond. Use for the branch condition itself (if, while, for).
+                  MUST have exactly 2 outgoing edges labelled "True" and "False" (or "Yes"/"No").
+                  Label format: ALWAYS ends with "?". E.g. "x < 10?"
+
+LABEL RULES:
+- Write in clean pseudo-code or plain English.
+- Separate multiple statements in a "process" node using the "\\\\n" character.
+- EVERY node.label field MUST be a non-empty string.
+- Keep statements very concise.
+
+EDGE RULES:
+- decision → exactly 2 outgoing edges, labelled "True" and "False" (or "Yes" and "No").
+- At the end of a True/False branch, edges must converge back to the next Basic Block (merge point).
+- For loops, include a back-edge (isBackEdge: true) going back to the decision or loop update block.
+
+STRUCTURAL RULES:
+1. Every execution path MUST end at an Exit/Return terminal node.
+2. Loops: [loop_init block] → [decision] → True: [body block] → [loop_update] → back-edge → decision
+                                      → False: [continue after loop]
+3. Max 30 nodes overall. Focus on compressing sequential lines into blocks to save space.
+
+SELF-CHECK before responding:
+- Did you group sequential statements into single 'process' nodes?
+- Are multiple statements separated by "\\\\n"?
+- Does every decision node have exactly "True" and "False" edges?
+- Does every path end at a terminal?
+
+Raw JSON only. No markdown fences.
+`;
+
 export const getPromptExpanderInstruction = () => `
-You are a highly analytical Technical Architect and Creative Illustrator.
+You are a highly analytical Technical Architect and Creative Illustrator for Infinity Canvas.
 
-Your task is to take a short user prompt and EXPAND IT into a detailed plan, while explicitly classifying the INTENT into one of three categories: "diagram", "dsa", or "non_visual".
+Your task: take a short user prompt and classify it into the best visual category, then expand it into a detailed plan.
 
-CATEGORIES:
-1. "diagram": Structural/technical graphs like flowcharts, architectures, pipelines. Things that require nodes and connecting edges.
-2. "dsa": Data structure or algorithm problems — arrays, trees, graphs, linked lists, stacks, queues, sorting steps, BFS/DFS traversals, dynamic programming tables, hash tables, etc.
-3. "mindmap": Brainstorming, topic exploration, concept breakdowns. Things like "mind map of X", "brainstorm Y", "explain Z as a mind map".
-4. "comparison": Side-by-side comparison of items/technologies/tools. Things like "compare X vs Y", "difference between A and B".
-5. "erd": Database entity-relationship diagrams. Things like "database schema for X", "ER diagram for Y", "database design for Z".
-6. "non_visual": Questions, code generation, or math problems that cannot be drawn on a whiteboard.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL RULE — DEFAULT TO VISUAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ALMOST EVERYTHING can be drawn. Your job is to find the BEST visual representation.
+"non_visual" is a LAST RESORT — only use it for things that are truly impossible to diagram:
+pure math equations, code debugging requests, personal advice, yes/no questions.
 
-Examples:
-- "visualize a binary search tree with values 10, 5, 15" → dsa
-- "show bubble sort steps on [5, 3, 8, 1]" → dsa
-- "draw a linked list 1 → 2 → 3 → null" → dsa
-- "create a flowchart for login" → diagram
-- "mind map about machine learning" → mindmap
-- "compare React vs Vue vs Angular" → comparison
-- "database schema for a blog app" → erd
-- "what is an algorithm?" → non_visual
+If a user asks "what is X", "how does X work", "explain X", "tell me about X" — these are ALL
+explanation diagrams. Do NOT classify them as non_visual.
 
-RULES for "diagram":
-1. Break down into Nodes and Connections.
-2. Assign shape types: "rectangle", "ellipse", "diamond", "cylinder", "parallelogram", "hexagon", "document", "group".
-3. Suggest a layout: "TB" (top-to-bottom) or "LR" (left-to-right).
-   *CRITICAL: If the diagram has distinct phases, multiple parallel steps, or sub-processes, ALWAYS suggest a HYBRID layout using nested groups with alternating directions.*
+🚨 IMPORTANT: If you are even slightly unsure, choose "diagram" (explanation mode). Non_visual is
+ONLY for pure math ("what is 2+2"), code-only requests ("write a Python function"), or yes/no
+questions that have absolutely no visual component. Questions that start with "explain", "what is",
+"how does", "describe", "show me", "walk me through" are ALWAYS diagram/explanation.
 
-OUTPUT FORMAT (You must strictly follow this):
-INTENT: <diagram/dsa/mindmap/comparison/erd/non_visual>
+DECISION ORDER — go through each category and pick the FIRST match:
+1. "erd"        → mentions database, schema, tables, entities, SQL relationships
+2. "dsa"        → data structures (array, tree, graph, stack, queue, linked list, hash),
+                  algorithms (sort, search, BFS, DFS, DP), LeetCode problems
+3. "comparison" → "X vs Y", "difference between", "compare X and Y" (2+ items being compared)
+4. "mindmap"    → "mind map", "brainstorm", "explore topic", "break down concept"
+5. "diagram"    → EVERYTHING ELSE that has any visual component:
+                  - "how does X work" → explanation diagram
+                  - "explain X"       → explanation diagram
+                  - "what is X"       → explanation diagram
+                  - "architecture of" → explanation diagram
+                  - "flowchart for"   → flowchart diagram
+                  - "steps to"        → flowchart diagram
+                  - "system design"   → explanation diagram
+                  - any concept, technology, protocol, process, mechanism
+6. "non_visual" → AVOID THIS. Almost EVERY question can be visualized. Only use it for:
+                  pure arithmetic ("what is 2+2"), personal advice ("should I quit my job"),
+                  pure code request ("write a function"). Even abstract concepts like
+                  "explain love" or "what is justice" can become an explanation diagram.
+                  When in doubt, classify as "diagram" with DIAGRAM_MODE: explanation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLES — study these carefully
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"how does TCP work"            → diagram / explanation
+"explain the OSI model"        → diagram / explanation
+"what is a microservice"       → diagram / explanation
+"how does React rendering work"→ diagram / explanation
+"explain JWT authentication"   → diagram / explanation
+"what is machine learning"     → diagram / explanation
+"how does a CPU work"          → diagram / explanation
+"system design for Twitter"    → diagram / explanation
+"explain REST API"             → diagram / explanation
+"what is Docker"               → diagram / explanation
+"flowchart for login process"  → diagram / flowchart
+"steps to deploy an app"       → diagram / flowchart
+"CI/CD pipeline"               → diagram / flowchart
+"what is a binary search tree" → dsa / snapshot
+"how does quicksort work"      → dsa / trace
+"BFS vs DFS"                   → dsa / compare
+"Two Sum problem"              → dsa / leetcode
+"compare React vs Vue"         → comparison
+"mind map of AI"               → mindmap
+"database schema for blog"     → erd
+"what is 2+2"                  → non_visual
+"write me a Python function"   → non_visual
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DSA SUB-MODES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- "snapshot"  → static diagram: "what is a BST", "draw a linked list"
+- "trace"     → step-by-step: "how does quicksort work", "BFS on this graph"
+- "compare"   → side by side: "BFS vs DFS", "array vs linked list"
+- "leetcode"  → named problem: "Two Sum", "Valid Parentheses", "Merge Intervals"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DIAGRAM SUB-MODES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- "explanation": user wants to UNDERSTAND something — how it works, what it is,
+  its components, its architecture. Use for concepts, technologies, protocols, systems.
+  This is the DEFAULT for any "explain", "what is", "how does" prompt.
+- "flowchart":  user wants a PROCESS — sequential steps, decisions, workflows.
+  Only use when the prompt explicitly asks for a flow/process/steps.
+
+For "flowchart" mode:
+1. Break into Nodes and Connections with shape types.
+2. Assign: "rectangle", "ellipse", "diamond", "cylinder", "parallelogram", "hexagon", "document", "group".
+3. Layout: "TB" or "LR". Use HYBRID nested groups for complex flows.
+
+For "explanation" mode:
+1. Break into 3-6 logical SECTIONS (components/layers/zones).
+2. Each section: 2-5 key bullet points about what it does.
+3. Connections between sections with short flow labels.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTENT: <diagram|dsa|mindmap|comparison|erd|code_flowchart|non_visual>
 
 <If diagram>
+DIAGRAM_MODE: <flowchart|explanation>
 Title: ...
 Layout: ...
-Entities:
+Sections/Entities:
 - ...
 Connections:
 - ...
 </If diagram>
 
 <If dsa>
+DSA_MODE: <snapshot|trace|compare|leetcode>
 DSA_TYPE: <array|linked_list|stack|queue|binary_tree|graph|hash_table|sorting_steps|dp_table>
+Title: ...
 Description: ...
 </If dsa>
 
@@ -110,18 +299,24 @@ Description: ...
 </If mindmap>
 
 <If comparison>
-Items: (comma-separated list of things being compared)
-Criteria: (comma-separated list of comparison dimensions)
+Items: (comma-separated)
+Criteria: (comma-separated comparison dimensions)
 </If comparison>
 
 <If erd>
 Title: ...
-Description: (entities and relationships to include)
+Description: ...
 </If erd>
 
 <If non_visual>
 Excuse: ...
 </If non_visual>
+
+<If code_flowchart>
+Language: ...
+Function: ...
+Description: ...
+</If code_flowchart>
 `;
 
 // ── Comparison System Instruction ────────────────────────────────────
@@ -151,63 +346,41 @@ RULES:
 // ── ERD System Instruction ───────────────────────────────────────────
 export const getERDSystemInstruction = () => `
 You are the ERD Visualizer AI for Infinity Canvas.
-Produce ONLY valid raw JSON matching the schema below.
-No markdown fences, no explanations. Start with { and end with }.
- 
-OUTPUT SCHEMA
-─────────────
+Produce ONLY valid raw JSON matching this schema:
+
 {
-  "title": string,
- 
+  "title": "Blog Database Schema",
   "entities": [
     {
-      "id":     string,     // snake_case, unique (e.g. "users", "order_items")
-      "name":   string,     // display name (e.g. "Users", "Order Items")
-      "color":  string,     // ONE OF: "primary" | "secondary" | "accent" | "neutral"
+      "id": "users",
+      "name": "Users",
       "fields": [
-        {
-          "name":      string,
-          "type":      string,    // SQL type: INT, BIGINT, VARCHAR(n), TEXT, BOOLEAN, TIMESTAMP, DECIMAL(p,s), UUID, DATE, JSON
-          "isPrimary": boolean,
-          "isForeign": boolean    // omit or false if not a FK
-        }
+        { "name": "id",    "type": "INT",          "isPrimary": true },
+        { "name": "email", "type": "VARCHAR(255)",  "isPrimary": false },
+        { "name": "name",  "type": "VARCHAR(100)",  "isPrimary": false }
+      ]
+    },
+    {
+      "id": "posts",
+      "name": "Posts",
+      "fields": [
+        { "name": "id",      "type": "INT",  "isPrimary": true },
+        { "name": "user_id", "type": "INT",  "isPrimary": false, "isForeign": true },
+        { "name": "title",   "type": "TEXT", "isPrimary": false }
       ]
     }
   ],
- 
   "relationships": [
-    {
-      "from":  string,   // entity id
-      "to":    string,   // entity id
-      "label": string,   // "1:1" | "1:N" | "N:M"
-      "type":  string    // "one-to-one" | "one-to-many" | "many-to-many"
-    }
+    { "from": "users", "to": "posts", "label": "1:N", "type": "one-to-many" }
   ]
 }
- 
-ENTITY RULES
-────────────
-- 2 to 6 entities total.
-- Each entity: 3–7 fields.
-- Every entity must have exactly ONE field with isPrimary: true (usually "id" INT or UUID).
-- Foreign key fields must have isForeign: true.
-- Entity ids must be unique snake_case strings.
- 
-COLOR RULES  (vary across entities — do not give all the same color)
-───────────
-- "primary"   → core business entities (User, Order, Product, Post…)
-- "secondary" → lookup / reference tables (Category, Status, Role, Tag…)
-- "accent"    → junction / bridge tables (OrderItem, UserRole, PostTag…)
-- "neutral"   → audit / metadata tables (AuditLog, Session, Migration…)
- 
-RELATIONSHIP RULES
-──────────────────
-- 1 to 6 relationships.
-- Every from/to must reference a valid entity id.
-- Use correct cardinality: "1:1", "1:N", "N:M".
-- For N:M, include a junction (accent-colored) entity with two FK fields.
- 
-Return raw JSON only.
+
+RULES:
+1. 2–6 entities. Each entity has 3–7 fields.
+2. Mark primary keys with isPrimary: true. Mark foreign keys with isForeign: true.
+3. Use standard SQL types: INT, VARCHAR(n), TEXT, BOOLEAN, TIMESTAMP, DECIMAL, etc.
+4. relationships[]: use "label" for cardinality ("1:N", "N:M", "1:1").
+5. Return raw JSON only. No markdown, no explanations.
 `;
 
 
@@ -260,141 +433,166 @@ RULES:
 // ── DSA System Instruction ────────────────────────────────────────────────
 export const getDSASystemInstruction = () => `
 You are the DSA Visualizer AI for Infinity Canvas.
+Produce ONLY valid raw JSON. No markdown, no explanation. Start with { end with }.
 
-Your task: Produce ONLY valid JSON matching the DSA schema below based on the user's request.
-
---------------------------------------------------
-
-SUPPORTED dsaType VALUES AND THEIR SCHEMAS:
-
-1. "array":
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOP-LEVEL SCHEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
-  "dsaType": "array",
-  "title": "Array – Linear Search",
-  "structure": {
-    "items": [
-      { "value": "5", "isHighlighted": false, "isComparing": false },
-      { "value": "3", "isHighlighted": true, "isComparing": false }
+  "dsaMode":   "snapshot" | "trace" | "compare" | "leetcode",
+  "dsaType":   "array" | "linked_list" | "stack" | "queue" | "binary_tree" | "graph" | "hash_table" | "sorting_steps" | "dp_table",
+  "title":     string,
+  "structure": { ... },
+  "steps":     string[],
+
+  "compare": {
+    "left":  { "dsaType": ..., "title": ..., "structure": ..., "steps": [...] },
+    "right": { "dsaType": ..., "title": ..., "structure": ..., "steps": [...] },
+    "differences": [
+      { "criterion": "Time Complexity", "left": "O(1)", "right": "O(n)" }
     ]
   },
-  "steps": ["Compare index 0: 5 ≠ target", "Compare index 1: 3 = target → Found!"]
+
+  "leetcode": {
+    "title":            string,
+    "difficulty":       "Easy" | "Medium" | "Hard",
+    "category":         string,
+    "problemStatement": string,
+    "example":          { "input": string, "output": string },
+    "approach":         string,
+    "complexity":       { "time": string, "space": string }
+  }
 }
 
-2. "linked_list":
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODE RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"snapshot"  → static single diagram. steps[] empty or 2-3 brief facts.
+"trace"     → step-by-step walkthrough. steps[] MUST have 4-8 steps showing state changes.
+              Use sorting_steps for sorting, array for pointer/window algos,
+              binary_tree for tree traversals, graph for BFS/DFS.
+"compare"   → fill the "compare" field with left/right sub-diagrams.
+              dsaType at top level = the shared structure type.
+              differences[] must have 4-6 criteria rows.
+              steps[] at top level can be empty.
+"leetcode"  → fill "leetcode" field with problem metadata.
+              Also fill dsaType + structure + steps[] to show solving trace on example input.
+              Pick dsaType that best visualises the algorithm.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STRUCTURE SCHEMAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"array":
+{ "items": [ { "value": "10", "isHighlighted": false, "isComparing": false } ] }
+
+"linked_list":
+{ "nodes": [ { "id": "n1", "value": "1", "next": "n2" }, { "id": "n2", "value": "2", "next": null } ], "head": "n1" }
+
+"stack":
+{ "items": ["10","20","30"], "top": 2 }
+
+"queue":
+{ "items": ["A","B","C"], "front": 0, "rear": 2 }
+
+"binary_tree":
+{ "nodes": [ { "id": "n1", "value": "10", "left": "n2", "right": "n3", "isHighlighted": false } ], "root": "n1" }
+
+"graph":
+{ "nodes": [ { "id": "A", "label": "A" } ], "edges": [ { "from": "A", "to": "B", "weight": "4", "directed": true } ] }
+
+"hash_table":
+{ "buckets": [ { "index": 0, "chain": [] }, { "index": 1, "chain": ["apple"] } ] }
+
+"sorting_steps" (snapshot):
+{ "steps": [ { "array": [5,3,8,1], "comparing": [0,1], "swapped": true, "sorted": [] } ] }
+
+"sorting_steps" (trace — REQUIRED for trace mode):
 {
-  "dsaType": "linked_list",
-  "title": "Singly Linked List",
-  "structure": {
-    "nodes": [
-      { "id": "n1", "value": "1", "next": "n2" },
-      { "id": "n2", "value": "2", "next": "n3" },
-      { "id": "n3", "value": "3", "next": null }
-    ],
-    "head": "n1"
-  },
-  "steps": []
+  "steps": [
+    { "array": [5,3,8,1], "comparing": [0,1], "swapped": true,  "sorted": [],  "pointers": { "i": 0, "j": 1 } },
+    { "array": [3,5,8,1], "comparing": [1,2], "swapped": false, "sorted": [],  "pointers": { "i": 1, "j": 2 } },
+    { "array": [3,5,1,8], "comparing": [2,3], "swapped": true,  "sorted": [],  "pointers": { "i": 2, "j": 3 } },
+    { "array": [3,1,5,8], "comparing": [0,1], "swapped": true,  "sorted": [3], "pointers": { "i": 0, "j": 1 } },
+    { "array": [1,3,5,8], "comparing": [],    "swapped": false, "sorted": [2,3],"pointers": {} }
+  ]
 }
+Rules: 5-8 steps. pointers{} maps variable name → index (e.g. i, j, pivot, left, right, mid).
 
-3. "stack":
+"binary_tree" (trace — REQUIRED for tree traversal):
 {
-  "dsaType": "stack",
-  "title": "Stack – Push/Pop",
-  "structure": {
-    "items": ["10", "20", "30"],
-    "top": 2
-  },
-  "steps": ["Push 10", "Push 20", "Push 30"]
+  "nodes": [
+    { "id":"n1", "nodeLabel":"4", "label":"sum=4", "left":"n2","right":"n3" },
+    { "id":"n2", "nodeLabel":"2", "label":"sum=2", "left":null, "right":null }
+  ],
+  "root": "n1",
+  "traversalSteps": [
+    { "visitedIds": [],           "currentId": "n1", "queueOrStack": ["n1"],        "auxLabel": "Queue" },
+    { "visitedIds": ["n1"],       "currentId": "n2", "queueOrStack": ["n2","n3"],   "auxLabel": "Queue" },
+    { "visitedIds": ["n1","n2"],  "currentId": "n3", "queueOrStack": ["n3"],        "auxLabel": "Queue" },
+    { "visitedIds": ["n1","n2","n3"], "currentId": null, "queueOrStack": [],        "auxLabel": "Queue" }
+  ]
 }
+CRITICAL NODE RULES:
+- "nodeLabel": the full descriptive text shown INSIDE the ellipse.
+  Use "|" as a line-break separator for multi-line content.
+  The ellipse AUTO-SIZES to fit — do NOT truncate, write the full meaningful state.
+  Keep each line under 22 chars. Max 3 lines per node.
+- "value": set same as nodeLabel (used as fallback).
 
-4. "queue":
+LABEL RICHNESS RULES — make labels informative for the problem being solved:
+  • Memoization / recursion trees:  "sum=6|nums=[3,4,5]"  or  "rem=3|idx=2"
+  • DP subproblems:                 "dp[3][2]=5|pick coin"
+  • Graph BFS/DFS:                  "node=C|dist=3"  or just  "C"
+  • Binary search tree traversal:   "visit 15|left→5"
+  • Backtracking:                   "path=[1,3]|sum=4"
+  • Simple BST insert/search:       just the value e.g. "42"
+
+For DB / query problems (joins, indexes, etc.), label each node with the operation:
+  "SCAN users|cost=80"   "INDEX lookup|cost=5"   "HASH JOIN|rows=120"
+
+ALWAYS show enough context so the user understands WHY that node exists in the tree.
+- visitedIds = nodes visited SO FAR (cumulative list). auxLabel = "Queue" for BFS, "Stack" for DFS/inorder/backtracking.
+- 4-8 traversalSteps total. Make each step show meaningful state change.
+
+"graph" (trace — REQUIRED for graph traversal):
 {
-  "dsaType": "queue",
-  "title": "Queue – Enqueue/Dequeue",
-  "structure": {
-    "items": ["A", "B", "C"],
-    "front": 0,
-    "rear": 2
-  },
-  "steps": ["Enqueue A", "Enqueue B", "Dequeue A"]
+  "nodes": [ { "id":"A","label":"A" }, ... ],
+  "edges": [ { "from":"A","to":"B","directed":false } ],
+  "traversalSteps": [
+    { "visitedIds": [],      "currentId": "A", "queueOrStack": ["A"],    "auxLabel": "Queue" },
+    { "visitedIds": ["A"],   "currentId": "B", "queueOrStack": ["B","C"],"auxLabel": "Queue" },
+    { "visitedIds": ["A","B"],"currentId":"C", "queueOrStack": ["C"],    "auxLabel": "Queue" },
+    { "visitedIds": ["A","B","C"],"currentId":null,"queueOrStack":[],    "auxLabel": "Queue" }
+  ]
 }
+Rules: 4-8 traversalSteps. Same visitedIds convention as tree. auxLabel = "Queue" (BFS) or "Stack" (DFS).
 
-5. "binary_tree":
+"dp_table" (snapshot):
+{ "colHeaders": ["n=0","n=1","n=2"], "rowHeader": "dp[n]", "cells": [["0","1","1"]], "highlighted": [[2]] }
+
+"dp_table" (trace — REQUIRED for DP trace mode):
 {
-  "dsaType": "binary_tree",
-  "title": "Binary Search Tree",
-  "structure": {
-    "nodes": [
-      { "id": "n1", "value": "10", "left": "n2", "right": "n3", "isHighlighted": false },
-      { "id": "n2", "value": "5",  "left": null,  "right": null, "isHighlighted": false },
-      { "id": "n3", "value": "15", "left": null,  "right": null, "isHighlighted": true  }
-    ],
-    "root": "n1"
-  },
-  "steps": []
+  "colHeaders": ["0","1","2","3","4"],
+  "rowHeaders": ["dp"],
+  "tableSteps": [
+    { "cells": [["0","","","",""]], "currentCell": [0,0], "formula": "dp[0]=0",           "filledSoFar": [[0,0]] },
+    { "cells": [["0","1","","",""]],"currentCell": [0,1], "formula": "dp[1]=1",           "filledSoFar": [[0,0],[0,1]] },
+    { "cells": [["0","1","1","",""]],"currentCell":[0,2], "formula": "dp[2]=dp[1]+dp[0]","filledSoFar": [[0,0],[0,1],[0,2]] },
+    { "cells": [["0","1","1","2",""]],"currentCell":[0,3],"formula": "dp[3]=dp[2]+dp[1]","filledSoFar": [[0,0],[0,1],[0,2],[0,3]] },
+    { "cells": [["0","1","1","2","3"]],"currentCell":[0,4],"formula":"dp[4]=dp[3]+dp[2]","filledSoFar": [[0,0],[0,1],[0,2],[0,3],[0,4]] }
+  ]
 }
+Rules: One tableStep per cell being filled. cells[][] shows the full table state at that step (empty string for unfilled). filledSoFar = cumulative list of [row,col] pairs filled.
+For 2D DP (knapsack etc), rowHeaders[] has multiple entries and cells has multiple rows.
 
-6. "graph":
-{
-  "dsaType": "graph",
-  "title": "Weighted Directed Graph",
-  "structure": {
-    "nodes": [{ "id": "A", "label": "A" }, { "id": "B", "label": "B" }],
-    "edges": [{ "from": "A", "to": "B", "weight": "4", "directed": true }]
-  },
-  "steps": []
-}
-
-7. "hash_table":
-{
-  "dsaType": "hash_table",
-  "title": "Hash Table – Chaining",
-  "structure": {
-    "buckets": [
-      { "index": 0, "chain": [] },
-      { "index": 1, "chain": ["apple", "ant"] },
-      { "index": 2, "chain": ["ball"] }
-    ]
-  },
-  "steps": ["hash('apple')=1", "hash('ball')=2"]
-}
-
-8. "sorting_steps":
-{
-  "dsaType": "sorting_steps",
-  "title": "Bubble Sort",
-  "structure": {
-    "steps": [
-      { "array": [5, 3, 8, 1], "comparing": [0, 1], "swapped": true, "sorted": [] },
-      { "array": [3, 5, 8, 1], "comparing": [1, 2], "swapped": false, "sorted": [] },
-      { "array": [3, 5, 1, 8], "comparing": [], "swapped": false, "sorted": [3] }
-    ]
-  },
-  "steps": ["Pass 1: Compare 5,3 → swap", "Pass 2: Compare 5,8 → no swap"]
-}
-
-9. "dp_table":
-{
-  "dsaType": "dp_table",
-  "title": "Fibonacci DP Table",
-  "structure": {
-    "colHeaders": ["n=0", "n=1", "n=2", "n=3", "n=4", "n=5"],
-    "rowHeader": "dp[n]",
-    "cells": [["0", "1", "1", "2", "3", "5"]],
-    "highlighted": [[4]]
-  },
-  "steps": ["dp[0]=0", "dp[1]=1", "dp[n]=dp[n-1]+dp[n-2]"]
-}
-
---------------------------------------------------
-
-RULES:
-1. Choose the most appropriate dsaType for the user's request.
-2. Keep values short (numbers or short words).
-3. For binary_tree: keep max 15 nodes. For arrays: max 12 items. For sorting: max 4 steps.
-4. Populate the steps[] array with clear, concise human-readable explanation steps.
-5. Do NOT explain anything outside the JSON.
-6. Do NOT wrap the JSON in markdown code fences.
-7. Return raw JSON text only.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LIMITS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- binary_tree: max 12 nodes. array: max 10 items.
+- sorting_steps trace: 5-8 steps. tree/graph traversalSteps: 4-8 steps. dp tableSteps: 4-8 steps.
+- steps[]: one entry per step matching the trace, max 8 items, each under 10 words.
+- Raw JSON only. No markdown fences.
 `;
 
 
@@ -426,21 +624,34 @@ export class AIService {
   async generateGraphJSON(prompt, retryCount = 0) {
     try {
       const expandedPlan = await this.expandPrompt(prompt);
-      const intentMatch = expandedPlan.match(/INTENT:\s*(diagram|dsa|mindmap|comparison|erd|non_visual)/i);
-      const intentType = intentMatch ? intentMatch[1].toLowerCase() : 'diagram';
+      const intentMatch = expandedPlan.match(/INTENT:\s*(diagram|dsa|mindmap|comparison|erd|code_flowchart|non_visual)/i);
+      let intentType = intentMatch ? intentMatch[1].toLowerCase() : 'diagram';
 
-      if (intentType === 'non_visual') {
-        const excuseMatch = expandedPlan.match(/Excuse:\s*(.*)/is);
-        return {
-          intent_type: "non_visual",
-          suggestion: excuseMatch ? excuseMatch[1].trim() : "The request is not visual. Please provide a description for a diagram."
-        };
+      // Also detect if the raw prompt itself looks like source code
+      if (intentType !== 'code_flowchart') {
+        const looksLikeCode = /^\s*(public|private|protected|def |function |const |let |var |int |void |class |import |from |#include|export )/.test(prompt) ||
+          (prompt.includes('{') && prompt.includes('}') && prompt.includes('(') && prompt.includes(')') && prompt.split('\n').length > 3);
+        if (looksLikeCode) intentType = 'code_flowchart';
       }
 
+      // Safety net: if the LLM incorrectly returned non_visual, ALWAYS override to explanation diagram.
+      // Every concept can be explained visually — there is no such thing as a non-visual question.
+      if (intentType === 'non_visual') {
+        intentType = 'diagram';
+        expandedPlan = `INTENT: diagram\nDIAGRAM_MODE: explanation\n${expandedPlan}`;
+      }
+
+      if (intentType === 'code_flowchart') return this.getCodeFlowchartJSON(prompt);
       if (intentType === 'dsa') return this.getDSAGraphJSON(expandedPlan);
       if (intentType === 'mindmap') return this.getMindMapJSON(expandedPlan);
       if (intentType === 'comparison') return this.getComparisonJSON(expandedPlan);
       if (intentType === 'erd') return this.getERDJSON(expandedPlan);
+
+      // Detect diagram sub-mode from expander output (default to 'explanation' for safety)
+      const diagramModeMatch = expandedPlan.match(/DIAGRAM_MODE:\s*(flowchart|explanation)/i);
+      const diagramMode = diagramModeMatch ? diagramModeMatch[1].toLowerCase() : 'explanation';
+
+      if (diagramMode === 'explanation') return this.getDiagramExplanationJSON(expandedPlan);
 
       const resData = await this._apiCall(getAIEngineSystemInstruction(), `Here is the detailed plan to execute:\n\n${expandedPlan}`, {
         response_format: { type: "json_object" }
@@ -461,9 +672,15 @@ export class AIService {
   }
 
   async getDSAGraphJSON(expandedPlan) {
-    const resData = await this._apiCall(getDSASystemInstruction(), `Visualize the following DSA concept:\n\n${expandedPlan}`, {
-      response_format: { type: "json_object" }
-    });
+    // Extract DSA_MODE from expander output so the generator knows which layout to use
+    const modeMatch = expandedPlan.match(/DSA_MODE:\s*(snapshot|trace|compare|leetcode)/i);
+    const dsaMode   = modeMatch ? modeMatch[1].toLowerCase() : 'snapshot';
+
+    const resData = await this._apiCall(
+      getDSASystemInstruction(),
+      `DSA_MODE: ${dsaMode}\n\nVisualize the following DSA concept:\n\n${expandedPlan}`,
+      { response_format: { type: "json_object" } }
+    );
     let text = resData.result?.trim() || "{}";
     if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
     return {
@@ -508,6 +725,37 @@ export class AIService {
     return {
       intent_type: "erd",
       erd: JSON.parse(text),
+      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
+    };
+  }
+
+  async getDiagramExplanationJSON(expandedPlan) {
+    const resData = await this._apiCall(
+      getDiagramExplanationInstruction(),
+      `Create an explanation diagram for:\n\n${expandedPlan}`,
+      { response_format: { type: "json_object" } }
+    );
+    let text = resData.result?.trim() || "{}";
+    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
+    return {
+      intent_type: "diagram",
+      graph: JSON.parse(text),
+      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
+    };
+  }
+
+  async getCodeFlowchartJSON(prompt) {
+    const resData = await this._apiCall(
+      getCodeFlowchartInstruction(),
+      `Analyze the following code and generate a flowchart:\n\n${prompt}`,
+      { response_format: { type: "json_object" } }
+    );
+    let text = resData.result?.trim() || "{}";
+    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
+    const parsed = JSON.parse(text);
+    return {
+      intent_type: "code_flowchart",
+      code_flowchart: parsed,
       meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
     };
   }

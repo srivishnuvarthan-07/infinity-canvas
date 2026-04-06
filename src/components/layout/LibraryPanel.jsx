@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { convertExcalidrawLibrary } from "@/utils/excalidrawConverter";
+// Removed obsolete svgConverter
 
 import { useAuth } from "@/hooks/useAuth";
 import { SignupModal } from "@/components/auth/SignupModal";
@@ -69,6 +70,8 @@ export function LibraryPanel({
 }) {
     const { user } = useAuth();
     const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
+
     const handleDragStart = (e, item) => {
         const dragData = JSON.stringify({
             type: 'LIBRARY_ITEM',
@@ -90,29 +93,73 @@ export function LibraryPanel({
         const file = e.target.files?.[0];
         if (!file) return;
 
+        processFile(file);
+        e.target.value = null;
+    };
+
+    const processFile = (file) => {
         const reader = new FileReader();
+        
         reader.onload = async (event) => {
             try {
-                const jsonStr = event.target.result;
-                const convertedItems = convertExcalidrawLibrary(jsonStr);
+                const content = event.target.result;
+                let convertedItems = [];
+                let type = "Excalidraw";
+
+                convertedItems = convertExcalidrawLibrary(content);
 
                 if (convertedItems.length === 0) {
-                    toast.error("No compatible shapes found in library file.");
+                    toast.error(`No compatible shapes found in ${type} file.`);
                     return;
                 }
 
                 for (const item of convertedItems) {
-                    await onAddItem(item.shapes, item.name);
+                    await onAddItem(item.shapes, item.name, 'Excalidraw');
                 }
 
-                toast.success(`Imported ${convertedItems.length} items from Excalidraw!`);
+                toast.success(`Imported ${convertedItems.length} items from ${type}!`);
             } catch (err) {
-                console.error("Excalidraw parse failed:", err);
+                console.error(`${type} parse failed:`, err);
                 toast.error(`Import Failed: ${err.message || "Invalid file format"}`);
             }
         };
+
         reader.readAsText(file);
-        e.target.value = null;
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (user) setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        if (!user) {
+            setIsSignupModalOpen(true);
+            return;
+        }
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.name.endsWith('.json') || file.name.endsWith('.excalidrawlib')) {
+                    processFile(file);
+                } else {
+                    toast.error(`Unsupported file type: ${file.name}`);
+                }
+            }
+        }
     };
 
     const handleImportClick = () => {
@@ -197,7 +244,23 @@ export function LibraryPanel({
     };
 
     return (
-        <div className="w-full h-full flex flex-col bg-transparent">
+        <div 
+            className="w-full h-full flex flex-col bg-transparent relative group/library"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {/* Drag Overlay */}
+            {isDragging && (
+                <div className="absolute inset-2 z-[100] border-2 border-dashed border-indigo-400 bg-indigo-50/90 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center pointer-events-none transition-all animate-in fade-in zoom-in duration-200">
+                    <div className="w-12 h-12 rounded-full bg-white shadow-md border border-indigo-100 flex items-center justify-center mb-4">
+                        <UploadCloud className="w-6 h-6 text-indigo-600 animate-bounce" />
+                    </div>
+                    <p className="text-sm font-semibold text-indigo-900">Drop files to import</p>
+                    <p className="text-[11px] text-indigo-600 mt-1">JSON or .excalidrawlib</p>
+                </div>
+            )}
+
             <div className="p-4 border-b border-neutral-200 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
                     <Grid className="w-4 h-4" />
@@ -216,10 +279,10 @@ export function LibraryPanel({
                     size="sm"
                     className="h-8 text-xs flex items-center gap-1.5 text-neutral-500 hover:text-neutral-900"
                     onClick={handleImportClick}
-                    title="Import Excalidraw Library (.excalidrawlib)"
+                    title="Import Excalidraw Library"
                 >
                     <UploadCloud className="w-3.5 h-3.5" />
-                    Import
+                    Import Lib
                 </Button>
             </div>
 

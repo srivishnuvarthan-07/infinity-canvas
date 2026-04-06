@@ -9,6 +9,7 @@ import {
   Circle,
   Type,
   Eraser,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -22,6 +23,7 @@ const tools = [
   { type: "diamond", icon: Diamond, label: "Diamond", shortcut: "D" },
   { type: "ellipse", icon: Circle, label: "Ellipse", shortcut: "O" },
   { type: "text", icon: Type, label: "Text", shortcut: "T" },
+  { type: "image", icon: ImageIcon, label: "Image", shortcut: "I" },
   { type: "eraser", icon: Eraser, label: "Eraser", shortcut: "E" },
 ];
 

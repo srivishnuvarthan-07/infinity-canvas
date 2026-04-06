@@ -358,13 +358,22 @@ function layoutGraphRecursive(levelNodes, allEdges, parentMap, rankdir = 'TB', d
 
 /**
  * Transforms a validated AI Graph JSON intent into Infinity Canvas shapes.
+ * Supports two diagram modes:
+ *   "flowchart"    → dagre-based node/edge layout (original)
+ *   "explanation"  → zone/section cards with bullets + arrows
  */
 export function generateDiagramShapes(intent) {
     if (intent.intent_type === 'non_visual' || !intent.graph) {
         return [];
     }
 
-    // --- EXISTING: Diagram Output Handling ---
+    // Route explanation diagrams to dedicated renderer
+    const diagramMode = intent.graph.diagramMode || 'flowchart';
+    if (diagramMode === 'explanation') {
+        return renderExplanationDiagram(intent);
+    }
+
+    // --- EXISTING: Flowchart / Dagre Output Handling ---
     const nodes = intent.graph.nodes || [];
     const edges = intent.graph.edges || [];
     const rankdir = intent.graph.direction || 'TB';
@@ -587,4 +596,266 @@ export function generateDiagramShapes(intent) {
     });
 
     return shapes;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ── Explanation Diagram Renderer ─────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Color map matching the AI's color tokens to actual fills + strokes.
+ * Pairs chosen so text is always readable on the fill.
+ */
+const EXPLANATION_COLORS = {
+  blue:   { fill: '#dbeafe', stroke: '#3b82f6', text: '#1e3a8a', hdr: '#1d4ed8' },
+  purple: { fill: '#ede9fe', stroke: '#7c3aed', text: '#3b0764', hdr: '#6d28d9' },
+  teal:   { fill: '#ccfbf1', stroke: '#0d9488', text: '#134e4a', hdr: '#0f766e' },
+  amber:  { fill: '#fef3c7', stroke: '#d97706', text: '#78350f', hdr: '#b45309' },
+  coral:  { fill: '#fee2e2', stroke: '#ef4444', text: '#7f1d1d', hdr: '#dc2626' },
+  green:  { fill: '#dcfce7', stroke: '#16a34a', text: '#14532d', hdr: '#15803d' },
+  gray:   { fill: '#f1f5f9', stroke: '#64748b', text: '#1e293b', hdr: '#475569' },
+};
+
+const EXPL_SECTION_W  = 260;  // width of each section card
+const EXPL_SECTION_PAD = 16;  // inner padding
+const EXPL_HDR_H      = 42;   // header bar height
+const EXPL_ITEM_H     = 36;   // height per bullet item (generous to prevent wrap/overlap)
+const EXPL_GAP        = 70;   // gap between sections (for arrows)
+const EXPL_TITLE_H    = 44;   // diagram title height above sections
+
+/**
+ * Compute section card height from its items count.
+ */
+function sectionCardHeight(section) {
+  const items = section.items || [];
+  return EXPL_HDR_H + items.length * EXPL_ITEM_H + EXPL_SECTION_PAD * 2;
+}
+
+/**
+ * Build a single section card shape group.
+ * cx, cy = absolute center of the card.
+ */
+function createExplanationSection(section, cx, cy) {
+  const colors = EXPLANATION_COLORS[section.color] || EXPLANATION_COLORS.gray;
+  const items  = section.items || [];
+  const cardH  = sectionCardHeight(section);
+  const groupId = crypto.randomUUID();
+  const children = [];
+
+  // Card background
+  const bgId = crypto.randomUUID();
+  children.push({
+    ...defaultShapeProps,
+    id: bgId,
+    type: 'rectangle',
+    position: { x: 0, y: 0 },
+    size: { width: EXPL_SECTION_W, height: cardH },
+    style: {
+      ...defaultShapeProps.style,
+      fill: colors.fill,
+      stroke: colors.stroke,
+      strokeWidth: 1.5,
+      roughness: 0.6,
+      seed: stableIntHash(bgId),
+    },
+  });
+
+  // Header strip
+  const hdrId = crypto.randomUUID();
+  children.push({
+    ...defaultShapeProps,
+    id: hdrId,
+    type: 'rectangle',
+    position: { x: 0, y: -cardH / 2 + EXPL_HDR_H / 2 },
+    size: { width: EXPL_SECTION_W, height: EXPL_HDR_H },
+    style: {
+      ...defaultShapeProps.style,
+      fill: colors.hdr,
+      stroke: 'transparent',
+      strokeWidth: 0,
+      roughness: 0,
+      seed: stableIntHash(hdrId),
+    },
+  });
+
+  // Header title text
+  children.push({
+    ...defaultTextProps,
+    id: crypto.randomUUID(),
+    text: section.title || '',
+    position: { x: 0, y: -cardH / 2 + EXPL_HDR_H / 2 },
+    size: { width: EXPL_SECTION_W - 16, height: EXPL_HDR_H },
+    font: { ...defaultTextProps.font, size: 14, weight: '700', align: 'center' },
+    style: { ...defaultTextProps.style, fill: '#ffffff' },
+  });
+
+  // Bullet items
+  items.forEach((item, i) => {
+    const itemY = -cardH / 2 + EXPL_HDR_H + EXPL_SECTION_PAD + i * EXPL_ITEM_H + EXPL_ITEM_H / 2;
+    children.push({
+      ...defaultTextProps,
+      id: crypto.randomUUID(),
+      text: `• ${item}`,
+      position: { x: EXPL_SECTION_PAD / 2 - 4, y: itemY },
+      size: { width: EXPL_SECTION_W - EXPL_SECTION_PAD * 2, height: EXPL_ITEM_H },
+      font: { ...defaultTextProps.font, size: 13, weight: '600', align: 'left' },
+      style: { ...defaultTextProps.style, fill: colors.text },
+    });
+  });
+
+  return {
+    ...defaultShapeProps,
+    id: groupId,
+    type: 'group',
+    position: { x: cx, y: cy },
+    size: { width: EXPL_SECTION_W, height: cardH },
+    style: { ...defaultShapeProps.style, stroke: 'transparent', strokeWidth: 0 },
+    children,
+    rawId: section.id,
+  };
+}
+
+/**
+ * Renders an explanation diagram from AI JSON.
+ * Supports horizontal (L→R) and vertical (T→B) layouts.
+ * Returns flat array of Infinity Canvas shapes.
+ */
+export function renderExplanationDiagram(intent) {
+  if (!intent || !intent.graph) return [];
+  const data = intent.graph;
+
+  const sections    = data.sections    || [];
+  const connections = data.connections || [];
+  const layout      = data.layout      || 'horizontal';
+  const title       = data.title       || '';
+
+  if (sections.length === 0) return [];
+
+  const shapes  = [];
+  const posMap  = new Map(); // section id → { cx, cy, cardH }
+
+  const isHoriz = layout !== 'vertical' && layout !== 'layered';
+
+  // ── Position each section card ─────────────────────────────────────────────
+  // For horizontal: cards side by side, all vertically centered at cy=0
+  // For vertical:   cards stacked top-to-bottom, all horizontally centered at cx=0
+
+  if (isHoriz) {
+    const maxCardH = Math.max(...sections.map(sectionCardHeight));
+    const totalW   = sections.length * EXPL_SECTION_W + (sections.length - 1) * EXPL_GAP;
+    const startX   = -(totalW - EXPL_SECTION_W) / 2;
+
+    sections.forEach((sec, i) => {
+      const cardH = sectionCardHeight(sec);
+      const cx = startX + i * (EXPL_SECTION_W + EXPL_GAP);
+      const cy = 0;
+      posMap.set(sec.id, { cx, cy, cardH });
+      shapes.push(createExplanationSection(sec, cx, cy));
+    });
+
+    // Title above
+    if (title) {
+      shapes.push({
+        ...defaultTextProps,
+        id: crypto.randomUUID(),
+        text: title,
+        position: { x: 0, y: -(maxCardH / 2) - EXPL_TITLE_H },
+        size: { width: Math.max(400, totalW), height: EXPL_TITLE_H },
+        font: { ...defaultTextProps.font, size: 20, weight: '700', align: 'center' },
+        style: { ...defaultTextProps.style, fill: '#0f172a' },
+      });
+    }
+  } else {
+    // Vertical layout
+    let curY = 0;
+    const totalH = sections.reduce((sum, s) => sum + sectionCardHeight(s) + EXPL_GAP, -EXPL_GAP);
+    curY = -totalH / 2;
+
+    sections.forEach((sec) => {
+      const cardH = sectionCardHeight(sec);
+      const cx = 0;
+      const cy = curY + cardH / 2;
+      posMap.set(sec.id, { cx, cy, cardH });
+      shapes.push(createExplanationSection(sec, cx, cy));
+      curY += cardH + EXPL_GAP;
+    });
+
+    if (title) {
+      const topY = posMap.get(sections[0].id)?.cy - sectionCardHeight(sections[0]) / 2;
+      shapes.push({
+        ...defaultTextProps,
+        id: crypto.randomUUID(),
+        text: title,
+        position: { x: 0, y: topY - EXPL_TITLE_H },
+        size: { width: 400, height: EXPL_TITLE_H },
+        font: { ...defaultTextProps.font, size: 20, weight: '700', align: 'center' },
+        style: { ...defaultTextProps.style, fill: '#0f172a' },
+      });
+    }
+  }
+
+  // ── Draw connection arrows ─────────────────────────────────────────────────
+  connections.forEach(conn => {
+    const src = posMap.get(conn.from);
+    const tgt = posMap.get(conn.to);
+    if (!src || !tgt) return;
+
+    let x1, y1, x2, y2;
+
+    if (isHoriz) {
+      // Connect right edge of src → left edge of tgt
+      x1 = src.cx + EXPL_SECTION_W / 2;
+      y1 = src.cy;
+      x2 = tgt.cx - EXPL_SECTION_W / 2;
+      y2 = tgt.cy;
+    } else {
+      // Connect bottom edge of src → top edge of tgt
+      x1 = src.cx;
+      y1 = src.cy + src.cardH / 2;
+      x2 = tgt.cx;
+      y2 = tgt.cy - tgt.cardH / 2;
+    }
+
+    shapes.push({
+      id: crypto.randomUUID(),
+      type: 'arrow',
+      position: { x: x1, y: y1 },
+      points: [{ x: 0, y: 0 }, { x: x2 - x1, y: y2 - y1 }],
+      size: { width: 1, height: 1 },
+      zIndex: -1,
+      rotation: 0,
+      scale: { x: 1, y: 1 },
+      locked: false,
+      visible: true,
+      style: {
+        stroke: '#475569',
+        fill: 'transparent',
+        strokeWidth: 2,
+        opacity: 0.9,
+        renderMode: 'vector',
+        roughness: 0.3,
+        seed: stableIntHash(conn.from + conn.to),
+        fillStyle: 'solid',
+      },
+      revision: { number: 1, timestamp: Date.now() },
+      arrow: { startHead: 'none', endHead: 'triangle' },
+    });
+
+    // Connection label
+    if (conn.label) {
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2 - 14;
+      shapes.push({
+        ...defaultTextProps,
+        id: crypto.randomUUID(),
+        text: conn.label,
+        position: { x: mx, y: my },
+        size: { width: 130, height: 20 },
+        font: { ...defaultTextProps.font, size: 11, align: 'center' },
+        style: { ...defaultTextProps.style, fill: '#475569' },
+      });
+    }
+  });
+
+  return shapes;
 }
