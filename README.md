@@ -2,7 +2,7 @@
 
 **Infinity Canvas** is a powerful, infinite whiteboard application built for architects, artists, and cartoonists. Evolving from a client-only canvas into a full-fledged SaaS, it features a robust **Hybrid Architecture** — delivering a blazing-fast, offline-first local experience with seamless, real-time cloud collaboration.
 
-![Infinity Canvas](./public/og-image.png)
+![Infinity Canvas](https://github.com/srivishnuvarthan-07/infinity-canvas/blob/main/infinty-canvas-dashboard.png)
 
 ## 🚀 Features
 
