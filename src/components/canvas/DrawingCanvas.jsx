@@ -171,8 +171,20 @@ export function DrawingCanvas({
 
     const handleDrop = (e) => {
         e.preventDefault();
+
+        // Handle File Drop (Images)
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.type.startsWith('image/') || file.name.endsWith('.svg')) {
+                const rect = containerRef.current.getBoundingClientRect();
+                const dropX = (e.clientX - rect.left - (viewport?.x || 0)) / (viewport?.zoom || 1);
+                const dropY = (e.clientY - rect.top - (viewport?.y || 0)) / (viewport?.zoom || 1);
+                handleAddImage(file, dropX, dropY);
+                return;
+            }
+        }
+
         const data = e.dataTransfer.getData('application/infinity-canvas-library');
-        if (!data) return;
 
         try {
             const parsed = JSON.parse(data);

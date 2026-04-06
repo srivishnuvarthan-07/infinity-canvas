@@ -13,6 +13,10 @@ function isFreedrawType(type) {
   return type === 'pencil';
 }
 
+function isImageType(type) {
+  return type === 'image';
+}
+
 function IconBtn({ onClick, title, children }) {
   return (
     <button
@@ -46,11 +50,13 @@ export function Sidebar({ selectedElement, updateElement, layerActions, groupAct
   const isMulti = selectedElement.type === 'activeSelection' && Array.isArray(selectedElement.objects);
   const objects  = isMulti ? selectedElement.objects : [selectedElement];
 
-  const hasText  = objects.some(o => isTextType(o.type));
-  const hasShape = objects.some(o => !isTextType(o.type));
+  const hasText   = objects.some(o => isTextType(o.type));
+  const hasShape  = objects.some(o => !isTextType(o.type) && !isImageType(o.type));
+  const hasImage  = objects.some(o => isImageType(o.type));
 
   // Check if selection is exclusively freedraw (pencil)
   const isOnlyFreedraw = hasShape && !hasText && objects.every(o => isFreedrawType(o.type));
+  const isOnlyImage    = hasImage && !hasText && !hasShape;
 
   const mixedSelection = hasText && hasShape;
 
@@ -66,6 +72,29 @@ export function Sidebar({ selectedElement, updateElement, layerActions, groupAct
 
 
       <div className="flex flex-col overflow-y-auto" style={{ maxHeight: 550 }}>
+
+        {/* ── Image properties ───────────────────────────────────────── */}
+        {isOnlyImage && (
+          <>
+            <SectionHeader>Image Properties</SectionHeader>
+            <div className="px-4 py-3">
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] text-neutral-400 font-medium">Opacity</span>
+                <input
+                  type="range"
+                  min={0} max={1} step={0.01}
+                  value={shapeEl.style?.opacity ?? 1}
+                  onChange={e => updateElement({ style: { opacity: parseFloat(e.target.value) } })}
+                  className="w-full accent-indigo-600"
+                />
+                <span className="text-[10px] text-neutral-400 text-right">
+                  {Math.round((shapeEl.style?.opacity ?? 1) * 100)}%
+                </span>
+              </div>
+            </div>
+            <Divider />
+          </>
+        )}
 
         {/* ── Shape properties ──────────────────────────────────────────── */}
         {hasShape && (
@@ -134,6 +163,7 @@ export function Sidebar({ selectedElement, updateElement, layerActions, groupAct
             {onAddToLibrary && (
               <>
                 <Divider />
+                <SectionHeader>Actions</SectionHeader>
                 <div className="px-4 py-3">
                   <button onClick={onAddToLibrary}
                     className="w-full h-8 flex items-center justify-center gap-2 rounded-md text-[12px] font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors">

@@ -1,18 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Loader2, Send, Lock, KeyRound, X, Zap } from 'lucide-react';
-import { getAIService } from '@/services/ai.service';
-import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
-import { generateDSAShapes } from '@/engine/ai/dsa.generator';
-import { generateMindMapShapes } from '@/engine/ai/mindmap.generator';
-import { generateComparisonShapes } from '@/engine/ai/comparison.generator';
-import { generateERDShapes } from '@/engine/ai/erd.generator';
-import { generateCodeFlowchartShapes } from '@/engine/ai/code.flowchart.generator';
-import { validateGraph } from '@/engine/ai/graph.schema';
+import { Sparkles, Lock, KeyRound, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { SignupModal } from '@/components/auth/SignupModal';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
+import { AIPanel } from './AIPanel';
 
 const DAILY_LIMIT = 10;
 
@@ -88,8 +81,6 @@ function LockedCard({ onAddKey, onClose }) {
 export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [prompt, setPrompt] = useState('');
-    const [isGenerating, setIsGenerating] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
     const [usageInfo, setUsageInfo] = useState(null);
@@ -98,7 +89,6 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
     const fetchUsage = async () => {
         if (!user) return;
         try {
-            // Add cache-buster to ensure we get fresh state from server
             const res = await api.get(`/profile/ai-config/usage?t=${Date.now()}`);
             if (res.data.success) setUsageInfo(res.data);
         } catch (err) {
@@ -106,13 +96,8 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
         }
     };
 
-    // Fetch on user login
     useEffect(() => { if (user) fetchUsage(); }, [user]);
-
-    // Re-fetch whenever the bar opens
     useEffect(() => { if (user && isOpen) fetchUsage(); }, [user, isOpen]);
-
-    // Re-fetch when window regains focus (e.g. after returning from Settings)
     useEffect(() => {
         if (!user) return;
         const onFocus = () => fetchUsage();
@@ -124,96 +109,7 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
     const isUnlimited = usageInfo?.unlimited;
     const isLimitReached = !isGuest && usageInfo && usageInfo.remaining === 0 && !isUnlimited;
     const used = usageInfo && !isUnlimited ? (DAILY_LIMIT - usageInfo.remaining) : 0;
-    
-    // Summary states for UI
     const isLockedUI = isGuest || isLimitReached;
-
-    const handleGenerate = async (e) => {
-        if (e) e.preventDefault();
-        if (!prompt.trim()) return;
-
-        if (!user) { setIsSignupModalOpen(true); return; }
-
-        if (isLimitReached) {
-            setShowLocked(true);
-            setIsOpen(false);
-            return;
-        }
-
-        setIsGenerating(true);
-        try {
-            const aiService = getAIService();
-            toast.loading('Analysing prompt...', { id: 'ai-gen' });
-            const intent = await aiService.generateGraphJSON(prompt);
-            fetchUsage();
-
-            if (intent.intent_type === 'non_visual') {
-                toast.dismiss('ai-gen');
-                toast.info(intent.suggestion || 'The request is not visual. Please provide a description for a diagram.', { duration: 5000 });
-            } else if (intent.intent_type === 'code_flowchart') {
-                const shapes = generateCodeFlowchartShapes(intent);
-                if (shapes?.length) {
-                    onInsertShapes(shapes);
-                    if (onAddToLibrary) try { onAddToLibrary(shapes, `Code: ${intent.code_flowchart?.title || 'Flowchart'}`); } catch {}
-                    toast.success(`Code flowchart generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the code flowchart.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'comparison') {
-                const shapes = generateComparisonShapes(intent);
-                if (shapes?.length) {
-                    onInsertShapes(shapes);
-                    if (onAddToLibrary) try { onAddToLibrary(shapes, 'AI Comparison'); } catch {}
-                    toast.success(`Comparison table generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the comparison table.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'erd') {
-                const shapes = generateERDShapes(intent);
-                if (shapes?.length) {
-                    onInsertShapes(shapes);
-                    if (onAddToLibrary) try { onAddToLibrary(shapes, 'AI ERD'); } catch {}
-                    toast.success(`ERD generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the ERD.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'mindmap') {
-                const shapes = generateMindMapShapes(intent);
-                if (shapes?.length) {
-                    onInsertShapes(shapes);
-                    if (onAddToLibrary) try { onAddToLibrary(shapes, 'AI Mind Map'); } catch {}
-                    toast.success(`Mind map generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the mind map.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'dsa') {
-                const shapes = generateDSAShapes(intent);
-                if (shapes?.length) {
-                    onInsertShapes(shapes);
-                    if (onAddToLibrary) try { onAddToLibrary(shapes, 'AI DSA Diagram'); } catch {}
-                    toast.success(`DSA visualization generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not render the DSA structure.', { id: 'ai-gen' }); }
-            } else if (intent.intent_type === 'diagram') {
-                const isExplanation = intent.graph?.diagramMode === 'explanation';
-                if (!isExplanation) {
-                    const validation = validateGraph(intent.graph);
-                    if (!validation.success) {
-                        toast.error('AI returned an invalid diagram format. Please try again.', { id: 'ai-gen' });
-                        return;
-                    }
-                }
-                const shapes = generateDiagramShapes(intent);
-                if (shapes?.length) {
-                    onInsertShapes(shapes);
-                    if (onAddToLibrary) try { onAddToLibrary(shapes, 'AI Diagram'); } catch {}
-                    toast.success(`Diagram generated via ${intent.meta?.provider || 'AI'}!`, { id: 'ai-gen' });
-                    setPrompt(''); setIsOpen(false);
-                } else { toast.error('Could not layout the diagram.', { id: 'ai-gen' }); }
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error('Failed to generate diagram: ' + error.message, { id: 'ai-gen' });
-        } finally {
-            setIsGenerating(false);
-        }
-    };
 
     // ── Locked overlay card ────────────────────────────────────────────────────
     if (showLocked && isLimitReached) {
@@ -223,7 +119,7 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
                     onAddKey={() => { setShowLocked(false); navigate('/dashboard/settings'); }}
                     onClose={() => setShowLocked(false)}
                 />
-                <SignupModal isOpen={isSignupModalOpen} onOpenChange={setIsSignupModalOpen} onSuccess={() => handleGenerate()} />
+                <SignupModal isOpen={isSignupModalOpen} onOpenChange={setIsSignupModalOpen} />
             </>
         );
     }
@@ -253,87 +149,29 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
                         {isLockedUI ? 'Locked' : 'Generate Diagram'}
                     </span>
 
-                    {/* Usage dots — only when logged in and on free tier */}
+                    {/* Usage dots */}
                     {!isGuest && usageInfo && !isUnlimited && !isLimitReached && (
                         <PromptDots used={used} total={DAILY_LIMIT} />
                     )}
                 </button>
-                <SignupModal isOpen={isSignupModalOpen} onOpenChange={setIsSignupModalOpen} onSuccess={() => handleGenerate()} />
+                <SignupModal isOpen={isSignupModalOpen} onOpenChange={setIsSignupModalOpen} />
             </>
         );
     }
 
-    // ── Expanded prompt bar ────────────────────────────────────────────────────
+    // ── AI Panel (open state) ──────────────────────────────────────────────────
     return (
-        <div className="absolute bottom-20 left-4 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 z-50 pointer-events-auto">
-            <div className="flex flex-col gap-2">
-
-                {/* Main input bar */}
-                <form
-                    onSubmit={handleGenerate}
-                    className="flex items-center gap-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl px-4 py-2"
-                >
-                    <Sparkles className="w-4 h-4 shrink-0 text-indigo-500" />
-                    <input
-                        type="text"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder="Describe a diagram, flowchart, ERD, mind map, DSA, or paste code..."
-                        className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-[13px] text-neutral-800 placeholder:text-neutral-400 min-w-0 py-2"
-                        disabled={isGenerating}
-                        autoFocus
-                    />
-
-                    {/* Usage indicator inside bar */}
-                    {user && usageInfo && !isUnlimited && (
-                        <div className="flex items-center gap-2 shrink-0 border-l border-neutral-100 pl-3 ml-1">
-                            <PromptDots used={used} total={DAILY_LIMIT} />
-                            <span className="text-[10px] font-medium text-neutral-400 whitespace-nowrap">
-                                {usageInfo.remaining} left
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 shrink-0 ml-1">
-                        <button
-                            type="button"
-                            onClick={() => setIsOpen(false)}
-                            className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-neutral-700 rounded-full hover:bg-neutral-100 transition-colors"
-                            disabled={isGenerating}
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={isGenerating || !prompt.trim()}
-                            className="flex items-center justify-center w-9 h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl disabled:opacity-40 transition-colors"
-                        >
-                            {isGenerating
-                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : <Send className="w-4 h-4" />
-                            }
-                        </button>
-                    </div>
-                </form>
-
-                {/* Hint row */}
-                {!isGuest && usageInfo && !isUnlimited && (
-                    <div className="flex items-center justify-between px-1">
-                        <span className="text-[10px] text-neutral-400">
-                            {usageInfo.remaining} of {DAILY_LIMIT} daily prompts remaining · resets at midnight
-                        </span>
-                        <button
-                            onClick={() => { setIsOpen(false); navigate('/dashboard/settings'); }}
-                            className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
-                        >
-                            Add API key →
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            <SignupModal isOpen={isSignupModalOpen} onOpenChange={setIsSignupModalOpen} onSuccess={() => handleGenerate()} />
+        <div className="absolute bottom-20 left-4 z-50 pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-200">
+            <AIPanel
+                onClose={() => setIsOpen(false)}
+                onInsertShapes={(shapes) => {
+                    onInsertShapes(shapes);
+                    fetchUsage(); // refresh usage after generation
+                }}
+                onAddToLibrary={onAddToLibrary}
+                usageInfo={usageInfo}
+                isUnlimited={isUnlimited}
+            />
         </div>
     );
 }
