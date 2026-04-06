@@ -8,7 +8,7 @@
 
 ### Core Canvas Engine
 - **Infinite Canvas**: Pan and zoom freely without boundaries.
-- **Tools & Shapes**: Select, Rectangle, Diamond, Ellipse, Line, Arrow, Freehand Pencil, Text, Eraser.
+- **Tools & Shapes**: Select, Rectangle, Diamond, Ellipse, Line, Arrow, Freehand Pencil, Text, Image, Eraser.
 - **Excalidraw-style Aesthetics**: High-quality, hand-drawn "sloppy" rendering for shapes and arrows, complete with padding and smart arrowhead sizing.
 - **Layer Management**: Bring to front, send to back, bring forward, and send backward.
 - **Grouping/Ungrouping**: Select multiple shapes to group them together for scaled resizing and movement.
@@ -16,15 +16,17 @@
 
 ### AI-Powered Diagram Generation ✨
 - **Intelligent Creation**: Generate various types of complex diagrams directly from text prompts, including:
-  - **Flowcharts**: Map out processes, workflows, and logic.
+  - **Explanation Diagrams**: Visualizes abstract concepts, app life-cycles, system architectures, and mechanisms using responsive, zone-based cards.
+  - **Flowcharts & CFGs**: Map out processes, workflows, and logic. Includes specialized AI instruction to automatically convert source code into rigorous Control Flow Graphs (CFGs) utilizing grouped Basic Blocks.
   - **Mind Maps**: Brainstorm and organize hierarchical ideas.
   - **ERDs (Entity-Relationship Diagrams)**: Design database schemas and data architectures.
-  - **DSA (Data Structures & Algorithms)**: Illustrate trees, graphs, arrays, and algorithms.
-  - **Comparison Diagrams**: Visually evaluate pros/cons, features, or architectural differences.
-- **Hand-Drawn Aesthetic**: AI diagrams adopt an organic, hand-drawn look with curated pastel palettes, custom roughness, and handwriting fonts.
-- **Hierarchical Structures**: Automatic organization into nested group elements ("Tiers") with distinct headers and styled backgrounds.
-- **Smart Connectivity**: Advanced arrow routing with staggered anchor points preventing overlap, backed by a refactored and optimized 2-point line system.
-- **Fully Interactive**: All AI-generated elements are fully integrated canvas components—freely editable, movable, and resizable.
+  - **DSA (Data Structures & Algorithms)**: Illustrate trees, graphs, arrays, sorting algorithms, and step-by-step state traces.
+  - **Comparison Tables**: Visually evaluate pros/cons, features, or architectural differences side-by-side.
+- **Smart Prompt Expander**: An intelligent pre-processing architect reads short prompts and automatically infers the correct visualization diagram mode, layout, and complexity.
+- **Hand-Drawn Aesthetic**: AI diagrams organically adopt a hand-drawn look with curated pastel palettes, customized roughness variations, and integrated handwriting fonts.
+- **Hierarchical Structures**: Automatic organization into nested group elements ("Tiers") with distinct headers and beautifully styled backgrounds.
+- **Smart Connectivity**: Advanced arrow routing with staggered anchor points preventing line overlap, backed by an optimized orthogonal elbow system.
+- **Fully Interactive**: All AI-generated elements instantly become native canvas components—freely editable, movable, resizable, and ungroupable.
 
 ### Asset Library & Extensibility 📚
 - **Rich Library Panel**: Quickly access predefined "Featured Shapes" and your personal "My Library".
