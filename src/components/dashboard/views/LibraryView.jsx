@@ -11,7 +11,7 @@ import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
 import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 import { convertExcalidrawLibrary } from "@/utils/excalidrawConverter";
-import { convertSVGToShapes } from "@/utils/svgConverter";
+// Removed obsolete svgConverter
 import { 
     Search, 
     Plus, 
@@ -132,7 +132,6 @@ export default function LibraryView() {
     };
 
     const processFile = (file) => {
-        const isSvg = file.name.endsWith('.svg');
         const reader = new FileReader();
         
         reader.onload = async (event) => {
@@ -141,18 +140,7 @@ export default function LibraryView() {
                 let convertedItems = [];
                 let type = "Excalidraw";
 
-                if (isSvg) {
-                    type = "SVG";
-                    const shapes = convertSVGToShapes(content);
-                    if (shapes.length > 0) {
-                        convertedItems = [{
-                            name: file.name.replace('.svg', ''),
-                            shapes: shapes
-                        }];
-                    }
-                } else {
-                    convertedItems = convertExcalidrawLibrary(content);
-                }
+                convertedItems = convertExcalidrawLibrary(content);
 
                 if (convertedItems.length === 0) {
                     toast.error(`No compatible shapes found in ${type} file.`);
@@ -160,7 +148,7 @@ export default function LibraryView() {
                 }
 
                 for (const item of convertedItems) {
-                    await addItem(item.shapes, item.name, isSvg ? 'SVG' : 'Excalidraw');
+                    await addItem(item.shapes, item.name, 'Excalidraw');
                 }
 
                 toast.success(`Imported ${convertedItems.length} items from ${type}!`);
@@ -199,7 +187,7 @@ export default function LibraryView() {
         if (files && files.length > 0) {
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                if (file.name.endsWith('.svg') || file.name.endsWith('.json') || file.name.endsWith('.excalidrawlib')) {
+                if (file.name.endsWith('.json') || file.name.endsWith('.excalidrawlib')) {
                     processFile(file);
                 } else {
                     toast.error(`Unsupported file type: ${file.name}`);
@@ -287,7 +275,7 @@ export default function LibraryView() {
                         <UploadCloud className="w-8 h-8 text-[#7F77DD] animate-bounce" />
                     </div>
                     <p className="text-lg font-semibold text-neutral-900">Drop shapes here</p>
-                    <p className="text-sm text-neutral-500 mt-1">SVG, JSON, or Excalidraw library</p>
+                    <p className="text-sm text-neutral-500 mt-1">JSON or Excalidraw library</p>
                 </div>
             )}
 
@@ -306,7 +294,7 @@ export default function LibraryView() {
                         type="file"
                         ref={fileInputRef}
                         className="hidden"
-                        accept=".json,.excalidrawlib,.svg"
+                        accept=".json,.excalidrawlib"
                         onChange={handleFileUpload}
                     />
                     <button 
@@ -314,7 +302,7 @@ export default function LibraryView() {
                         className="flex items-center gap-[6px] bg-white text-black border border-black/10 rounded-[99px] px-[14px] py-[8px] text-[12px] font-medium hover:bg-neutral-50 transition-colors shadow-sm"
                     >
                         <UploadCloud className="h-[14px] w-[14px] text-neutral-500" />
-                        Import SVG / Lib
+                        Import Lib
                     </button>
                     <button 
                         onClick={handleCreateBoard}

@@ -4,6 +4,7 @@ import libraryService from '@/services/library.service';
 import { useAuth } from '@/hooks/useAuth';
 import { getBounds } from '@/engine/geometry/geometry';
 import { CanvasRenderer } from '@/engine/render/CanvasRenderer';
+import { SHAPE_TYPES, createBaseSchema } from '@/engine/schema';
 
 const STORAGE_KEY = 'infinity_library';
 
@@ -120,6 +121,7 @@ export function useLibraryStore() {
         // ... (Normalization logic same as before, condensed for brevity or kept)
         // Re-implementing normalization logic to be safe since I'm replacing the block
 
+        // 1. Calculate Bounds
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         shapes.forEach(shape => {
             const bounds = getBounds(shape);
@@ -129,12 +131,15 @@ export function useLibraryStore() {
             if (bounds.maxY > maxY) maxY = bounds.maxY;
         });
 
-        const width = maxX === -Infinity ? 0 : maxX - minX;
-        const height = maxY === -Infinity ? 0 : maxY - minY;
-        const centerX = minX + width / 2;
-        const centerY = minY + height / 2;
+        let width = maxX === -Infinity ? 0 : maxX - minX;
+        let height = maxY === -Infinity ? 0 : maxY - minY;
+        let centerX = minX + width / 2;
+        let centerY = minY + height / 2;
 
-        const normalizedShapes = shapes.map(s => ({
+        let finalShapes = shapes;
+
+        // Centering logic for items
+        finalShapes = shapes.map(s => ({
             ...s,
             position: {
                 x: (s.position?.x || 0) - centerX,
@@ -162,7 +167,7 @@ export function useLibraryStore() {
                 const viewportX = THUMBNAIL_SIZE / 2;
                 const viewportY = THUMBNAIL_SIZE / 2;
 
-                renderer.render(normalizedShapes, {}, { x: viewportX, y: viewportY, zoom }, { clear: true, drawShapes: true });
+                renderer.render(finalShapes, {}, { x: viewportX, y: viewportY, zoom }, { clear: true, drawShapes: true });
                 preview = canvas.toDataURL('image/png');
             } catch (err) {
                 console.error("Failed to generate base64 preview for library item", err);
@@ -174,7 +179,7 @@ export function useLibraryStore() {
             id: tempId,
             name,
             createdAt: Date.now(),
-            shapes: normalizedShapes,
+            shapes: finalShapes,
             width,
             height,
             preview,
@@ -191,7 +196,7 @@ export function useLibraryStore() {
             try {
                 const res = await libraryService.createLibraryItem({
                     name,
-                    elements: normalizedShapes,
+                    elements: finalShapes,
                     preview,
                     source
                 });
