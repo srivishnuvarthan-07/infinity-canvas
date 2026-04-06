@@ -252,6 +252,11 @@ export function hitTest(shape, x, y, zoom = 1, shapeMap = {}) {
             return Math.abs(rx) <= (width / 2) + padding &&
                 Math.abs(ry) <= (height / 2) + padding;
 
+        case SHAPE_TYPES.IMAGE:
+            // Images are pure rectangles centered at position
+            return Math.abs(rx) <= (width / 2) + padding &&
+                Math.abs(ry) <= (height / 2) + padding;
+
         default:
             return false;
     }

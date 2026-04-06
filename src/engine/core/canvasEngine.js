@@ -22,10 +22,16 @@ export class CanvasEngine {
         this._resizeObserver = null;
         this.onResize = null; // Callback for when canvas dimensions change
 
-        // State refs — set externally before starting loop
+        // 1. Viewport Management (Zoom, Pan, Coordinates)
         this.getShapes = () => [];
         this.getViewport = () => ({ x: 0, y: 0, zoom: 1 });
         this.getOverlayState = () => ({});
+
+        // Event Forwarding: Ensure image load events from offscreen renderer
+        // reach the main canvas so the engine knows to repaint.
+        this.offscreen.addEventListener('image-loaded', (e) => {
+            this.canvas.dispatchEvent(new CustomEvent('image-loaded', { detail: e.detail }));
+        });
     }
 
     /**

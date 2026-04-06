@@ -38,6 +38,7 @@ export function useEngineInteraction({
 }) {
     const [isCreating, setIsCreating] = useState(false);
     const [dragOffset, setDragOffset] = useState({ startX: 0, startY: 0 });
+    const creatingShapeId = useRef(null); // tracks in-progress shape ID (independent of selection)
 
     // Panning
     const isPanning = useRef(false);
@@ -147,6 +148,7 @@ export function useEngineInteraction({
                 newShape.size = { width: 0, height: 0 };
                 newShape.style = { ...newShape.style, stroke: activeColor, strokeWidth, strokeStyle };
                 setShapes(prev => [...prev, newShape]);
+                creatingShapeId.current = id;
                 setSelectedShapeIds(new Set([id]));
                 setIsCreating(true);
                 setDragOffset({ startX: x, startY: y });
@@ -287,8 +289,8 @@ export function useEngineInteraction({
             return;
         }
 
-        if (isCreating && selectedShapeIds.size > 0) {
-            const creationId = [...selectedShapeIds][0];
+        if (isCreating && creatingShapeId.current) {
+            const creationId = creatingShapeId.current;
             const startPos = dragOffset ? { x: dragOffset.startX, y: dragOffset.startY } : null;
             setShapes(prev => {
                 let next = prev.map(s => {
@@ -321,7 +323,12 @@ export function useEngineInteraction({
                 bindCreatedArrow(creationId, startPos, e);
             }
 
-            if (setActiveTool && activeTool !== 'pencil' && activeTool !== 'draw') setActiveTool('select');
+            if (setActiveTool && activeTool !== 'pencil' && activeTool !== 'draw') {
+                setActiveTool('select');
+            } else if (activeTool === 'pencil' || activeTool === 'draw') {
+                // FreeDraw: do not auto-select the drawn stroke — clear selection instead
+                setSelectedShapeIds(new Set());
+            }
         } else if (isResizing && selectedShapeIds.size === 1 && (activeHandle === 'start' || activeHandle === 'end')) {
             const [arrowId] = selectedShapeIds;
             rebindArrowEndpoint(arrowId, activeHandle, e);
@@ -334,6 +341,7 @@ export function useEngineInteraction({
         }
 
         setIsCreating(false);
+        creatingShapeId.current = null;
         cancelDrag();
         cancelResize();
         cancelDragSelect();

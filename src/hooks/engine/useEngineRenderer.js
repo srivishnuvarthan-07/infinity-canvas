@@ -54,6 +54,9 @@ export function useEngineRenderer({
         const engine = new CanvasEngine(canvasRef.current);
         engineRef.current = engine;
 
+        // When an image finishes loading asynchronously, force a repaint
+        const onImageLoaded = () => { isDirtyRef.current = true; };
+        canvasRef.current.addEventListener('image-loaded', onImageLoaded);
         // Force dirty on resize
         engine.onResize = () => {
             isDirtyRef.current = true;
@@ -144,7 +147,10 @@ export function useEngineRenderer({
         const parent = canvasRef.current.parentElement;
         if (parent) engine.observeResize(parent);
 
-        return () => engine.destroy();
+        return () => {
+            canvasRef.current?.removeEventListener('image-loaded', onImageLoaded);
+            engine.destroy();
+        };
     }, []);
 
     const start = useCallback(() => {
