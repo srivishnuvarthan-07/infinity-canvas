@@ -7,6 +7,9 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// Trust proxy for secure cookies behind load balancers (Render, Heroku, etc.)
+app.set('trust proxy', 1);
+
 // Body parser
 app.use(express.json({ limit: '50mb' })); // Increased limit for large board data
 
