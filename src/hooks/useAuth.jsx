@@ -37,6 +37,9 @@ export function AuthProvider({ children }) {
         try {
             setError(null);
             const data = await authService.login({ email, password });
+            if (data.token) {
+                localStorage.setItem('token', data.token);
+            }
             setUser(data.user);
             return data;
         } catch (err) {
@@ -50,6 +53,9 @@ export function AuthProvider({ children }) {
         try {
             setError(null);
             const data = await authService.register({ name, email, password });
+            if (data.token) {
+                localStorage.setItem('token', data.token);
+            }
             setUser(data.user);
             return data;
         } catch (err) {
@@ -62,6 +68,7 @@ export function AuthProvider({ children }) {
     const logout = async () => {
         try {
             await authService.logout();
+            localStorage.removeItem('token');
             setUser(null);
         } catch (err) {
             console.error('Logout failed', err);
