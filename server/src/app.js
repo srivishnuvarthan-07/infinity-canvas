@@ -38,6 +38,11 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
+// Uptime monitor route
+app.get('/ping', (req, res) => {
+    res.status(200).send("Server is alive 🚀");
+});
+
 // Mount routers
 app.use('/api/auth', require('./modules/auth/auth.routes'));
 app.use('/api/users', require('./modules/user/user.routes'));
