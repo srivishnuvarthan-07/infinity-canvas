@@ -49,6 +49,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "fabric": "^6.9.1",
+    "firebase": "^12.13.0",
     "gif.js.optimized": "^1.0.1",
     "idb": "^8.0.3",
     "input-otp": "^1.4.2",
