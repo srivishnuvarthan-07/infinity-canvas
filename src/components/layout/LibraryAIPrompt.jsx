@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Loader2, Send } from 'lucide-react';
 import { getAIService } from '@/services/ai.service';
 import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
@@ -8,11 +8,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { SignupModal } from '@/components/auth/SignupModal';
 import { Lock } from 'lucide-react';
 
-export function LibraryAIPrompt({ onGenerateSuccess }) {
+export function LibraryAIPrompt({ onGenerateSuccess, presetPrompt, onResetPreset }) {
     const { user } = useAuth();
     const [prompt, setPrompt] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (presetPrompt) {
+            setPrompt(presetPrompt);
+            onResetPreset?.();
+        }
+    }, [presetPrompt, onResetPreset]);
 
     const apiKey = import.meta.env.VITE_GROQ_API_KEY;
 
