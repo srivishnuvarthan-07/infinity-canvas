@@ -233,4 +233,85 @@
     @apply -translate-y-[2px];
     box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.06), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
   }
+
+  /* Floating Orbs animations */
+  @keyframes floatOrb1 {
+    0% { transform: translate(0px, 0px) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.95); }
+    100% { transform: translate(0px, 0px) scale(1); }
+  }
+
+  @keyframes floatOrb2 {
+    0% { transform: translate(0px, 0px) scale(1); }
+    50% { transform: translate(-40px, 40px) scale(1.15); }
+    100% { transform: translate(0px, 0px) scale(1); }
+  }
+
+  .animate-orb-1 {
+    animation: floatOrb1 16s infinite ease-in-out;
+  }
+
+  .animate-orb-2 {
+    animation: floatOrb2 20s infinite ease-in-out;
+  }
+
+  /* Live drawing flowchart SVG animations */
+  @keyframes drawDash {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      transform: scale(0);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% {
+      filter: drop-shadow(0 0 2px rgba(99, 102, 241, 0.2));
+    }
+    50% {
+      filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.5));
+    }
+  }
+
+  @keyframes simulateCursor {
+    0% { transform: translate(20px, 150px); opacity: 0; }
+    5% { transform: translate(20px, 150px); opacity: 1; }
+    15% { transform: translate(60px, 55px); }
+    25% { transform: translate(60px, 55px); }
+    35% { transform: translate(130px, 55px); }
+    50% { transform: translate(130px, 120px); }
+    65% { transform: translate(180px, 120px); }
+    80% { transform: translate(200px, 60px); }
+    95% { transform: translate(200px, 60px); opacity: 1; }
+    100% { transform: translate(200px, 60px); opacity: 0; }
+  }
+
+  .animate-draw-path {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: drawDash 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  .animate-node-reveal {
+    transform-origin: center;
+    animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .animate-cursor-sim {
+    animation: simulateCursor 10s infinite cubic-bezier(0.45, 0, 0.55, 1);
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 3s infinite ease-in-out;
+  }
 }
