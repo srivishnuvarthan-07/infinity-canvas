@@ -13,51 +13,7 @@ import { SignupModal } from "@/components/auth/SignupModal";
 import { LibraryAIPrompt } from "./LibraryAIPrompt";
 import { LibraryItemPreview } from "./LibraryItemPreview";
 
-// Hardcoded featured shapes for guests to browse
-const FEATURED_SHAPES = [
-    {
-        id: "featured-sticky",
-        name: "Sticky Note",
-        shapes: [
-            {
-                id: "f-s-1", type: "rectangle", position: { x: 0, y: 0 }, size: { width: 140, height: 140 },
-                style: { fill: "#fef08a", stroke: "transparent", strokeWidth: 0, roughness: 1.5 }
-            },
-            {
-                id: "f-s-2", type: "text", text: "Double click to edit", position: { x: 0, y: 0 }, size: { width: 120, height: 20 },
-                font: { size: 14, family: "Caveat", align: "center" }, style: { fill: "#1f2937" }
-            }
-        ]
-    },
-    {
-        id: "featured-process",
-        name: "Process Node",
-        shapes: [
-            {
-                id: "f-p-1", type: "rectangle", position: { x: 0, y: 0 }, size: { width: 160, height: 60 },
-                style: { fill: "#e0f2fe", stroke: "#000", strokeWidth: 2, roughness: 1.5 }
-            },
-            {
-                id: "f-p-2", type: "text", text: "Process", position: { x: 0, y: 0 }, size: { width: 140, height: 20 },
-                font: { size: 16, family: "Caveat", align: "center", weight: "600" }, style: { fill: "#000" }
-            }
-        ]
-    },
-    {
-        id: "featured-decision",
-        name: "Decision Node",
-        shapes: [
-            {
-                id: "f-d-1", type: "diamond", position: { x: 0, y: 0 }, size: { width: 120, height: 120 },
-                style: { fill: "#e9d5ff", stroke: "#000", strokeWidth: 2, roughness: 1.5 }
-            },
-            {
-                id: "f-d-2", type: "text", text: "Decision?", position: { x: 0, y: 0 }, size: { width: 80, height: 20 },
-                font: { size: 15, family: "Caveat", align: "center", weight: "600" }, style: { fill: "#000" }
-            }
-        ]
-    }
-];
+import { FEATURED_SHAPES } from "@/lib/constants/featuredShapes";
 
 export function LibraryPanel({ 
     items, 
