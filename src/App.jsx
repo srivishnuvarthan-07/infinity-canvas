@@ -5,17 +5,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 
-import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
-import BoardPage from "./pages/BoardPage";
-import NotFound from "./pages/NotFound";
-import LoginPage from "./pages/auth/LoginPage";
-import SignupPage from "./pages/auth/SignupPage";
-import ProfilePage from "./pages/ProfilePage";
+import React, { Suspense, lazy } from "react";
+import { LoadingScreen } from "./components/ui/LoadingScreen";
 
-import OverviewView from "./components/dashboard/views/OverviewView";
-// import TeamView from "./components/dashboard/views/TeamView";
-import LibraryView from "./components/dashboard/views/LibraryView";
+const Index = lazy(() => import("./pages/Index"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const BoardPage = lazy(() => import("./pages/BoardPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
+const SignupPage = lazy(() => import("./pages/auth/SignupPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+
+const OverviewView = lazy(() => import("./components/dashboard/views/OverviewView"));
+const LibraryView = lazy(() => import("./components/dashboard/views/LibraryView"));
 
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 
@@ -36,22 +38,23 @@ const App = () => (
                     <Toaster />
                     <Sonner position="bottom-center" />
                     <BrowserRouter>
-                        <Routes>
-                            <Route path="/" element={<Index />} />
-                            <Route path="/login" element={<LoginPage />} />
-                            <Route path="/signup" element={<SignupPage />} />
+                        <Suspense fallback={<LoadingScreen />}>
+                            <Routes>
+                                <Route path="/" element={<Index />} />
+                                <Route path="/login" element={<LoginPage />} />
+                                <Route path="/signup" element={<SignupPage />} />
 
-                            {/* Public Access for Local First */}
-                            <Route path="/dashboard" element={<Dashboard />}>
-                                <Route path="overview" element={<OverviewView />} />
-                                {/* <Route path="team" element={<TeamView />} /> */}
-                                <Route path="library" element={<LibraryView />} />
-                            </Route>
-                            <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
-                            <Route path="/board/:boardId" element={<BoardPage />} />
+                                {/* Public Access for Local First */}
+                                <Route path="/dashboard" element={<Dashboard />}>
+                                    <Route path="overview" element={<OverviewView />} />
+                                    <Route path="library" element={<LibraryView />} />
+                                </Route>
+                                <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+                                <Route path="/board/:boardId" element={<BoardPage />} />
 
-                            <Route path="*" element={<NotFound />} />
-                        </Routes>
+                                <Route path="*" element={<NotFound />} />
+                            </Routes>
+                        </Suspense>
                     </BrowserRouter>
                 </AuthProvider>
             </TooltipProvider>
