@@ -53,6 +53,43 @@ exports.login = async (req, res, next) => {
     }
 };
 
+// @desc    Sync Firebase user with MongoDB
+// @route   POST /api/auth/firebase-sync
+// @access  Public
+exports.firebaseSync = async (req, res, next) => {
+    try {
+        const { name, email, uid, photoURL } = req.body;
+
+        if (!email || !uid) {
+            return res.status(400).json({ success: false, error: 'Please provide email and uid' });
+        }
+
+        // Check if user exists
+        let user = await User.findOne({ email });
+
+        if (user) {
+            // Optional: update last login or photoURL here if needed
+            user.lastLogin = Date.now();
+            await user.save();
+        } else {
+            // Generate a secure random password since Firebase handles actual auth
+            const randomPassword = uid + Math.random().toString(36).slice(-8) + Date.now().toString();
+
+            // Create new user
+            user = await User.create({
+                name: name || email.split('@')[0],
+                email,
+                password: randomPassword,
+                provider: 'firebase'
+            });
+        }
+
+        sendTokenResponse(user, 200, res);
+    } catch (err) {
+        next(err);
+    }
+};
+
 // @desc    Get current logged in user
 // @route   GET /api/auth/me
 // @access  Private
