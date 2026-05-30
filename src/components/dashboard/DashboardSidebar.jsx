@@ -100,6 +100,18 @@ export function DashboardSidebar() {
                                 <span className="text-[10px] text-neutral-500 leading-tight mt-0.5">Manage profile</span>
                             </div>
                         </div>
+                        <div className="h-[1px] w-full bg-neutral-200/50 my-1" />
+                        <div 
+                            className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-[#FCEBEB] hover:shadow-sm border border-transparent hover:border-[#FCEBEB] transition-colors cursor-pointer group" 
+                            onClick={handleLogout}
+                        >
+                            <div className="h-8 w-8 bg-neutral-100 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white transition-colors">
+                                <LogOut className="h-4 w-4 text-[#E24B4A]" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[13px] font-bold text-[#E24B4A] leading-tight">Sign out</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

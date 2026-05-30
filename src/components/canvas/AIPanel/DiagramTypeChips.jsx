@@ -1,4 +1,4 @@
-import { Sparkles, GitBranch, Database, Network, LayoutGrid, Binary } from 'lucide-react';
+import { Sparkles, GitBranch, Database, Network, LayoutGrid, Binary, PieChart } from 'lucide-react';
 
 export const DIAGRAM_TYPES = [
     {
@@ -6,6 +6,12 @@ export const DIAGRAM_TYPES = [
         label: 'Auto',
         icon: Sparkles,
         placeholder: 'Describe any diagram, flowchart, ERD, mind map, or DSA structure…',
+    },
+    {
+        id: 'chart',
+        label: 'Chart',
+        icon: PieChart,
+        placeholder: 'Describe a bar chart or pie chart to visualize data...',
     },
     {
         id: 'flowchart',
