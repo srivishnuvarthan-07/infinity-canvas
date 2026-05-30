@@ -1,69 +1,70 @@
 import { getStroke } from "perfect-freehand";
 
 /**
- * Renders a pencil/polyline shape
- * @param {CanvasRenderingContext2D} ctx 
- * @param {Object} shape 
+ * Renders a pencil/freehand shape using perfect-freehand for an ink-like feel.
+ * Mimics Excalidraw's hand-drawn ink brush with variable width and smooth curves.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {Object} shape
  */
 export function drawPencil(ctx, shape) {
     if (!shape.points || shape.points.length < 1) return;
 
-    ctx.fillStyle = shape.style?.stroke || '#000000';
+    const strokeWidth = shape.style?.strokeWidth ?? 8;
+    const color = shape.style?.stroke || '#1a1a1a';
 
-    // 1. Simple Polyline (Architect)
-    if (shape.style?.renderMode !== 'rough' || shape.style?.roughness <= 1.5) {
-        ctx.strokeStyle = shape.style?.stroke || '#000000';
-        ctx.lineWidth = shape.style?.strokeWidth || 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
 
+    // With only 1 point, draw a dot
+    if (shape.points.length === 1) {
+        const p = shape.points[0];
         ctx.beginPath();
-        // Points are local to the shape center (shape.position.x, shape.position.y)
-        // Renderer has already translated to shape.position.x, shape.position.y
-        const p0 = shape.points[0];
-        ctx.moveTo(p0.x, p0.y);
-
-        for (let i = 1; i < shape.points.length; i++) {
-            const p = shape.points[i];
-            ctx.lineTo(p.x, p.y);
-        }
-
-        if (shape.isClosed) {
-            ctx.closePath();
-            if (shape.style?.fill && shape.style.fill !== 'transparent') {
-                ctx.fillStyle = shape.style.fill;
-                ctx.fill();
-            }
-        }
-
-        ctx.stroke();
+        ctx.arc(p.x, p.y, strokeWidth / 2, 0, Math.PI * 2);
+        ctx.fill();
         return;
     }
 
-    // 2. Artist Mode (Perfect Freehand)
-    // We need to convert local points to [x, y] arrays
-    // points are {x, y}
-    const strokeWidth = shape.style?.strokeWidth || 2;
-    const points = shape.points.map(p => [p.x, p.y, strokeWidth]); // pressure?
-
-    const stroke = getStroke(points, {
-        size: strokeWidth,
-        thinning: 0.5,
-        smoothing: 0.5,
-        streamline: 0.5,
+    // Convert shape points {x, y} → [x, y, pressure] for perfect-freehand
+    const pts = shape.points.map((p, i) => {
+        // Simulate pressure: ramp up at start, ramp down at end (like real ink)
+        const t = i / (shape.points.length - 1);
+        const pressure = 0.4 + 0.6 * Math.sin(t * Math.PI);
+        return [p.x, p.y, pressure];
     });
 
-    // Render SVG path from stroke points
-    // getStroke returns outline points (left & right)
+    // Excalidraw-like ink stroke settings
+    const stroke = getStroke(pts, {
+        size: strokeWidth,
+        thinning: 0.6,       // How much the stroke thins at low pressure (0=none, 1=max)
+        smoothing: 0.5,      // How much to smooth the stroke outline
+        streamline: 0.4,     // How much to streamline the input points
+        easing: (t) => t,   // Linear easing
+        simulatePressure: false, // We provide synthetic pressure above
+        last: true,          // Taper the end
+        start: {
+            taper: strokeWidth * 2, // Ink starts thin
+            easing: (t) => t * t,
+        },
+        end: {
+            taper: strokeWidth * 3, // Ink ends thin (like lifting pen)
+            easing: (t) => t * t,
+        },
+    });
 
-    // We need a helper to draw the polygon from perfect-freehand
     if (stroke.length < 2) return;
 
+    // Draw the filled outline polygon that perfect-freehand returns
     ctx.beginPath();
     ctx.moveTo(stroke[0][0], stroke[0][1]);
-    for (let i = 1; i < stroke.length; i++) {
-        ctx.lineTo(stroke[i][0], stroke[i][1]);
+
+    // Use quadratic curves for smooth rendering (like Excalidraw)
+    for (let i = 1; i < stroke.length - 1; i++) {
+        const mx = (stroke[i][0] + stroke[i + 1][0]) / 2;
+        const my = (stroke[i][1] + stroke[i + 1][1]) / 2;
+        ctx.quadraticCurveTo(stroke[i][0], stroke[i][1], mx, my);
     }
+
+    ctx.closePath();
     ctx.fill();
 }
-

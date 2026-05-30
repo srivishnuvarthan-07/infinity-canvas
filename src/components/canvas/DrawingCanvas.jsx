@@ -10,6 +10,7 @@ import { TextEditorOverlay } from "./TextEditorOverlay";
 import { CommandMenu } from "./CommandMenu";
 import { CursorOverlay } from "./CursorOverlay";
 import { SelectionOverlay } from "./SelectionOverlay";
+import { EraserCursor } from "./EraserCursor";
 import { Undo, Redo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShareDialog } from "./ShareDialog";
@@ -97,6 +98,7 @@ export function DrawingCanvas({
         setEditingShapeId,
 
         customShapes,
+        setShapes: setCustomShapes,
         updateCustomShape,
         viewport,
         canvasHandlers,
@@ -416,10 +418,10 @@ export function DrawingCanvas({
             />
 
             {/* TOP LEFT: FLOATING MENU */}
-            <div className="absolute top-4 left-16 z-30 pointer-events-auto flex items-center gap-2">
+            <div className="absolute top-3 left-14 z-30 pointer-events-auto flex items-center gap-2">
                 <FloatingMenu
                     boardName={boardName || "Untitled"}
-                    isSaved={true} // Hook up real state later if possible
+                    isSaved={true}
                     isLocal={isLocal}
                     onRename={onRename}
                     onBack={onBack}
@@ -428,16 +430,10 @@ export function DrawingCanvas({
                     onExport={handleExport}
                     onReset={handleClear}
                 />
-
-                {/* Board Type Indicator */}
-                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/90 backdrop-blur-md border border-black/5 shadow-sm text-[11px] font-semibold tracking-wide ${isLocal ? 'text-amber-600' : 'text-indigo-600'}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${isLocal ? 'bg-amber-500' : 'bg-indigo-500'}`}></span>
-                    {isLocal ? 'Local Board' : 'Cloud Board'}
-                </div>
             </div>
 
             {/* TOP RIGHT: COLLABORATION & SHARE */}
-            <div className="absolute top-4 right-4 z-30 pointer-events-auto flex items-center gap-3">
+            <div className="absolute top-3 right-3 z-30 pointer-events-auto flex items-center gap-2">
                 {/* Collaborators Avatar Pile / Presence Panel */}
                 <div className="relative group flex items-center">
                     <div className="flex items-center -space-x-2 cursor-pointer transition-transform group-hover:scale-105">
@@ -512,9 +508,29 @@ export function DrawingCanvas({
                 isLoggedIn={isLoggedIn}
             />
 
-            {/* BOTTOM CENTER: FLOATING TOOLBAR */}
+            {/* BOTTOM CENTER: UNIFIED TOOLBAR ROW */}
             {canEdit && (
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
+                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2">
+                    {/* Undo / Redo — left of toolbar */}
+                    <div className="flex items-center gap-1 bg-white/90 backdrop-blur-md border border-neutral-200/60 shadow-lg rounded-full p-1.5">
+                        <button
+                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100 transition-all active:scale-90 disabled:opacity-30"
+                            onClick={handleUndo}
+                            disabled={!canUndo}
+                            title="Undo (Ctrl+Z)"
+                        >
+                            <Undo className="w-4 h-4 text-neutral-600" />
+                        </button>
+                        <button
+                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100 transition-all active:scale-90 disabled:opacity-30"
+                            onClick={handleRedo}
+                            disabled={!canRedo}
+                            title="Redo (Ctrl+Y)"
+                        >
+                            <Redo className="w-4 h-4 text-neutral-600" />
+                        </button>
+                    </div>
+                    {/* Main Toolbar */}
                     <Toolbar
                         activeTool={activeTool}
                         onToolChange={setActiveTool}
@@ -523,7 +539,7 @@ export function DrawingCanvas({
                 </div>
             )}
 
-            {/* BOTTOM LEFT: AI PROMPT BAR */}
+            {/* BOTTOM LEFT: AI PROMPT BAR — positioned to not overlap toolbar */}
             {canEdit && <AIPromptBar onInsertShapes={insertShapes} onAddToLibrary={onAddToLibrary} />}
 
             {/* FLOATING PROPERTIES PANEL (Contextual) - Conditional */}
@@ -570,6 +586,10 @@ export function DrawingCanvas({
                 shapes={customShapes || []}
                 viewport={viewport || { x: 0, y: 0, zoom: 1 }}
             />
+            <EraserCursor
+                isActive={activeTool === 'eraser'}
+                containerRef={containerRef}
+            />
 
             {editingShapeId && customShapes && (() => {
                 const shape = customShapes.find(s => s.id === editingShapeId);
@@ -582,7 +602,13 @@ export function DrawingCanvas({
                                 shape={shape}
                                 canvasRef={customCanvasRef}
                                 updateShape={updateCustomShape}
-                                onBlur={() => setEditingShapeId(null)}
+                                onBlur={(deleteEmpty) => {
+                                    if (deleteEmpty) {
+                                        // Remove the empty text shape
+                                        setCustomShapes(prev => prev.filter(s => s.id !== shape.id));
+                                    }
+                                    setEditingShapeId(null);
+                                }}
                                 viewport={viewport}
                             />
                         </div>
@@ -591,46 +617,13 @@ export function DrawingCanvas({
             })()}
 
             {/* ZOOM CONTROLS (Bottom Right) */}
-            <div className="absolute bottom-4 right-4 z-20 pointer-events-auto">
+            <div className="absolute bottom-5 right-4 z-20 pointer-events-auto">
                 <ZoomControls
                     zoom={zoom}
                     onZoomIn={handleZoomIn}
                     onZoomOut={handleZoomOut}
                     onZoomReset={handleZoomReset}
                 />
-            </div>
-
-            {/* UNDO / REDO CONTROLS (Bottom Left) */}
-            {canEdit && (
-                <div className="absolute bottom-6 left-6 z-40 flex gap-2 pointer-events-auto">
-                    <div className="bg-white/95 backdrop-blur-md border border-neutral-200/60 shadow-lg rounded-xl flex items-center p-1.5 gap-1.5">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-10 w-10 hover:bg-neutral-100/80 rounded-lg transition-all active:scale-90"
-                            onClick={handleUndo}
-                            disabled={!canUndo}
-                            title="Undo (Ctrl+Z)"
-                        >
-                            <Undo className="w-5 h-5 text-neutral-700" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-10 w-10 hover:bg-neutral-100/80 rounded-lg transition-all active:scale-90"
-                            onClick={handleRedo}
-                            disabled={!canRedo}
-                            title="Redo (Ctrl+Y)"
-                        >
-                            <Redo className="w-5 h-5 text-neutral-700" />
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* COMMAND HINT (Bottom left, right of undo/redo) */}
-            <div className="absolute bottom-6 left-32 z-40 pointer-events-auto flex items-center px-4 py-1 bg-white/70 backdrop-blur-md rounded-xl border border-neutral-200/50 text-xs text-neutral-500 font-medium font-mono select-none h-11 shadow-sm">
-                ⌘K
             </div>
 
         </div>

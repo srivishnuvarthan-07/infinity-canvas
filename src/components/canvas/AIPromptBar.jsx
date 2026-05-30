@@ -134,7 +134,7 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
                         if (isLimitReached) { setShowLocked(true); return; }
                         setIsOpen(true);
                     }}
-                    className={`absolute bottom-20 left-4 flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-lg z-50 pointer-events-auto
+                    className={`absolute bottom-5 left-4 flex items-center gap-2 px-3 py-2 rounded-full shadow-lg z-50 pointer-events-auto
                         transition-all duration-200 hover:scale-105 active:scale-95
                         ${isLockedUI
                             ? 'bg-neutral-100 border border-neutral-200 text-neutral-400'
@@ -142,11 +142,11 @@ export function AIPromptBar({ onInsertShapes, onAddToLibrary }) {
                         }`}
                 >
                     {isLockedUI
-                        ? <Lock className="w-4 h-4 text-neutral-400" />
-                        : <Sparkles className="w-4 h-4" />
+                        ? <Lock className="w-3.5 h-3.5 text-neutral-400" />
+                        : <Sparkles className="w-3.5 h-3.5" />
                     }
-                    <span className="font-medium text-sm">
-                        {isLockedUI ? 'Locked' : 'Generate Diagram'}
+                    <span className="font-medium text-xs">
+                        {isLockedUI ? 'AI Locked' : 'AI Generate'}
                     </span>
 
                     {/* Usage dots */}

@@ -4,13 +4,13 @@ import { DiagramTypeChips, DIAGRAM_TYPES } from './DiagramTypeChips';
 import { PromptInput } from './PromptInput';
 import { DiagramPreview } from './DiagramPreview';
 
-import { getAIService, getAIEngineSystemInstruction } from '@/services/ai.service';
+import { getAIService } from '@/services/ai.service';
 import { generateDiagramShapes } from '@/engine/ai/diagram.generator';
 import { generateDSAShapes } from '@/engine/ai/dsa.generator';
 import { generateMindMapShapes } from '@/engine/ai/mindmap.generator';
 import { generateComparisonShapes } from '@/engine/ai/comparison.generator';
 import { generateERDShapes } from '@/engine/ai/erd.generator';
-import { generateCodeFlowchartShapes } from '@/engine/ai/code.flowchart.generator';
+import { generateChartShapes } from '@/engine/ai/chart.generator';
 import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -65,6 +65,9 @@ export function AIPanel({ onClose, onInsertShapes, onAddToLibrary, usageInfo, is
             // Type-forced: bypass intent classifier and call generator directly
             if (selectedType !== 'auto') {
                 switch (selectedType) {
+                    case 'chart':
+                        intent = await aiService.getChartJSON(prompt);
+                        break;
                     case 'erd':
                         intent = await aiService.getERDJSON(prompt);
                         break;
@@ -77,24 +80,8 @@ export function AIPanel({ onClose, onInsertShapes, onAddToLibrary, usageInfo, is
                     case 'comparison':
                         intent = await aiService.getComparisonJSON(prompt);
                         break;
-                    case 'code_flowchart':
-                        intent = await aiService.getCodeFlowchartJSON(prompt);
-                        break;
                     case 'flowchart': {
-                        // Force flowchart mode by calling the diagram generator directly with a hint
-                        const plan = `INTENT: diagram\nDIAGRAM_MODE: flowchart\n${prompt}`;
-                        const resData = await aiService._apiCall(
-                            getAIEngineSystemInstruction(),
-                            `Here is the detailed plan to execute:\n\n${plan}`,
-                            { response_format: { type: 'json_object' } }
-                        );
-                        let text = resData.result?.trim() || '{}';
-                        if (text.startsWith('```')) text = text.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '');
-                        intent = {
-                            intent_type: 'diagram',
-                            graph: JSON.parse(text),
-                            meta: { provider: resData.provider, model: resData.model },
-                        };
+                        intent = await aiService.getFlowchartJSON(prompt);
                         break;
                     }
                     default:
@@ -112,12 +99,12 @@ export function AIPanel({ onClose, onInsertShapes, onAddToLibrary, usageInfo, is
                 toast.info(intent.suggestion || 'This prompt is not visual. Try describing a diagram.');
                 setIsGenerating(false);
                 return;
-            } else if (intent.intent_type === 'code_flowchart') {
-                shapes = generateCodeFlowchartShapes(intent);
-                label = `Code: ${intent.code_flowchart?.title || 'Flowchart'}`;
             } else if (intent.intent_type === 'comparison') {
                 shapes = generateComparisonShapes(intent);
                 label = 'AI Comparison';
+            } else if (intent.intent_type === 'chart') {
+                shapes = generateChartShapes(intent);
+                label = 'AI Chart';
             } else if (intent.intent_type === 'erd') {
                 shapes = generateERDShapes(intent);
                 label = 'AI ERD';

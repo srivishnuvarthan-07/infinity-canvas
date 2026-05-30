@@ -18,14 +18,20 @@ export function useCanvas({ initialShapes = [], socket, boardId, readonly = fals
 
   /* ===================== STATE ===================== */
   const [activeTool, setActiveTool] = useState("select");
+  const prevStrokeWidthRef = useRef(2);
   
   // Handle tool changes
   const handleToolChange = (tool) => {
     if (tool === 'image') {
       handleAddImage();
-      // Don't actually switch to 'image' tool permanently, 
-      // as image insertion is a one-off action.
       return;
+    }
+    // Pencil/draw tool: use ink brush width (8px)
+    if ((tool === 'pencil' || tool === 'draw') && activeTool !== 'pencil' && activeTool !== 'draw') {
+      prevStrokeWidthRef.current = strokeWidth;
+      setStrokeWidth(8);
+    } else if (tool !== 'pencil' && tool !== 'draw' && (activeTool === 'pencil' || activeTool === 'draw')) {
+      setStrokeWidth(prevStrokeWidthRef.current);
     }
     setActiveTool(tool);
   };
@@ -360,6 +366,7 @@ export function useCanvas({ initialShapes = [], socket, boardId, readonly = fals
 
     // Engine Specifics
     customShapes,
+    setShapes,
     updateCustomShape: updateShapes,
     editingShapeId,
     setEditingShapeId,

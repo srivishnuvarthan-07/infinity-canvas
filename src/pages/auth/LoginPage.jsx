@@ -160,6 +160,15 @@ export default function LoginPage() {
                             <Github className="w-5 h-5" />
                             Continue with GitHub
                         </Button>
+                        <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => navigate('/dashboard')}
+                            disabled={loading}
+                            className="w-full h-12 bg-white border-2 border-neutral-200 text-neutral-800 hover:bg-neutral-50 hover:border-neutral-300 shadow-sm rounded-2xl font-bold flex items-center justify-center gap-2 transition-all"
+                        >
+                            Continue without account
+                        </Button>
                     </div>
 
                     <div className="relative mb-8">

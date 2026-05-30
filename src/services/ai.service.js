@@ -1,63 +1,82 @@
+// ── Flowchart System Instruction ─────────────────────────────────────────────
 export const getAIEngineSystemInstruction = () => `
-You are the Creative Whiteboard AI engine for Infinity Canvas.
+You are a Flowchart Generator for Infinity Canvas.
+Your ONLY job: convert the user's request into a clean, well-structured flowchart as raw JSON.
 
-Your task:
-Generate ONLY valid JSON matching the exact schema below.
-Always include "diagramMode": "flowchart" at the top level.
-
---------------------------------------------------
-
-SCHEMA:
+════════════════════════════════════════════════════
+OUTPUT SCHEMA  (raw JSON only — NO markdown fences, NO explanation)
+════════════════════════════════════════════════════
 {
   "diagramMode": "flowchart",
   "direction": "TB",
   "nodes": [
-    { "id": "A", "label": "Start", "type": "rectangle" },
-    { "id": "B", "label": "Process", "type": "ellipse" },
-    { "id": "C", "label": "Decision", "type": "diamond" },
-    {
-      "id": "AWS_VPC",
-      "label": "Virtual Private Cloud",
-      "type": "group",
-      "direction": "LR",
-      "nodes": [
-        { "id": "D", "label": "Database", "type": "cylinder" },
-        { "id": "E", "label": "File Log", "type": "document" }
-      ]
-    }
+    { "id": "START", "label": "Start",           "type": "ellipse"       },
+    { "id": "A",     "label": "Receive Request",  "type": "rectangle"     },
+    { "id": "D1",    "label": "Valid Input?",     "type": "diamond"       },
+    { "id": "B",     "label": "Process Data",     "type": "rectangle"     },
+    { "id": "O1",    "label": "Return Error",     "type": "parallelogram" },
+    { "id": "END",   "label": "End",              "type": "ellipse"       }
   ],
   "edges": [
-    { "from": "A", "to": "B", "label": "Optional label" },
-    { "from": "B", "to": "D" },
-    { "from": "D", "to": "E" }
+    { "from": "START", "to": "A"   },
+    { "from": "A",     "to": "D1"  },
+    { "from": "D1",    "to": "B",  "label": "Yes" },
+    { "from": "D1",    "to": "O1", "label": "No"  },
+    { "from": "B",     "to": "END" },
+    { "from": "O1",    "to": "END" }
   ]
 }
 
-RULES:
-1. Node types MUST be one of: "rectangle", "ellipse", "diamond", "cylinder", "parallelogram", "hexagon", "document", "group".
-2. Keep maximum 50 nodes overall.
-3. Keep labels short (2–5 words).
-4. Use simple IDs like A, B, C, N1, N2...
-5. Include a TITLE node as the first node if appropriate:
-   { "id": "TITLE", "label": "Diagram Title", "type": "rectangle" }
-6. Choose "direction" based on diagram shape:
-   - Use "LR" (left-to-right) for: pipelines, CI/CD, state machines, parallel computations.
-   - Use "TB" (top-to-bottom) for: flowcharts, org charts, sequences.
-7. Nested Layouts (Hybrid Mode) - HIGHLY ENCOURAGED:
-   - To create hybrid horizontal + vertical diagrams, nest nodes inside a "group" node.
-   - You MUST use alternating directions (e.g. if the root is "TB", the group should be "LR").
-   - This is the BEST way to make complex flowcharts look professional, organized, and compact.
-   - The "group" node MUST HAVE a \`direction\` ("TB" or "LR") and a \`nodes\` array containing its child nodes.
-   - ALL EDGES (even for nodes inside groups) MUST BE FLAT in the root \`edges\` array. Do NOT put edges inside groups.
-   - Edges can link from/to any node ID, regardless of what group it is inside.
-8. Do NOT explain anything.
-9. Do NOT wrap the JSON in markdown code blocks (\`\`\`json).
-10. Return raw JSON text only.
+════════════════════════════════════════════════════
+SHAPE TYPES  — use EXACTLY one of these strings
+════════════════════════════════════════════════════
+"ellipse"        → Start / End terminal nodes ONLY
+"rectangle"      → regular process step or action
+"diamond"        → decision / condition (branches into Yes and No)
+"parallelogram"  → data input or output operation
+"cylinder"       → database or data store
+"document"       → document, report, or file produced
+"hexagon"        → pre-defined process or sub-routine call
 
---------------------------------------------------
+════════════════════════════════════════════════════
+STRICT RULES
+════════════════════════════════════════════════════
+1. ALWAYS begin with { "id": "START", "label": "Start", "type": "ellipse" }.
+   ALWAYS end with   { "id": "END",   "label": "End",   "type": "ellipse" }.
+2. Every diamond MUST have EXACTLY 2 outgoing edges.
+   Label them "Yes"/"No" or "True"/"False". Never leave a diamond with 1 edge.
+3. Every path from Start MUST eventually reach End. No dead ends.
+4. No orphan nodes — every node must connect to at least one edge.
+5. Node labels: 1–5 words MAXIMUM. If longer, split into two sequential nodes.
+6. IDs: short, unique, uppercase. Use START, END, A, B, C, D1, D2, PROC1, etc.
+7. Total nodes: 8–20 (minimum 8 for a meaningful diagram, maximum 20 for readability).
+8. ALL edges go in the flat root "edges" array. Never put edges inside node objects.
+9. Do NOT use "group" nodes — keep the layout flat and clean.
 
-If the request is not visual, respond with a plain text string starting with:
-NON_VISUAL: <short suggestion>
+════════════════════════════════════════════════════
+DIRECTION
+════════════════════════════════════════════════════
+"TB"  (top-to-bottom)  — DEFAULT. Use for step-by-step processes, decision trees, algorithms.
+"LR"  (left-to-right)  — Use ONLY for pipelines, phases, or stage-based flows.
+
+════════════════════════════════════════════════════
+EDGE LABELS
+════════════════════════════════════════════════════
+• Add edge labels ONLY when they carry meaning: "Yes", "No", "Success", "Fail", "Retry".
+• Regular sequential flow edges (no branching) must have NO label — omit the "label" key.
+• Keep labels ≤ 3 words.
+
+════════════════════════════════════════════════════
+SELF-CHECK before responding
+════════════════════════════════════════════════════
+□ One START ellipse, at least one END ellipse?
+□ Every diamond has exactly 2 outgoing labelled edges?
+□ All nodes connected, all paths reach END?
+□ All labels ≤ 5 words?
+□ 8–20 nodes total?
+□ Output is raw JSON only — no markdown, no text outside the JSON?
+
+Return ONLY the raw JSON object. Nothing before or after it.
 `;
 
 // ── Explanation Diagram System Instruction ──────────────────────────────────
@@ -115,67 +134,6 @@ CONNECTION RULES
 Raw JSON only. No markdown fences.
 `;
 
-// ── Control Flow Graph (CFG) System Instruction ──────────────────────────────
-export const getCodeFlowchartInstruction = () => `
-You are the Control Flow Graph (CFG) AI for Infinity Canvas.
-Your job: read source code and convert its LOGIC into a strict Control Flow Graph (CFG).
-Produce ONLY valid raw JSON. No markdown, no explanation. Start with { and end with }.
-
-OUTPUT SCHEMA:
-{
-  "intent_type":  "code_flowchart",
-  "language":     string,
-  "functionName": string,
-  "title":        string,
-  "nodes": [
-    { "id": string, "type": string, "label": string }
-  ],
-  "edges": [
-    { "from": string, "to": string, "label": string, "isBackEdge": boolean }
-  ]
-}
-
-CFG RULES (CRITICAL):
-1. A CFG consists of "Basic Blocks". A basic block is a straight-line code sequence with no branches in except to the entry and no branches out except at the exit.
-2. Group sequential, non-branching statements together into a SINGLE node.
-3. Use the newline character "\\\\n" to separate multiple statements inside the same basic block node label so they render on multiple lines.
-
-NODE TYPES — use exactly these strings:
-- "terminal"    : rounded pill. Use for the Entry/Start and Exit/Return nodes.
-                  Entry label: "Entry: functionName(params)"
-                  Exit label: "Exit / Return [value]"
-- "process"     : rectangle. Use this for Basic Blocks. 
-                  Combine sequential assignments, function calls, and computations into one block.
-                  Label format: "x = 0\\\\ny = 1\\\\nprint(x)"
-- "decision"    : diamond. Use for the branch condition itself (if, while, for).
-                  MUST have exactly 2 outgoing edges labelled "True" and "False" (or "Yes"/"No").
-                  Label format: ALWAYS ends with "?". E.g. "x < 10?"
-
-LABEL RULES:
-- Write in clean pseudo-code or plain English.
-- Separate multiple statements in a "process" node using the "\\\\n" character.
-- EVERY node.label field MUST be a non-empty string.
-- Keep statements very concise.
-
-EDGE RULES:
-- decision → exactly 2 outgoing edges, labelled "True" and "False" (or "Yes" and "No").
-- At the end of a True/False branch, edges must converge back to the next Basic Block (merge point).
-- For loops, include a back-edge (isBackEdge: true) going back to the decision or loop update block.
-
-STRUCTURAL RULES:
-1. Every execution path MUST end at an Exit/Return terminal node.
-2. Loops: [loop_init block] → [decision] → True: [body block] → [loop_update] → back-edge → decision
-                                      → False: [continue after loop]
-3. Max 30 nodes overall. Focus on compressing sequential lines into blocks to save space.
-
-SELF-CHECK before responding:
-- Did you group sequential statements into single 'process' nodes?
-- Are multiple statements separated by "\\\\n"?
-- Does every decision node have exactly "True" and "False" edges?
-- Does every path end at a terminal?
-
-Raw JSON only. No markdown fences.
-`;
 
 export const getPromptExpanderInstruction = () => `
 You are a highly analytical Technical Architect and Creative Illustrator for Infinity Canvas.
@@ -198,12 +156,13 @@ questions that have absolutely no visual component. Questions that start with "e
 "how does", "describe", "show me", "walk me through" are ALWAYS diagram/explanation.
 
 DECISION ORDER — go through each category and pick the FIRST match:
-1. "erd"        → mentions database, schema, tables, entities, SQL relationships
-2. "dsa"        → data structures (array, tree, graph, stack, queue, linked list, hash),
+1. "chart"      → mentions bar chart, pie chart, line chart, scatter plot, data visualization, statistics, or metrics.
+2. "erd"        → mentions database, schema, tables, entities, SQL relationships
+3. "dsa"        → data structures (array, tree, graph, stack, queue, linked list, hash),
                   algorithms (sort, search, BFS, DFS, DP), LeetCode problems
-3. "comparison" → "X vs Y", "difference between", "compare X and Y" (2+ items being compared)
-4. "mindmap"    → "mind map", "brainstorm", "explore topic", "break down concept"
-5. "diagram"    → EVERYTHING ELSE that has any visual component:
+4. "comparison" → "X vs Y", "difference between", "compare X and Y" (2+ items being compared)
+5. "mindmap"    → "mind map", "brainstorm", "explore topic", "break down concept"
+6. "diagram"    → EVERYTHING ELSE that has any visual component:
                   - "how does X work" → explanation diagram
                   - "explain X"       → explanation diagram
                   - "what is X"       → explanation diagram
@@ -213,8 +172,7 @@ DECISION ORDER — go through each category and pick the FIRST match:
                   - "system design"   → explanation diagram
                   - any concept, technology, protocol, process, mechanism
 6. "non_visual" → AVOID THIS. Almost EVERY question can be visualized. Only use it for:
-                  pure arithmetic ("what is 2+2"), personal advice ("should I quit my job"),
-                  pure code request ("write a function"). Even abstract concepts like
+                  pure arithmetic ("what is 2+2"), personal advice ("should I quit my job"). Even abstract concepts like
                   "explain love" or "what is justice" can become an explanation diagram.
                   When in doubt, classify as "diagram" with DIAGRAM_MODE: explanation.
 
@@ -242,7 +200,6 @@ EXAMPLES — study these carefully
 "mind map of AI"               → mindmap
 "database schema for blog"     → erd
 "what is 2+2"                  → non_visual
-"write me a Python function"   → non_visual
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DSA SUB-MODES
@@ -263,8 +220,8 @@ DIAGRAM SUB-MODES
 
 For "flowchart" mode:
 1. Break into Nodes and Connections with shape types.
-2. Assign: "rectangle", "ellipse", "diamond", "cylinder", "parallelogram", "hexagon", "document", "group".
-3. Layout: "TB" or "LR". Use HYBRID nested groups for complex flows.
+2. Assign: "rectangle", "ellipse", "diamond", "cylinder", "parallelogram", "hexagon", "document".
+3. Layout: "TB" or "LR".
 
 For "explanation" mode:
 1. Break into 3-6 logical SECTIONS (components/layers/zones).
@@ -274,7 +231,7 @@ For "explanation" mode:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INTENT: <diagram|dsa|mindmap|comparison|erd|code_flowchart|non_visual>
+INTENT: <diagram|dsa|mindmap|comparison|erd|chart|non_visual>
 
 <If diagram>
 DIAGRAM_MODE: <flowchart|explanation>
@@ -308,15 +265,16 @@ Title: ...
 Description: ...
 </If erd>
 
+<If chart>
+ChartType: <bar|pie>
+Title: ...
+Description: ...
+</If chart>
+
 <If non_visual>
 Excuse: ...
 </If non_visual>
 
-<If code_flowchart>
-Language: ...
-Function: ...
-Description: ...
-</If code_flowchart>
 `;
 
 // ── Comparison System Instruction ────────────────────────────────────
@@ -383,6 +341,29 @@ RULES:
 5. Return raw JSON only. No markdown, no explanations.
 `;
 
+
+// ── Chart System Instruction ───────────────────────────────────────────
+export const getChartSystemInstruction = () => `
+You are the Chart Visualizer AI for Infinity Canvas.
+Produce ONLY valid raw JSON matching this schema:
+
+{
+  "chartType": "bar", // or "pie"
+  "title": "Quarterly Sales",
+  "data": [
+    { "label": "Q1", "value": 120 },
+    { "label": "Q2", "value": 150 },
+    { "label": "Q3", "value": 90 },
+    { "label": "Q4", "value": 200 }
+  ]
+}
+
+RULES:
+1. chartType MUST be either "bar" or "pie".
+2. data array should have 3 to 8 items.
+3. Keep labels short (1-3 words).
+4. Return raw JSON only. No markdown fences.
+`;
 
 // ── Mind Map System Instruction ───────────────────────────────────────────
 export const getMindMapSystemInstruction = () => `
@@ -624,24 +605,15 @@ export class AIService {
   async generateGraphJSON(prompt, retryCount = 0) {
     try {
       const expandedPlan = await this.expandPrompt(prompt);
-      const intentMatch = expandedPlan.match(/INTENT:\s*(diagram|dsa|mindmap|comparison|erd|code_flowchart|non_visual)/i);
+      const intentMatch = expandedPlan.match(/INTENT:\s*(diagram|dsa|mindmap|comparison|erd|chart|non_visual)/i);
       let intentType = intentMatch ? intentMatch[1].toLowerCase() : 'diagram';
 
-      // Also detect if the raw prompt itself looks like source code
-      if (intentType !== 'code_flowchart') {
-        const looksLikeCode = /^\s*(public|private|protected|def |function |const |let |var |int |void |class |import |from |#include|export )/.test(prompt) ||
-          (prompt.includes('{') && prompt.includes('}') && prompt.includes('(') && prompt.includes(')') && prompt.split('\n').length > 3);
-        if (looksLikeCode) intentType = 'code_flowchart';
-      }
-
-      // Safety net: if the LLM incorrectly returned non_visual, ALWAYS override to explanation diagram.
-      // Every concept can be explained visually — there is no such thing as a non-visual question.
+      // Safety net: if the LLM incorrectly returned non_visual, override to explanation diagram.
       if (intentType === 'non_visual') {
         intentType = 'diagram';
-        expandedPlan = `INTENT: diagram\nDIAGRAM_MODE: explanation\n${expandedPlan}`;
       }
 
-      if (intentType === 'code_flowchart') return this.getCodeFlowchartJSON(prompt);
+      if (intentType === 'chart') return this.getChartJSON(expandedPlan);
       if (intentType === 'dsa') return this.getDSAGraphJSON(expandedPlan);
       if (intentType === 'mindmap') return this.getMindMapJSON(expandedPlan);
       if (intentType === 'comparison') return this.getComparisonJSON(expandedPlan);
@@ -653,22 +625,26 @@ export class AIService {
 
       if (diagramMode === 'explanation') return this.getDiagramExplanationJSON(expandedPlan);
 
-      const resData = await this._apiCall(getAIEngineSystemInstruction(), `Here is the detailed plan to execute:\n\n${expandedPlan}`, {
-        response_format: { type: "json_object" }
-      });
-
-      let text = resData.result?.trim() || "{}";
-      if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-
-      return {
-        intent_type: intentType,
-        graph: JSON.parse(text),
-        meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-      };
+      return this.getFlowchartJSON(prompt);
     } catch (error) {
       console.error("AI Generation Error:", error);
       throw error;
     }
+  }
+
+  async getFlowchartJSON(prompt) {
+    const resData = await this._apiCall(
+      getAIEngineSystemInstruction(),
+      `Generate a flowchart for:\n\n${prompt}`,
+      { response_format: { type: "json_object" } }
+    );
+    let text = resData.result?.trim() || "{}";
+    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
+    return {
+      intent_type: 'diagram',
+      graph: JSON.parse(text),
+      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
+    };
   }
 
   async getDSAGraphJSON(expandedPlan) {
@@ -699,6 +675,19 @@ export class AIService {
     return {
       intent_type: "mindmap",
       mindmap: JSON.parse(text),
+      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
+    };
+  }
+
+  async getChartJSON(expandedPlan) {
+    const resData = await this._apiCall(getChartSystemInstruction(), `Create a chart for:\n\n${expandedPlan}`, {
+      response_format: { type: "json_object" }
+    });
+    let text = resData.result?.trim() || "{}";
+    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
+    return {
+      intent_type: "chart",
+      chart: JSON.parse(text),
       meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
     };
   }
@@ -740,22 +729,6 @@ export class AIService {
     return {
       intent_type: "diagram",
       graph: JSON.parse(text),
-      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-    };
-  }
-
-  async getCodeFlowchartJSON(prompt) {
-    const resData = await this._apiCall(
-      getCodeFlowchartInstruction(),
-      `Analyze the following code and generate a flowchart:\n\n${prompt}`,
-      { response_format: { type: "json_object" } }
-    );
-    let text = resData.result?.trim() || "{}";
-    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-    const parsed = JSON.parse(text);
-    return {
-      intent_type: "code_flowchart",
-      code_flowchart: parsed,
       meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
     };
   }

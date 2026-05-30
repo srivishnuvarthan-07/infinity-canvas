@@ -113,13 +113,16 @@ export function FloatingMenu({
                 className="border-none shadow-none bg-transparent h-7 w-[180px] px-2 font-medium text-neutral-800 hover:bg-neutral-100/50 focus-visible:ring-0 focus-visible:bg-white text-sm"
             />
 
-            {/* Save Status & Sync */}
-            <div className="flex items-center pr-2 text-neutral-400">
+            {/* Save Status & Board Type */}
+            <div className="flex items-center gap-1.5 pr-2">
                 {isSaved ? (
-                    isLocal ? <HardDrive className="w-4 h-4 text-amber-500/80" /> : <Cloud className="w-4 h-4 text-green-500/80" />
+                    isLocal ? <HardDrive className="w-3.5 h-3.5 text-amber-500/80" /> : <Cloud className="w-3.5 h-3.5 text-green-500/80" />
                 ) : (
                     <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
                 )}
+                <span className={`text-[10px] font-semibold tracking-wide ${isLocal ? 'text-amber-500' : 'text-emerald-600'}`}>
+                    {isLocal ? 'Local' : 'Cloud'}
+                </span>
             </div>
 
         </div>

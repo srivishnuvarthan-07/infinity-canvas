@@ -38,7 +38,8 @@ export function useEngineInteraction({
 }) {
     const [isCreating, setIsCreating] = useState(false);
     const [dragOffset, setDragOffset] = useState({ startX: 0, startY: 0 });
-    const creatingShapeId = useRef(null); // tracks in-progress shape ID (independent of selection)
+    const creatingShapeId = useRef(null);
+    const pendingTextRef = useRef(null); // debounce single-click text creation vs double-click
 
     // Panning
     const isPanning = useRef(false);
@@ -99,6 +100,7 @@ export function useEngineInteraction({
         // 2. Eraser
         if (activeTool === 'eraser') {
             isErasing.current = true;
+            canvasRef.current.style.cursor = 'none';
             const range = new Rectangle(x, y, 10 / viewport.zoom, 10 / viewport.zoom);
             const candidates = new Set(spatialIndex.query(range).map(c => c.id));
             for (let i = shapes.length - 1; i >= 0; i--) {
@@ -120,6 +122,57 @@ export function useEngineInteraction({
             };
             const type = typeMap[activeTool];
             if (type) {
+                if (type === SHAPE_TYPES.TEXT) {
+                    // If clicked an existing text shape, open it for editing
+                    const shapeMap = shapeMapOf(shapes);
+                    let hitText = null;
+                    for (let i = shapes.length - 1; i >= 0; i--) {
+                        if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) { hitText = shapes[i]; break; }
+                    }
+                    if (hitText?.type === SHAPE_TYPES.TEXT) {
+                        setSelectedShapeIds(new Set([hitText.id]));
+                        setEditingShapeId(hitText.id);
+                        if (setActiveTool) setActiveTool('select');
+                        return;
+                    }
+
+                    // Debounce: wait briefly so a double-click only fires once
+                    if (pendingTextRef.current) clearTimeout(pendingTextRef.current);
+                    pendingTextRef.current = setTimeout(() => {
+                        pendingTextRef.current = null;
+                        const id = crypto.randomUUID();
+                        const newShape = {
+                            id,
+                            type: SHAPE_TYPES.TEXT,
+                            position: { x, y },
+                            rotation: 0,
+                            scale: { x: 1, y: 1 },
+                            zIndex: 0,
+                            text: '',
+                            font: { family: 'Caveat', size: 24, weight: 'normal', align: 'left' },
+                            size: { width: 10, height: 30 },
+                            style: {
+                                stroke: '#1a1a1a',
+                                fill: 'transparent',
+                                strokeWidth: 2,
+                                opacity: 1,
+                                renderMode: 'vector',
+                                roughness: 0,
+                                seed: Math.floor(Math.random() * 1000000),
+                                fillStyle: 'solid'
+                            },
+                            locked: false,
+                            visible: true,
+                            revision: { number: 1, timestamp: Date.now() }
+                        };
+                        setShapes(prev => { const next = [...prev, newShape]; saveState(next); return next; });
+                        setSelectedShapeIds(new Set([id]));
+                        setEditingShapeId(id);
+                        if (setActiveTool) setActiveTool('select');
+                    }, 180);
+                    return;
+                }
+
                 const id = crypto.randomUUID();
                 const newShape = createBaseSchema(id, type, x, y);
 
@@ -127,22 +180,6 @@ export function useEngineInteraction({
                     newShape.points = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
                 } else if (type === SHAPE_TYPES.PENCIL) {
                     newShape.points = [{ x: 0, y: 0 }];
-                }
-
-                if (type === SHAPE_TYPES.TEXT) {
-                    newShape.text = 'Double click to edit';
-                    newShape.font = { ...newShape.font, size: 20, align: 'center' };
-                    try {
-                        const ctx = canvasRef.current.getContext('2d');
-                        const { width, height } = measureTextShape(ctx, newShape);
-                        newShape.size = { width, height };
-                    } catch {
-                        newShape.size = { width: 100, height: 20 };
-                    }
-                    setShapes(prev => { const next = [...prev, newShape]; saveState(next); return next; });
-                    setSelectedShapeIds(new Set([id]));
-                    if (setActiveTool) setActiveTool('select');
-                    return;
                 }
 
                 newShape.size = { width: 0, height: 0 };
@@ -214,7 +251,7 @@ export function useEngineInteraction({
         }
 
         if (activeTool === 'eraser') {
-            canvasRef.current.style.cursor = 'crosshair';
+            canvasRef.current.style.cursor = 'none';
             if (isErasing.current) {
                 for (let i = shapes.length - 1; i >= 0; i--) {
                     if (hitTest(shapes[i], x, y, viewport.zoom, shapeMap)) {
@@ -358,18 +395,95 @@ export function useEngineInteraction({
         const rect = canvasRef.current.getBoundingClientRect();
         const { x, y } = toWorld(e.clientX - rect.left, e.clientY - rect.top);
         if (readonly) return;
-        
+
+        // Cancel any pending single-click text creation (text tool debounce)
+        if (pendingTextRef.current) {
+            clearTimeout(pendingTextRef.current);
+            pendingTextRef.current = null;
+        }
+
+        // Check if we hit an existing shape
         let hit = null;
         for (let i = shapes.length - 1; i >= 0; i--) {
             if (hitTest(shapes[i], x, y, viewport.zoom)) { hit = shapes[i]; break; }
         }
+
         if (hit?.type === SHAPE_TYPES.TEXT) {
+            // Edit existing text shape directly
             setEditingShapeId(hit.id);
             setSelectedShapeIds(new Set([hit.id]));
+        } else if (hit) {
+            // Double-click on a non-text shape → insert a text label centered inside it
+            // Check if this shape already has an embedded text child
+            const existing = shapes.find(
+                s => s.type === SHAPE_TYPES.TEXT && s.parentId === hit.id
+            );
+            if (existing) {
+                setEditingShapeId(existing.id);
+                setSelectedShapeIds(new Set([existing.id]));
+                return;
+            }
+            const id = crypto.randomUUID();
+            const newShape = {
+                id,
+                parentId: hit.id, // soft-link so we can find it again
+                type: SHAPE_TYPES.TEXT,
+                position: { x: hit.position.x, y: hit.position.y }, // centered on parent
+                rotation: 0,
+                scale: { x: 1, y: 1 },
+                zIndex: (hit.zIndex || 0) + 1,
+                text: '',
+                font: { family: 'Caveat', size: 42, weight: 'normal', align: 'center' },
+                size: { width: 10, height: 30 },
+                style: {
+                    stroke: '#1a1a1a',
+                    fill: 'transparent',
+                    strokeWidth: 2,
+                    opacity: 1,
+                    renderMode: 'vector',
+                    roughness: 0,
+                    seed: Math.floor(Math.random() * 1000000),
+                    fillStyle: 'solid'
+                },
+                locked: false,
+                visible: true,
+                revision: { number: 1, timestamp: Date.now() }
+            };
+            setShapes(prev => { const next = [...prev, newShape]; saveState(next); return next; });
+            setSelectedShapeIds(new Set([id]));
+            setEditingShapeId(id);
         } else {
-            setEditingShapeId(null);
+            // Empty canvas — create a floating text shape
+            const id = crypto.randomUUID();
+            const newShape = {
+                id,
+                type: SHAPE_TYPES.TEXT,
+                position: { x, y },
+                rotation: 0,
+                scale: { x: 1, y: 1 },
+                zIndex: 0,
+                text: '',
+                font: { family: 'Caveat', size: 42, weight: 'normal', align: 'left' },
+                size: { width: 10, height: 30 },
+                style: {
+                    stroke: '#1a1a1a',
+                    fill: 'transparent',
+                    strokeWidth: 2,
+                    opacity: 1,
+                    renderMode: 'vector',
+                    roughness: 0,
+                    seed: Math.floor(Math.random() * 1000000),
+                    fillStyle: 'solid'
+                },
+                locked: false,
+                visible: true,
+                revision: { number: 1, timestamp: Date.now() }
+            };
+            setShapes(prev => { const next = [...prev, newShape]; saveState(next); return next; });
+            setSelectedShapeIds(new Set([id]));
+            setEditingShapeId(id);
         }
-    }, [canvasRef, shapes, toWorld, viewport.zoom, setEditingShapeId, setSelectedShapeIds, readonly]);
+    }, [canvasRef, shapes, toWorld, viewport.zoom, setEditingShapeId, setSelectedShapeIds, setShapes, saveState, readonly]);
 
     // ── Wheel ───────────────────────────────────────────────────────────────
 

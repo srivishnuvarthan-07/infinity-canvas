@@ -44,8 +44,8 @@ export const createBaseSchema = (id, type, x, y) => ({
         strokeWidth: 2,
         opacity: 1,
 
-        renderMode: 'vector',
-        roughness: 0,
+        renderMode: 'rough',
+        roughness: 1.45,
         seed: Math.floor(Math.random() * 1000000),
         fillStyle: 'solid'
     },
@@ -87,14 +87,14 @@ export const createDiamond = (id, x, y, width, height) => ({
 /**
  * Creates a text schema
  */
-export const createText = (id, x, y, textStr, fontSize = 20) => ({
+export const createText = (id, x, y, textStr, fontSize = 42) => ({
     ...createBaseSchema(id, SHAPE_TYPES.TEXT, x, y),
     text: textStr,
     font: {
-        family: 'Arial',
+        family: 'Caveat',
         size: fontSize,
         weight: 'normal',
-        align: 'center'
+        align: 'left'
     }
 });
 
@@ -140,6 +140,15 @@ export const createPencil = (id, startPoint) => ({
 export const createImage = (id, x, y, src, width, height) => ({
     ...createBaseSchema(id, SHAPE_TYPES.IMAGE, x, y),
     src,
+    size: { width, height }
+});
+
+/**
+ * Creates a path schema
+ */
+export const createPath = (id, x, y, pathData, width = 100, height = 100) => ({
+    ...createBaseSchema(id, SHAPE_TYPES.PATH, x, y),
+    pathData,
     size: { width, height }
 });
 
