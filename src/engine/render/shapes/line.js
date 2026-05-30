@@ -1,4 +1,4 @@
-import { getShapeSeed, applyLineDash } from "./shapeUtils";
+import { getShapeSeed, applyLineDash, getRoughLineDash } from "./shapeUtils";
 
 export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
     const pts = (shape.points && shape.points.length > 1) ? shape.points : [{ x: 0, y: 0 }, { x: shape.size?.width || 0, y: 0 }];
@@ -12,13 +12,18 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
         const drawable = getRoughDrawable(shape, (gen) => {
             const roughness = shape.style?.roughness || 0;
             const isCartoonist = roughness > 1.5;
+            const sw = shape.style?.strokeWidth || 2;
+            const dash = getRoughLineDash(shape.style?.strokeStyle || 'solid', sw);
             const options = {
                 stroke: shape.style?.stroke || '#000000',
-                strokeWidth: shape.style?.strokeWidth || 2,
+                strokeWidth: sw,
                 roughness: roughness,
                 bowing: isCartoonist ? 2 : 1,
-                seed: shape.style?.seed || getShapeSeed(shape)
+                seed: shape.style?.seed || getShapeSeed(shape),
+                ...(dash ? { strokeLineDash: dash } : {})
             };
+            // Arrowhead lines are always solid (no dash — clean tips)
+            const solidOptions = { ...options, strokeLineDash: undefined };
 
             if (shape.isClosed && pts.length >= 3) {
                 const polyOpts = {
@@ -36,7 +41,7 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
 
             if (!isArrow) return lines;
 
-            // Arrowhead direction: last segment
+            // Arrowhead at end (last segment)
             const secondLast = pts[pts.length - 2];
             const headLen = Math.max((shape.style?.strokeWidth || 2) * 4, 10);
             const dx = pEnd.x - secondLast.x;
@@ -44,8 +49,18 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
             const angle = Math.atan2(dy, dx);
             const arrowAngle = Math.PI / 6;
 
-            lines.push(gen.line(pEnd.x, pEnd.y, pEnd.x - headLen * Math.cos(angle - arrowAngle), pEnd.y - headLen * Math.sin(angle - arrowAngle), options));
-            lines.push(gen.line(pEnd.x, pEnd.y, pEnd.x - headLen * Math.cos(angle + arrowAngle), pEnd.y - headLen * Math.sin(angle + arrowAngle), options));
+            lines.push(gen.line(pEnd.x, pEnd.y, pEnd.x - headLen * Math.cos(angle - arrowAngle), pEnd.y - headLen * Math.sin(angle - arrowAngle), solidOptions));
+            lines.push(gen.line(pEnd.x, pEnd.y, pEnd.x - headLen * Math.cos(angle + arrowAngle), pEnd.y - headLen * Math.sin(angle + arrowAngle), solidOptions));
+
+            // Arrowhead at start (double-headed arrow)
+            if (shape.doubleArrow) {
+                const second = pts[1];
+                const dx0 = pStart.x - second.x;
+                const dy0 = pStart.y - second.y;
+                const angle0 = Math.atan2(dy0, dx0);
+                lines.push(gen.line(pStart.x, pStart.y, pStart.x - headLen * Math.cos(angle0 - arrowAngle), pStart.y - headLen * Math.sin(angle0 - arrowAngle), solidOptions));
+                lines.push(gen.line(pStart.x, pStart.y, pStart.x - headLen * Math.cos(angle0 + arrowAngle), pStart.y - headLen * Math.sin(angle0 + arrowAngle), solidOptions));
+            }
 
             return lines;
         });
@@ -84,7 +99,7 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
     ctx.stroke();
 
     if (isArrow) {
-        // Arrowhead direction = direction of last segment
+        // Arrowhead at end (last segment)
         const secondLast = pts[pts.length - 2];
         const headLen = Math.max(strokeWidth * 4, 10);
         const dx = pEnd.x - secondLast.x;
@@ -94,16 +109,24 @@ export function drawLine(ctx, shape, isArrow = false, roughOps = null) {
 
         ctx.beginPath();
         ctx.moveTo(pEnd.x, pEnd.y);
-        ctx.lineTo(
-            pEnd.x - headLen * Math.cos(angle - arrowAngle),
-            pEnd.y - headLen * Math.sin(angle - arrowAngle)
-        );
+        ctx.lineTo(pEnd.x - headLen * Math.cos(angle - arrowAngle), pEnd.y - headLen * Math.sin(angle - arrowAngle));
         ctx.moveTo(pEnd.x, pEnd.y);
-        ctx.lineTo(
-            pEnd.x - headLen * Math.cos(angle + arrowAngle),
-            pEnd.y - headLen * Math.sin(angle + arrowAngle)
-        );
+        ctx.lineTo(pEnd.x - headLen * Math.cos(angle + arrowAngle), pEnd.y - headLen * Math.sin(angle + arrowAngle));
         ctx.stroke();
+
+        // Arrowhead at start (double-headed arrow)
+        if (shape.doubleArrow) {
+            const second = pts[1];
+            const dx0 = pStart.x - second.x;
+            const dy0 = pStart.y - second.y;
+            const angle0 = Math.atan2(dy0, dx0);
+            ctx.beginPath();
+            ctx.moveTo(pStart.x, pStart.y);
+            ctx.lineTo(pStart.x - headLen * Math.cos(angle0 - arrowAngle), pStart.y - headLen * Math.sin(angle0 - arrowAngle));
+            ctx.moveTo(pStart.x, pStart.y);
+            ctx.lineTo(pStart.x - headLen * Math.cos(angle0 + arrowAngle), pStart.y - headLen * Math.sin(angle0 + arrowAngle));
+            ctx.stroke();
+        }
     }
 }
 

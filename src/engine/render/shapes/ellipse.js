@@ -1,5 +1,5 @@
 import { getPatternCanvas } from "../../../utils/canvas/patterns";
-import { getShapeSeed, applyLineDash } from "./shapeUtils";
+import { getShapeSeed, applyLineDash, getRoughLineDash } from "./shapeUtils";
 
 export function drawEllipse(ctx, shape, roughOps = null) {
     const w = shape.size?.width || 0;
@@ -13,16 +13,19 @@ export function drawEllipse(ctx, shape, roughOps = null) {
         const drawable = getRoughDrawable(shape, (gen) => {
             const roughness = shape.style?.roughness || 0;
             const isCartoonist = roughness > 1.5;
+            const hasFill = shape.style?.fill && shape.style.fill !== 'transparent';
+            const sw = shape.style?.strokeWidth || 2;
+            const dash = getRoughLineDash(shape.style?.strokeStyle || 'solid', sw);
             const options = {
                 stroke: shape.style?.stroke || '#000000',
-                strokeWidth: shape.style?.strokeWidth || 2,
-                fill: shape.style?.fill !== 'transparent' ? shape.style?.fill : undefined,
-                fillStyle: shape.style?.fillStyle || 'hachure',
+                strokeWidth: sw,
+                fill: hasFill ? shape.style.fill : undefined,
+                fillStyle: hasFill ? (shape.style?.fillStyle || 'solid') : undefined,
                 roughness: roughness,
                 bowing: isCartoonist ? 2 : 1,
-                seed: shape.style?.seed || getShapeSeed(shape)
+                seed: shape.style?.seed || getShapeSeed(shape),
+                ...(dash ? { strokeLineDash: dash } : {})
             };
-            // center x, center y, width, height
             return gen.ellipse(0, 0, w, h, options);
         });
 

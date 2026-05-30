@@ -31,3 +31,19 @@ export function applyLineDash(ctx, strokeStyle, strokeWidth) {
         ctx.setLineDash([]);
     }
 }
+
+/**
+ * Returns a strokeLineDash array for roughjs options, based on strokeStyle.
+ * Roughjs accepts strokeLineDash directly in its options object.
+ * @param {string} strokeStyle - 'solid' | 'dashed' | 'dotted'
+ * @param {number} strokeWidth
+ * @returns {number[]|undefined} - undefined for solid (no dash)
+ */
+export function getRoughLineDash(strokeStyle, strokeWidth) {
+    if (strokeStyle === 'dashed') {
+        return [strokeWidth * 4, strokeWidth * 3];
+    } else if (strokeStyle === 'dotted') {
+        return [strokeWidth * 1.5, strokeWidth * 2.5];
+    }
+    return undefined; // solid — no dash
+}
