@@ -1,11 +1,11 @@
-import { Sparkles, GitBranch, Database, Network, Code2, LayoutGrid, Binary } from 'lucide-react';
+import { Sparkles, GitBranch, Database, Network, LayoutGrid, Binary } from 'lucide-react';
 
 export const DIAGRAM_TYPES = [
     {
         id: 'auto',
         label: 'Auto',
         icon: Sparkles,
-        placeholder: 'Describe any diagram, flowchart, ERD, mind map, DSA structure, or paste code…',
+        placeholder: 'Describe any diagram, flowchart, ERD, mind map, or DSA structure…',
     },
     {
         id: 'flowchart',
@@ -36,12 +36,6 @@ export const DIAGRAM_TYPES = [
         label: 'Comparison',
         icon: LayoutGrid,
         placeholder: 'Describe two or more things to compare (e.g. "React vs Vue vs Angular")…',
-    },
-    {
-        id: 'code_flowchart',
-        label: 'Code Flow',
-        icon: Code2,
-        placeholder: 'Paste code here and I\'ll convert the logic into a flowchart…',
     },
 ];
 
