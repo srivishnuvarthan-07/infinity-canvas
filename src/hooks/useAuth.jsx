@@ -63,6 +63,7 @@ export function AuthProvider({ children }) {
                     const backendUser = response.data.user;
                     setUser({
                         id: backendUser._id,
+                        _id: backendUser._id,
                         email: backendUser.email,
                         name: backendUser.name,
                         photoURL: firebaseUser.photoURL,
@@ -75,6 +76,7 @@ export function AuthProvider({ children }) {
                     // Fallback to Firebase user data if backend sync fails
                     setUser({
                         id: firebaseUser.uid,
+                        _id: firebaseUser.uid,
                         email: firebaseUser.email,
                         name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
                         photoURL: firebaseUser.photoURL,
@@ -116,6 +118,7 @@ export function AuthProvider({ children }) {
                 const backendUser = res.data.user;
                 setUser({
                     id: backendUser._id,
+                    _id: backendUser._id,
                     email: backendUser.email,
                     name: backendUser.name,
                     role: backendUser.role,
@@ -141,6 +144,7 @@ export function AuthProvider({ children }) {
                 const backendUser = res.data.user;
                 setUser({
                     id: backendUser._id,
+                    _id: backendUser._id,
                     email: backendUser.email,
                     name: backendUser.name,
                     role: backendUser.role,

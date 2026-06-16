@@ -5,7 +5,8 @@ const User = require('../../models/User');
 // @access  Public
 exports.register = async (req, res, next) => {
     try {
-        const { name, email, password } = req.body;
+        let { name, email, password } = req.body;
+        if (email) email = email.toLowerCase();
 
 
         // Create user
@@ -26,7 +27,8 @@ exports.register = async (req, res, next) => {
 // @access  Public
 exports.login = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
+        let { email, password } = req.body;
+        if (email) email = email.toLowerCase();
 
         // Validate email & password
         if (!email || !password) {
@@ -58,7 +60,8 @@ exports.login = async (req, res, next) => {
 // @access  Public
 exports.firebaseSync = async (req, res, next) => {
     try {
-        const { name, email, uid, photoURL } = req.body;
+        let { name, email, uid, photoURL } = req.body;
+        if (email) email = email.toLowerCase();
 
         if (!email || !uid) {
             return res.status(400).json({ success: false, error: 'Please provide email and uid' });
