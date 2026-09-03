@@ -40,10 +40,16 @@ router.post('/generate', protect, async (req, res) => {
                 resolvedKey = decryptKey(req.user.aiConfig.keys[resolvedProvider]);
                 resolvedModel = req.user.aiConfig.preferredModels[resolvedProvider];
             } else {
-                // System fallback: your GROQ key
-                resolvedProvider = 'groq';
-                resolvedKey = process.env.VITE_GROQ_API_KEY; // Re-use the existing key in .env
-                resolvedModel = 'llama-3.3-70b-versatile';
+                // System fallback: Gemini first, then Groq
+                if (process.env.GEMINI_API_KEY) {
+                    resolvedProvider = 'gemini';
+                    resolvedKey = process.env.GEMINI_API_KEY;
+                    resolvedModel = 'gemini-3.6-flash';
+                } else {
+                    resolvedProvider = 'groq';
+                    resolvedKey = process.env.VITE_GROQ_API_KEY;
+                    resolvedModel = 'llama-3.3-70b-versatile';
+                }
             }
         }
 

@@ -173,9 +173,11 @@ function buildEntityChildren(entity, colorScheme) {
 
         const prefix = field.isPrimary ? '🔑 ' : field.isForeign ? '🔗 ' : '     ';
         const label = `${prefix}${field.name}  :  ${field.type || ''}`.trim();
-        // cx offset: shift right by half of left-pad so text is inset from left edge
         const LEFT_PAD = 12;
-        children.push(makeText(LEFT_PAD / 2, rowCY, ENTITY_W - LEFT_PAD, FIELD_H, label, '#1E293B', 13, '600', 'left'));
+        // The group is centered at 0,0. Left edge is at -ENTITY_W/2. 
+        // With textAlign='left', x specifies the start anchor.
+        const textStartX = -ENTITY_W / 2 + LEFT_PAD;
+        children.push(makeText(textStartX, rowCY, ENTITY_W - LEFT_PAD, FIELD_H, label, '#1E293B', 13, '600', 'left'));
     });
 
     return { children, boxH };

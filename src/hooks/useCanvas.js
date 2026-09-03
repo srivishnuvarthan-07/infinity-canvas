@@ -98,7 +98,72 @@ export function useCanvas({ initialShapes = [], socket, boardId, readonly = fals
   const insertShapes = (newShapes) => {
     if (!newShapes || newShapes.length === 0) return;
     setShapes(prev => {
-      const next = [...prev, ...newShapes];
+      // Find bounding box of newShapes
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      newShapes.forEach(s => {
+         const px = s.position?.x || 0;
+         const py = s.position?.y || 0;
+         const w = s.size?.width || 0;
+         const h = s.size?.height || 0;
+         minX = Math.min(minX, px - w/2);
+         maxX = Math.max(maxX, px + w/2);
+         minY = Math.min(minY, py - h/2);
+         maxY = Math.max(maxY, py + h/2);
+      });
+      const newW = (maxX > minX && minX !== Infinity) ? maxX - minX : 400;
+      const newH = (maxY > minY && minY !== Infinity) ? maxY - minY : 400;
+
+      // Calculate viewport center
+      const screenW = typeof window !== 'undefined' ? window.innerWidth : 1000;
+      const screenH = typeof window !== 'undefined' ? window.innerHeight : 800;
+      const vX = customViewport?.x || 0;
+      const vY = customViewport?.y || 0;
+      const vZoom = customViewport?.zoom || 1;
+      
+      let targetX = (-vX + screenW / 2) / vZoom;
+      let targetY = (-vY + screenH / 2) / vZoom;
+
+      // Shift downwards if there's overlap
+      let overlap = true;
+      let maxAttempts = 20;
+      const PAD = 50;
+      
+      while (overlap && maxAttempts > 0) {
+         overlap = false;
+         for (const s of prev) {
+            const sx = s.position?.x || 0;
+            const sy = s.position?.y || 0;
+            const sw = s.size?.width || 0;
+            const sh = s.size?.height || 0;
+            
+            if (
+               Math.abs(sx - targetX) < (sw/2 + newW/2 + PAD) &&
+               Math.abs(sy - targetY) < (sh/2 + newH/2 + PAD)
+            ) {
+               overlap = true;
+               targetY = sy + sh/2 + newH/2 + PAD;
+               break;
+            }
+         }
+         maxAttempts--;
+      }
+      
+      const currentCenterX = (minX !== Infinity) ? (minX + maxX) / 2 : 0;
+      const currentCenterY = (minY !== Infinity) ? (minY + maxY) / 2 : 0;
+      const dx = targetX - currentCenterX;
+      const dy = targetY - currentCenterY;
+
+      const shiftedShapes = newShapes.map(s => {
+         if (s.position) {
+           return {
+             ...s,
+             position: { x: s.position.x + dx, y: s.position.y + dy }
+           };
+         }
+         return s;
+      });
+
+      const next = [...prev, ...shiftedShapes];
       saveState(next);
       return next;
     });

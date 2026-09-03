@@ -13,7 +13,7 @@ import { SignupModal } from "@/components/auth/SignupModal";
 import { LibraryAIPrompt } from "./LibraryAIPrompt";
 import { LibraryItemPreview } from "./LibraryItemPreview";
 
-import { FEATURED_SHAPES } from "@/lib/constants/featuredShapes";
+import { QUICK_ACCESS_SHAPES } from "@/lib/constants/featuredShapes";
 
 export function LibraryPanel({ 
     items, 
@@ -86,7 +86,7 @@ export function LibraryPanel({
 
     const activeList = useMemo(() => {
         let list = [];
-        if (selectedCategory === "featured") list = FEATURED_SHAPES;
+        if (selectedCategory === "featured") list = QUICK_ACCESS_SHAPES;
         else if (selectedCategory === "community") list = communityItems;
         else if (selectedCategory === "my-library") list = libraryItems;
         const q = searchQuery.toLowerCase();

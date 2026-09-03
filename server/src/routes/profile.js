@@ -191,7 +191,7 @@ router.get('/ai-config/usage', protect, async (req, res) => {
         count: freeUsage?.count || 0,
         resetDate: freeUsage?.resetDate,
         remaining,
-        unlimited: hasAnyKey
+        unlimited: true // Limits removed globally
     });
 });
 
