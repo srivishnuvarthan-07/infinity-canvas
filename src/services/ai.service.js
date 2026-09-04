@@ -156,13 +156,12 @@ questions that have absolutely no visual component. Questions that start with "e
 "how does", "describe", "show me", "walk me through" are ALWAYS diagram/explanation.
 
 DECISION ORDER — go through each category and pick the FIRST match:
-1. "chart"      → mentions bar chart, pie chart, line chart, scatter plot, data visualization, statistics, or metrics.
-2. "erd"        → mentions database, schema, tables, entities, SQL relationships
-3. "dsa"        → data structures (array, tree, graph, stack, queue, linked list, hash),
+1. "erd"        → mentions database, schema, tables, entities, SQL relationships
+2. "dsa"        → data structures (array, tree, graph, stack, queue, linked list, hash),
                   algorithms (sort, search, BFS, DFS, DP), LeetCode problems
-4. "comparison" → "X vs Y", "difference between", "compare X and Y" (2+ items being compared)
-5. "mindmap"    → "mind map", "brainstorm", "explore topic", "break down concept"
-6. "diagram"    → EVERYTHING ELSE that has any visual component:
+3. "comparison" → "X vs Y", "difference between", "compare X and Y" (2+ items being compared)
+4. "mindmap"    → "mind map", "brainstorm", "explore topic", "break down concept"
+5. "diagram"    → EVERYTHING ELSE that has any visual component:
                   - "how does X work" → explanation diagram
                   - "explain X"       → explanation diagram
                   - "what is X"       → explanation diagram
@@ -231,7 +230,7 @@ For "explanation" mode:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INTENT: <diagram|dsa|mindmap|comparison|erd|chart|non_visual>
+INTENT: <diagram|dsa|mindmap|comparison|erd|non_visual>
 
 <If diagram>
 DIAGRAM_MODE: <flowchart|explanation>
@@ -264,12 +263,6 @@ Criteria: (comma-separated comparison dimensions)
 Title: ...
 Description: ...
 </If erd>
-
-<If chart>
-ChartType: <bar|pie>
-Title: ...
-Description: ...
-</If chart>
 
 <If non_visual>
 Excuse: ...
@@ -338,32 +331,10 @@ RULES:
 2. Mark primary keys with isPrimary: true. Mark foreign keys with isForeign: true.
 3. Use standard SQL types: INT, VARCHAR(n), TEXT, BOOLEAN, TIMESTAMP, DECIMAL, etc.
 4. relationships[]: use "label" for cardinality ("1:N", "N:M", "1:1").
-5. Return raw JSON only. No markdown, no explanations.
+5. Keep field names short (under 15 characters) to prevent text overlapping in the UI.
+6. Return raw JSON only. No markdown, no explanations.
 `;
 
-
-// ── Chart System Instruction ───────────────────────────────────────────
-export const getChartSystemInstruction = () => `
-You are the Chart Visualizer AI for Infinity Canvas.
-Produce ONLY valid raw JSON matching this schema:
-
-{
-  "chartType": "bar", // or "pie"
-  "title": "Quarterly Sales",
-  "data": [
-    { "label": "Q1", "value": 120 },
-    { "label": "Q2", "value": 150 },
-    { "label": "Q3", "value": 90 },
-    { "label": "Q4", "value": 200 }
-  ]
-}
-
-RULES:
-1. chartType MUST be either "bar" or "pie".
-2. data array should have 3 to 8 items.
-3. Keep labels short (1-3 words).
-4. Return raw JSON only. No markdown fences.
-`;
 
 // ── Mind Map System Instruction ───────────────────────────────────────────
 export const getMindMapSystemInstruction = () => `
@@ -578,6 +549,7 @@ LIMITS
 
 
 import api from '@/lib/api';
+import { validateGraph } from '@/engine/ai/graph.schema';
 
 export class AIService {
   constructor() {}
@@ -605,7 +577,7 @@ export class AIService {
   async generateGraphJSON(prompt, retryCount = 0) {
     try {
       const expandedPlan = await this.expandPrompt(prompt);
-      const intentMatch = expandedPlan.match(/INTENT:\s*(diagram|dsa|mindmap|comparison|erd|chart|non_visual)/i);
+      const intentMatch = expandedPlan.match(/INTENT:\s*(diagram|dsa|mindmap|comparison|erd|non_visual)/i);
       let intentType = intentMatch ? intentMatch[1].toLowerCase() : 'diagram';
 
       // Safety net: if the LLM incorrectly returned non_visual, override to explanation diagram.
@@ -613,7 +585,6 @@ export class AIService {
         intentType = 'diagram';
       }
 
-      if (intentType === 'chart') return this.getChartJSON(expandedPlan);
       if (intentType === 'dsa') return this.getDSAGraphJSON(expandedPlan);
       if (intentType === 'mindmap') return this.getMindMapJSON(expandedPlan);
       if (intentType === 'comparison') return this.getComparisonJSON(expandedPlan);
@@ -630,6 +601,50 @@ export class AIService {
       console.error("AI Generation Error:", error);
       throw error;
     }
+  }
+
+  async _generateWithRepair(systemPrompt, initialUserPrompt, options = {}, validator = null, maxRetries = 2) {
+    let userPrompt = initialUserPrompt;
+    let lastError = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const resData = await this._apiCall(systemPrompt, userPrompt, options);
+
+        let text = resData.result?.trim() || "{}";
+        if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
+        
+        let parsedJSON;
+        try {
+          parsedJSON = JSON.parse(text);
+        } catch (parseErr) {
+          throw new Error(`JSON Parse Error: ${parseErr.message}`);
+        }
+
+        if (validator) {
+          const validation = validator(parsedJSON);
+          if (!validation.success) {
+            const errorDetails = validation.error?.issues?.map(i => `${i.path.join('.')}: ${i.message}`).join(', ') || 'Validation failed';
+            throw new Error(`Schema Validation Error: ${errorDetails}`);
+          }
+        }
+
+        return {
+          data: parsedJSON,
+          meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
+        };
+
+      } catch (error) {
+        lastError = error;
+        console.warn(`AI Generation Attempt ${attempt + 1} failed:`, error.message);
+        
+        if (attempt < maxRetries) {
+          userPrompt = `${initialUserPrompt}\n\n--- IMPORTANT SYSTEM FEEDBACK ON PREVIOUS ATTEMPT ---\nYour previous response failed with the following error:\n${error.message}\n\nPlease fix this error and ensure you return ONLY valid, raw JSON matching the exact schema.`;
+        }
+      }
+    }
+
+    throw lastError;
   }
 
   async getFlowchartJSON(prompt) {
@@ -652,85 +667,49 @@ export class AIService {
     const modeMatch = expandedPlan.match(/DSA_MODE:\s*(snapshot|trace|compare|leetcode)/i);
     const dsaMode   = modeMatch ? modeMatch[1].toLowerCase() : 'snapshot';
 
-    const resData = await this._apiCall(
+    const result = await this._generateWithRepair(
       getDSASystemInstruction(),
       `DSA_MODE: ${dsaMode}\n\nVisualize the following DSA concept:\n\n${expandedPlan}`,
       { response_format: { type: "json_object" } }
     );
-    let text = resData.result?.trim() || "{}";
-    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-    return {
-      intent_type: "dsa",
-      dsa: JSON.parse(text),
-      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-    };
+    return { intent_type: "dsa", dsa: result.data, meta: result.meta };
   }
 
   async getMindMapJSON(expandedPlan) {
-    const resData = await this._apiCall(getMindMapSystemInstruction(), `Create a mind map for the following topic:\n\n${expandedPlan}`, {
-      response_format: { type: "json_object" }
-    });
-    let text = resData.result?.trim() || "{}";
-    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-    return {
-      intent_type: "mindmap",
-      mindmap: JSON.parse(text),
-      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-    };
+    const result = await this._generateWithRepair(
+      getMindMapSystemInstruction(),
+      `Create a mind map for the following topic:\n\n${expandedPlan}`,
+      { response_format: { type: "json_object" } }
+    );
+    return { intent_type: "mindmap", mindmap: result.data, meta: result.meta };
   }
 
-  async getChartJSON(expandedPlan) {
-    const resData = await this._apiCall(getChartSystemInstruction(), `Create a chart for:\n\n${expandedPlan}`, {
-      response_format: { type: "json_object" }
-    });
-    let text = resData.result?.trim() || "{}";
-    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-    return {
-      intent_type: "chart",
-      chart: JSON.parse(text),
-      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-    };
-  }
 
   async getComparisonJSON(expandedPlan) {
-    const resData = await this._apiCall(getComparisonSystemInstruction(), `Create a comparison table for:\n\n${expandedPlan}`, {
-      response_format: { type: "json_object" }
-    });
-    let text = resData.result?.trim() || "{}";
-    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-    return {
-      intent_type: "comparison",
-      comparison: JSON.parse(text),
-      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-    };
+    const result = await this._generateWithRepair(
+      getComparisonSystemInstruction(),
+      `Create a comparison table for:\n\n${expandedPlan}`,
+      { response_format: { type: "json_object" } }
+    );
+    return { intent_type: "comparison", comparison: result.data, meta: result.meta };
   }
 
   async getERDJSON(expandedPlan) {
-    const resData = await this._apiCall(getERDSystemInstruction(), `Create an ERD for:\n\n${expandedPlan}`, {
-      response_format: { type: "json_object" }
-    });
-    let text = resData.result?.trim() || "{}";
-    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-    return {
-      intent_type: "erd",
-      erd: JSON.parse(text),
-      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-    };
+    const result = await this._generateWithRepair(
+      getERDSystemInstruction(),
+      `Create an ERD for:\n\n${expandedPlan}`,
+      { response_format: { type: "json_object" } }
+    );
+    return { intent_type: "erd", erd: result.data, meta: result.meta };
   }
 
   async getDiagramExplanationJSON(expandedPlan) {
-    const resData = await this._apiCall(
+    const result = await this._generateWithRepair(
       getDiagramExplanationInstruction(),
       `Create an explanation diagram for:\n\n${expandedPlan}`,
       { response_format: { type: "json_object" } }
     );
-    let text = resData.result?.trim() || "{}";
-    if (text.startsWith("```")) text = text.replace(/^```(json)?\n?/, "").replace(/\n?```$/, "");
-    return {
-      intent_type: "diagram",
-      graph: JSON.parse(text),
-      meta: { provider: resData.provider, model: resData.model, remaining: resData.remaining }
-    };
+    return { intent_type: "diagram", graph: result.data, meta: result.meta };
   }
 }
 

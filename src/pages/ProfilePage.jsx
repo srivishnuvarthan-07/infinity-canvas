@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useBoardStore } from '@/hooks/useBoardStore';
+import { useLibraryStore } from '@/hooks/useLibraryStore';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Star, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -20,6 +22,9 @@ const COLORS = [
 
 export default function ProfilePage() {
     const { user, checkAuth } = useAuth();
+    const { localBoards, cloudBoards } = useBoardStore();
+    const { libraryItems } = useLibraryStore();
+
     const [activeTab, setActiveTab] = useState('profile');
     const [loading, setLoading] = useState(false);
     const [savedState, setSavedState] = useState(false);
@@ -28,6 +33,11 @@ export default function ProfilePage() {
     const [name, setName] = useState('');
     const [avatarColor, setAvatarColor] = useState('#7F77DD');
     const [defaultStorage, setDefaultStorage] = useState('cloud');
+
+    // Real Stats
+    const boardsCount = localBoards.length + cloudBoards.length;
+    const aiDiagramCount = useMemo(() => libraryItems.filter(i => i.source === 'AI').length, [libraryItems]);
+    const libraryShapeCount = libraryItems.length;
 
     useEffect(() => {
         if (user) {
@@ -161,15 +171,15 @@ export default function ProfilePage() {
                         {/* Stats Row */}
                         <div className="grid grid-cols-3 border-b border-white/80 bg-white/20">
                             <div className="p-6 border-r border-white/80 text-center hover:bg-white/40 transition-colors">
-                                <div className="text-3xl font-black text-neutral-900 tracking-tight">12</div>
+                                <div className="text-3xl font-black text-neutral-900 tracking-tight">{boardsCount}</div>
                                 <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-1">Boards</div>
                             </div>
                             <div className="p-6 border-r border-white/80 text-center hover:bg-white/40 transition-colors">
-                                <div className="text-3xl font-black text-neutral-900 tracking-tight">34</div>
+                                <div className="text-3xl font-black text-neutral-900 tracking-tight">{aiDiagramCount}</div>
                                 <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-1">AI diagrams</div>
                             </div>
                             <div className="p-6 text-center hover:bg-white/40 transition-colors">
-                                <div className="text-3xl font-black text-neutral-900 tracking-tight">18</div>
+                                <div className="text-3xl font-black text-neutral-900 tracking-tight">{libraryShapeCount}</div>
                                 <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-1">Library shapes</div>
                             </div>
                         </div>

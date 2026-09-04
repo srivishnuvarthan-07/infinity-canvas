@@ -10,7 +10,6 @@ import { generateDSAShapes } from '@/engine/ai/dsa.generator';
 import { generateMindMapShapes } from '@/engine/ai/mindmap.generator';
 import { generateComparisonShapes } from '@/engine/ai/comparison.generator';
 import { generateERDShapes } from '@/engine/ai/erd.generator';
-import { generateChartShapes } from '@/engine/ai/chart.generator';
 import { validateGraph } from '@/engine/ai/graph.schema';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -65,9 +64,6 @@ export function AIPanel({ onClose, onInsertShapes, onAddToLibrary, usageInfo, is
             // Type-forced: bypass intent classifier and call generator directly
             if (selectedType !== 'auto') {
                 switch (selectedType) {
-                    case 'chart':
-                        intent = await aiService.getChartJSON(prompt);
-                        break;
                     case 'erd':
                         intent = await aiService.getERDJSON(prompt);
                         break;
@@ -102,9 +98,6 @@ export function AIPanel({ onClose, onInsertShapes, onAddToLibrary, usageInfo, is
             } else if (intent.intent_type === 'comparison') {
                 shapes = generateComparisonShapes(intent);
                 label = 'AI Comparison';
-            } else if (intent.intent_type === 'chart') {
-                shapes = generateChartShapes(intent);
-                label = 'AI Chart';
             } else if (intent.intent_type === 'erd') {
                 shapes = generateERDShapes(intent);
                 label = 'AI ERD';
@@ -115,20 +108,22 @@ export function AIPanel({ onClose, onInsertShapes, onAddToLibrary, usageInfo, is
                 shapes = generateDSAShapes(intent);
                 label = 'AI DSA Diagram';
             } else if (intent.intent_type === 'diagram') {
-                const isExplanation = intent.graph?.diagramMode === 'explanation';
-                if (!isExplanation) {
-                    const validation = validateGraph(intent.graph);
-                    if (!validation.success) {
-                        toast.error('AI returned an invalid diagram format. Please try again.');
-                        setIsGenerating(false);
-                        return;
-                    }
-                }
                 shapes = generateDiagramShapes(intent);
                 label = 'AI Diagram';
             }
 
             if (shapes?.length) {
+                // Recursively sort shapes by zIndex so that arrows (zIndex: -1) are rendered below nodes
+                const sortShapesByZIndex = (shapeArray) => {
+                    shapeArray.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+                    shapeArray.forEach(shape => {
+                        if (shape.children && Array.isArray(shape.children)) {
+                            sortShapesByZIndex(shape.children);
+                        }
+                    });
+                };
+                sortShapesByZIndex(shapes);
+
                 setGeneratedShapes(shapes);
                 setGeneratedLabel(label);
             } else {

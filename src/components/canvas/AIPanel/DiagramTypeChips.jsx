@@ -7,12 +7,7 @@ export const DIAGRAM_TYPES = [
         icon: Sparkles,
         placeholder: 'Describe any diagram, flowchart, ERD, mind map, or DSA structure…',
     },
-    {
-        id: 'chart',
-        label: 'Chart',
-        icon: PieChart,
-        placeholder: 'Describe a bar chart or pie chart to visualize data...',
-    },
+
     {
         id: 'flowchart',
         label: 'Flowchart',
